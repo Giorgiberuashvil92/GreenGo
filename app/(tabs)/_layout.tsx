@@ -1,0 +1,85 @@
+import Feather from "@expo/vector-icons/Feather";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
+import { Tabs } from "expo-router";
+import React from "react";
+
+export default function TabLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: "#4CAF50",
+        tabBarInactiveTintColor: "#9E9E9E",
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 1,
+          borderTopColor: "#E0E0E0",
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "500",
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "მთავარი",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons size={size} name="home" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="restaurants"
+        options={{
+          title: "რესტორნები",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="silverware-fork-knife"
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: "ძიება",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="search" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: "შეკვეთები",
+          tabBarIcon: ({ color, size }) => (
+            <SimpleLineIcons name="note" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "ანგარიში",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="face-man-profile"
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
