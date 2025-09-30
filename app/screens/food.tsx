@@ -10,11 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { foodItems } from "../../assets/data/foodItems";
 
 const FoodScreen = () => {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -84,7 +85,7 @@ const FoodScreen = () => {
           </View>
         ))}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 

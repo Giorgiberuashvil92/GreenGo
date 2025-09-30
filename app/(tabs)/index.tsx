@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryTabs from "../../components/CategoryTabs";
 import GreetingSection from "../../components/GreetingSection";
 import Header from "../../components/Header";
@@ -9,7 +10,7 @@ import PromotionalBanner from "../../components/PromotionalBanner";
 
 export default function HomeScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <ScrollView
         style={styles.scrollView}
@@ -22,7 +23,7 @@ export default function HomeScreen() {
         <PromotionalBanner />
         <PopularObjects />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
