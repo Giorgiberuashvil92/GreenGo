@@ -8,6 +8,7 @@ export const categories = [
     id: "food",
     name: "კვება",
     icon: require("@/assets/images/categories/food.png"),
+    link: "/screens/food",
   },
   {
     id: "flowers",

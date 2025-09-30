@@ -1,4 +1,5 @@
 import { categories } from "@/assets/data/categories";
+import { router } from "expo-router";
 import React from "react";
 import {
   Image,
@@ -24,6 +25,11 @@ export default function CategoryTabs() {
               styles.categoryButton,
               index === 0 && styles.activeCategoryButton,
             ]}
+            onPress={() => {
+              if (category.link) {
+                router.push(category.link as any);
+              }
+            }}
           >
             <Image source={category.icon} style={styles.categoryIcon} />
             <Text

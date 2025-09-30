@@ -10,7 +10,7 @@ import PromotionalBanner from "../../components/PromotionalBanner";
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
-      <StatusBar />
+      <StatusBar style="dark" />
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
