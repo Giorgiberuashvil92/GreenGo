@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+// import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
@@ -93,7 +93,7 @@ const VerificationScreen = () => {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#4CAF50" />
+            <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
         </View>
 
@@ -102,13 +102,8 @@ const VerificationScreen = () => {
           <View style={styles.logoSection}>
             <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
-                <Ionicons name="location" size={32} color="#4CAF50" />
-                <Ionicons
-                  name="flash"
-                  size={16}
-                  color="#FFC107"
-                  style={styles.lightningIcon}
-                />
+                <Text style={styles.logoIconText}>📍</Text>
+                <Text style={styles.lightningIcon}>⚡</Text>
               </View>
               <View style={styles.logoText}>
                 <Text style={styles.greenText}>Green</Text>
@@ -195,6 +190,11 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
   },
+  backButtonText: {
+    fontSize: 24,
+    color: "#4CAF50",
+    fontWeight: "bold",
+  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
@@ -216,10 +216,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     position: "relative",
   },
+  logoIconText: {
+    fontSize: 24,
+  },
   lightningIcon: {
     position: "absolute",
     top: 6,
     right: 6,
+    fontSize: 12,
   },
   logoText: {
     flexDirection: "row",

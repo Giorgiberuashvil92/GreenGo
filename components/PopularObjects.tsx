@@ -1,4 +1,6 @@
-import React from "react";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import {
   Image,
   ScrollView,
@@ -7,36 +9,52 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { IconSymbol } from "./ui/icon-symbol";
-
-const popularObjects = [
-  {
-    id: 1,
-    name: "მაგნოლია",
-    logo: require("@/assets/images/magnolia.png"),
-    rating: 4.6,
-    deliveryFee: "4,99₾",
-    deliveryTime: "20-30 წუთი",
-    isDark: false,
-  },
-  {
-    id: 2,
-    name: "იმერული ესკიზი",
-    logo: require("@/assets/images/eskizi.png"),
-    rating: 4.5,
-    deliveryFee: "4,99₾",
-    deliveryTime: "20-30 წუთი",
-    isDark: true,
-  },
-];
+import { restaurantsData } from "../assets/data/restaurantsData";
 
 export default function PopularObjects() {
+  const router = useRouter();
+  const [likedItems, setLikedItems] = useState<Set<string>>(
+    new Set(
+      restaurantsData
+        .filter((restaurant) => restaurant.isLiked)
+        .map((restaurant) => restaurant.id)
+    )
+  );
+
+  const toggleLike = (id: string) => {
+    setLikedItems((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const navigateToRestaurant = (restaurantId: string) => {
+    router.push({
+      pathname: "/screens/restaurant",
+      params: { restaurantId },
+    });
+  };
+
   return (
     <View style={styles.popularContainer}>
       <View style={styles.popularHeader}>
         <Text style={styles.popularTitle}>პოპულარული ობიექტები</Text>
-        <TouchableOpacity>
-          <Text style={styles.seeAllText}>სრულად {">"}</Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#EFFBF5",
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 12,
+          }}
+        >
+          <Text style={styles.seeAllText}>
+            სრულად <Feather name="arrow-right" size={14} color="#4CAF50" />
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -45,49 +63,58 @@ export default function PopularObjects() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.popularScrollContent}
       >
-        {popularObjects.map((object) => (
-          <TouchableOpacity key={object.id} style={styles.popularCard}>
-            <View
-              style={[
-                styles.cardTopSection,
-                object.isDark && styles.cardTopSectionDark,
-              ]}
-            >
-              <View style={styles.logoContainer}>
-                <Image source={object.logo} style={styles.cardLogo} />
-                <Text
-                  style={[
-                    styles.logoText,
-                    object.isDark && styles.logoTextGreen,
-                  ]}
-                >
-                  {object.isDark ? object.name : "MAGNOLIA"}
-                </Text>
-                <Text
-                  style={[
-                    styles.logoSubtext,
-                    object.isDark && styles.logoSubtextGreen,
-                  ]}
-                >
-                  {object.isDark ? "ქართული რესტორანი" : "RESTAURANT"}
+        {restaurantsData.map((restaurant) => (
+          <TouchableOpacity
+            key={restaurant.id}
+            style={styles.popularCard}
+            onPress={() => navigateToRestaurant(restaurant.id)}
+          >
+            {/* Image Section */}
+            <View style={styles.imageContainer}>
+              <Image source={restaurant.image} style={styles.cardImage} />
+
+              {/* Delivery Time Overlay */}
+              <View style={styles.deliveryTimeOverlay}>
+                <Ionicons name="time-outline" size={12} color="#666666" />
+                <Text style={styles.deliveryTimeText}>
+                  {restaurant.deliveryTime} წუთი
                 </Text>
               </View>
-              <View style={styles.ratingBadge}>
-                <IconSymbol name="star.fill" size={12} color="#FFD700" />
-                <Text style={styles.ratingText}>{object.rating}</Text>
-              </View>
+
+              {/* Like Button */}
+              <TouchableOpacity
+                style={styles.likeButton}
+                onPress={() => toggleLike(restaurant.id)}
+              >
+                {likedItems.has(restaurant.id) ? (
+                  <Feather name="heart" size={20} color="#FF3B30" />
+                ) : (
+                  <Feather name="heart" size={20} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
             </View>
+
+            {/* Bottom Section */}
             <View style={styles.cardBottomSection}>
-              <Text style={styles.restaurantName}>{object.name}</Text>
+              <Text style={styles.restaurantName}>{restaurant.name}</Text>
+              <Text style={styles.restaurantCategory}>რესტორანი</Text>
+
+              {/* Dashed Line */}
               <View style={styles.dashedLine} />
-              <View style={styles.deliveryInfo}>
-                <View style={styles.deliveryItem}>
-                  <IconSymbol name="truck.fill" size={12} color="#9B9B9B" />
-                  <Text style={styles.deliveryText}>{object.deliveryFee}</Text>
+
+              {/* Delivery and Rating Info */}
+              <View style={styles.bottomInfo}>
+                <View style={styles.deliveryInfo}>
+                  <Ionicons name="car-outline" size={12} color="#9B9B9B" />
+                  <Text style={styles.deliveryText}>
+                    {restaurant.deliveryFee.toFixed(2)}₾
+                  </Text>
                 </View>
-                <View style={styles.deliveryItem}>
-                  <IconSymbol name="clock.fill" size={12} color="#9B9B9B" />
-                  <Text style={styles.deliveryText}>{object.deliveryTime}</Text>
+                <View style={styles.ratingInfo}>
+                  <Ionicons name="star" size={12} color="#FFD700" />
+                  <Text style={styles.ratingText}>
+                    {restaurant.rating} ({restaurant.reviewCount})
+                  </Text>
                 </View>
               </View>
             </View>
@@ -100,7 +127,7 @@ export default function PopularObjects() {
 
 const styles = StyleSheet.create({
   popularContainer: {
-    marginBottom: 20,
+    marginBottom: 40,
   },
   popularHeader: {
     flexDirection: "row",
@@ -112,88 +139,63 @@ const styles = StyleSheet.create({
   popularTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333333",
+    color: "#181B1A",
   },
   seeAllText: {
     fontSize: 14,
     color: "#4CAF50",
     fontWeight: "500",
+    lineHeight: 17,
   },
   popularScrollContent: {
     paddingHorizontal: 20,
   },
   popularCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    marginRight: 12,
-    width: 160,
+    borderRadius: 15,
+    borderWidth: 0.5,
+    borderColor: "#B3B3B3",
+    marginRight: 16,
+    width: 200,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  cardTopSection: {
-    backgroundColor: "#F5F5DC",
-    padding: 16,
-    paddingBottom: 20,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+  imageContainer: {
     position: "relative",
-    height: 100,
+    height: 140,
   },
-  cardTopSectionDark: {
-    backgroundColor: "#2C2C2C",
+  cardImage: {
+    width: "100%",
+    height: "100%",
+    // resizeMode: "cover",
   },
-  logoContainer: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center",
-  },
-  cardLogo: {
-    width: 30,
-    height: 30,
-    resizeMode: "contain",
-    marginBottom: 8,
-  },
-  logoText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#8B4513",
-    textAlign: "center",
-    marginBottom: 2,
-  },
-  logoTextGreen: {
-    color: "#90EE90",
-  },
-  logoSubtext: {
-    fontSize: 8,
-    color: "#A0522D",
-    textAlign: "center",
-  },
-  logoSubtextGreen: {
-    color: "#98FB98",
-  },
-  ratingBadge: {
+  deliveryTimeOverlay: {
     position: "absolute",
-    bottom: 8,
-    right: 8,
-    backgroundColor: "#F0F0F0",
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    top: 0,
+    left: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderTopLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     flexDirection: "row",
     alignItems: "center",
   },
-  ratingText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#333333",
-    marginLeft: 2,
+  deliveryTimeText: {
+    fontSize: 12,
+    color: "#666666",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  likeButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "transparent",
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardBottomSection: {
     padding: 16,
@@ -203,25 +205,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#333333",
-    marginBottom: 8,
+    marginBottom: 2,
+  },
+  restaurantCategory: {
+    fontSize: 14,
+    color: "#666666",
+    marginBottom: 12,
   },
   dashedLine: {
     height: 1,
     backgroundColor: "#E0E0E0",
-    marginBottom: 8,
+    marginBottom: 12,
     borderStyle: "dashed",
   },
-  deliveryInfo: {
+  bottomInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
   },
-  deliveryItem: {
+  deliveryInfo: {
     flexDirection: "row",
     alignItems: "center",
   },
   deliveryText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#9B9B9B",
     marginLeft: 4,
+    fontWeight: "500",
+  },
+  ratingInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ratingText: {
+    fontSize: 12,
+    color: "#333333",
+    marginLeft: 4,
+    fontWeight: "500",
   },
 });

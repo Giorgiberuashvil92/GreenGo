@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+// import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
@@ -54,13 +54,8 @@ const LoginScreen = () => {
         <View style={styles.logoSection}>
           <View style={styles.logoContainer}>
             <View style={styles.logoIcon}>
-              <Ionicons name="location" size={32} color="#4CAF50" />
-              <Ionicons
-                name="flash"
-                size={16}
-                color="#FFC107"
-                style={styles.lightningIcon}
-              />
+              <Text style={styles.logoIconText}>📍</Text>
+              <Text style={styles.lightningIcon}>⚡</Text>
             </View>
             <View style={styles.logoText}>
               <Text style={styles.greenText}>Green</Text>
@@ -79,7 +74,7 @@ const LoginScreen = () => {
                 <Text style={styles.flagText}>🇬🇪</Text>
               </View>
               <Text style={styles.countryCode}>+995</Text>
-              <Ionicons name="chevron-down" size={16} color="#666" />
+              <Text style={styles.chevronIcon}>▼</Text>
             </View>
 
             {/* Phone Number Input */}
@@ -158,10 +153,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     position: "relative",
   },
+  logoIconText: {
+    fontSize: 32,
+  },
   lightningIcon: {
     position: "absolute",
     top: 8,
     right: 8,
+    fontSize: 16,
+  },
+  chevronIcon: {
+    fontSize: 16,
+    color: "#666",
   },
   logoText: {
     flexDirection: "row",

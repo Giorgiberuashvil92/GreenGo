@@ -1,20 +1,26 @@
-import AntDesign from "@expo/vector-icons/AntDesign";
-import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function Header() {
   return (
     <View style={styles.container}>
       <View style={styles.locationContainer}>
-        <FontAwesome6 name="location-dot" size={20} color="#00592D" />
+        <Image
+          source={require("../assets/images/icons/pin.png")}
+          width={36}
+          height={36}
+        />
         <View style={styles.locationTextContainer}>
           <Text style={styles.streetText}>4 შანიძის ქუჩა</Text>
           <Text style={styles.cityText}>წყალტუბო</Text>
         </View>
       </View>
       <TouchableOpacity style={styles.cartButton}>
-        <AntDesign name="shopping-cart" size={24} color="#00592D" />
+        <Image
+          source={require("../assets/images/icons/cart.png")}
+          width={36}
+          height={36}
+        />
       </TouchableOpacity>
     </View>
   );
@@ -40,7 +46,7 @@ const styles = StyleSheet.create({
   streetText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333333",
+    color: "#181B1A",
   },
   cityText: {
     fontSize: 14,

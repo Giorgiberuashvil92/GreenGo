@@ -23,7 +23,7 @@ export default function CategoryTabs() {
             key={category.id}
             style={[
               styles.categoryButton,
-              index === 0 && styles.activeCategoryButton,
+              { backgroundColor: category.bgColor },
             ]}
             onPress={() => {
               if (category.link) {
@@ -35,7 +35,7 @@ export default function CategoryTabs() {
             <Text
               style={[
                 styles.categoryText,
-                index === 0 && styles.activeCategoryText,
+                // index === 0 && styles.activeCategoryText,
               ]}
             >
               {category.name}
@@ -63,20 +63,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 12,
   },
-  activeCategoryButton: {
-    backgroundColor: "#E8F5E8",
-  },
+
   categoryIcon: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     marginRight: 8,
   },
   categoryText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "500",
-    color: "#666666",
+    color: "#181B1A",
   },
-  activeCategoryText: {
-    color: "#4CAF50",
-  },
+  // activeCategoryText: {
+  //   color: "#4CAF50",
+  // },
 });

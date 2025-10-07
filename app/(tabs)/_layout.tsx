@@ -1,7 +1,4 @@
-import Feather from "@expo/vector-icons/Feather";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 
@@ -31,7 +28,7 @@ export default function TabLayout() {
         options={{
           title: "მთავარი",
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons size={size} name="home" color={color} />
+            <MaterialIcons name="home" size={size} color={color} />
           ),
         }}
       />
@@ -40,11 +37,7 @@ export default function TabLayout() {
         options={{
           title: "რესტორნები",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons
-              name="silverware-fork-knife"
-              size={size}
-              color={color}
-            />
+            <MaterialIcons name="restaurant" size={size} color={color} />
           ),
         }}
       />
@@ -54,7 +47,7 @@ export default function TabLayout() {
         options={{
           title: "ძიება",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="search" size={size} color={color} />
+            <Ionicons name="search" size={size} color={color} />
           ),
         }}
       />
@@ -63,7 +56,7 @@ export default function TabLayout() {
         options={{
           title: "შეკვეთები",
           tabBarIcon: ({ color, size }) => (
-            <SimpleLineIcons name="note" size={size} color={color} />
+            <MaterialIcons name="receipt" size={size} color={color} />
           ),
         }}
       />
@@ -72,11 +65,7 @@ export default function TabLayout() {
         options={{
           title: "ანგარიში",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons
-              name="face-man-profile"
-              size={size}
-              color={color}
-            />
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

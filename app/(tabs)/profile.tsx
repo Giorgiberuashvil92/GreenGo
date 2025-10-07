@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+// import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -44,7 +44,7 @@ export default function ProfileScreen() {
       <View style={styles.content}>
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
-            <Ionicons name="person" size={60} color="#4CAF50" />
+            <Text style={styles.avatarText}>👤</Text>
           </View>
           <Text style={styles.profileName}>მომხმარებელი</Text>
           <Text style={styles.profileEmail}>user@example.com</Text>
@@ -53,39 +53,39 @@ export default function ProfileScreen() {
         {/* Menu Items */}
         <View style={styles.menuSection}>
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="person-outline" size={24} color="#333" />
+            <Text style={styles.menuIcon}>👤</Text>
             <Text style={styles.menuText}>პროფილის რედაქტირება</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Text style={styles.chevronIcon}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="location-outline" size={24} color="#333" />
+            <Text style={styles.menuIcon}>📍</Text>
             <Text style={styles.menuText}>მისამართები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Text style={styles.chevronIcon}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="card-outline" size={24} color="#333" />
+            <Text style={styles.menuIcon}>💳</Text>
             <Text style={styles.menuText}>გადახდის მეთოდები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Text style={styles.chevronIcon}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="notifications-outline" size={24} color="#333" />
+            <Text style={styles.menuIcon}>🔔</Text>
             <Text style={styles.menuText}>შეტყობინებები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Text style={styles.chevronIcon}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="help-circle-outline" size={24} color="#333" />
+            <Text style={styles.menuIcon}>❓</Text>
             <Text style={styles.menuText}>დახმარება</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Text style={styles.chevronIcon}>›</Text>
           </TouchableOpacity>
         </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#FF4444" />
+          <Text style={styles.logoutIcon}>🚪</Text>
           <Text style={styles.logoutText}>გასვლა</Text>
         </TouchableOpacity>
       </View>
@@ -129,6 +129,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  avatarText: {
+    fontSize: 60,
+  },
   profileName: {
     fontSize: 20,
     fontWeight: "600",
@@ -149,11 +152,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F5F5F5",
   },
+  menuIcon: {
+    fontSize: 24,
+    width: 24,
+    textAlign: "center",
+  },
   menuText: {
     flex: 1,
     fontSize: 16,
     color: "#333",
     marginLeft: 16,
+  },
+  chevronIcon: {
+    fontSize: 20,
+    color: "#999",
   },
   logoutButton: {
     flexDirection: "row",
@@ -165,6 +177,9 @@ const styles = StyleSheet.create({
     borderColor: "#FF4444",
     borderRadius: 12,
     backgroundColor: "#FFF5F5",
+  },
+  logoutIcon: {
+    fontSize: 24,
   },
   logoutText: {
     fontSize: 16,

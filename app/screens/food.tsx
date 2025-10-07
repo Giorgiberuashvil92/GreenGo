@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+// import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import React from "react";
@@ -22,7 +22,7 @@ const FoodScreen = () => {
           style={styles.backButton}
           onPress={() => router.push("/(tabs)")}
         >
-          <Ionicons name="arrow-back" size={24} color="#4CAF50" />
+          <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
 
         <View style={styles.addressContainer}>
@@ -31,7 +31,7 @@ const FoodScreen = () => {
         </View>
 
         <TouchableOpacity style={styles.cartButton}>
-          <Ionicons name="bag-outline" size={24} color="#4CAF50" />
+          <Text style={styles.cartButtonText}>🛍️</Text>
         </TouchableOpacity>
       </View>
 
@@ -52,7 +52,7 @@ const FoodScreen = () => {
 
             {/* Favorite Button */}
             <TouchableOpacity style={styles.favoriteButton}>
-              <Ionicons name="heart-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.favoriteButtonText}>♡</Text>
             </TouchableOpacity>
 
             <BlurView intensity={40} tint="dark" style={styles.infoOverlay}>
@@ -64,19 +64,19 @@ const FoodScreen = () => {
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   {/* ფასი */}
                   <View style={styles.infoItem}>
-                    <Ionicons name="cash-outline" size={14} color="#fff" />
+                    <Text style={styles.infoIcon}>💰</Text>
                     <Text style={styles.infoText}>{item.price}₾</Text>
                   </View>
 
                   {/* დრო */}
                   <View style={styles.infoItem}>
-                    <Ionicons name="time-outline" size={14} color="#fff" />
+                    <Text style={styles.infoIcon}>⏰</Text>
                     <Text style={styles.infoText}>{item.deliveryTime}</Text>
                   </View>
 
                   {/* რეიტინგი */}
                   <View style={styles.infoItem}>
-                    <Ionicons name="star" size={14} color="#FFD700" />
+                    <Text style={styles.infoIcon}>⭐</Text>
                     <Text style={styles.infoText}>{item.rating}</Text>
                   </View>
                 </View>
@@ -105,6 +105,11 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
   },
+  backButtonText: {
+    fontSize: 24,
+    color: "#4CAF50",
+    fontWeight: "bold",
+  },
   addressContainer: {
     flex: 1,
     alignItems: "center",
@@ -121,6 +126,9 @@ const styles = StyleSheet.create({
   },
   cartButton: {
     padding: 8,
+  },
+  cartButtonText: {
+    fontSize: 24,
   },
   sectionTitleContainer: {
     paddingHorizontal: 20,
@@ -165,6 +173,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 8,
   },
+  favoriteButtonText: {
+    fontSize: 20,
+    color: "#FFFFFF",
+  },
   infoOverlay: {
     position: "absolute",
     bottom: 0,
@@ -195,6 +207,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginLeft: 10,
+  },
+  infoIcon: {
+    fontSize: 14,
+    marginRight: 4,
   },
   infoText: {
     fontSize: 12,

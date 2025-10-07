@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/build/Feather";
 import React from "react";
 import {
   StyleSheet,
@@ -12,7 +13,9 @@ export default function GreetingSection() {
   return (
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
-        <Text style={styles.greetingText}>გამარჯობა! დათო</Text>
+        <Text style={[styles.greetingText, { color: "#2F80ED" }]}>
+          გამარჯობა! <Text style={{ color: "#00592D" }}>დათო</Text>
+        </Text>
         <Text style={styles.waveText}>👋</Text>
       </View>
       <Text style={styles.subtitleText}>
@@ -21,17 +24,17 @@ export default function GreetingSection() {
 
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <IconSymbol name="magnifyingglass" size={20} color="#9E9E9E" />
+          <Feather name="search" size={22} color="#4A8F70" />
           <TextInput
             style={styles.searchInput}
-            placeholder="რესტორნები,მაღაზიები,ხელნაკეთი ნივ..."
+            placeholder="რესტორნები, მაღაზიები, ხელნა..."
             placeholderTextColor="#9E9E9E"
           />
           <TouchableOpacity style={styles.filterButton}>
             <IconSymbol
               name="line.3.horizontal.decrease"
-              size={20}
-              color="#9E9E9E"
+              size={22}
+              color="#4A8F70"
             />
           </TouchableOpacity>
         </View>
@@ -56,8 +59,7 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#333333",
+    fontWeight: "bold",
   },
   waveText: {
     fontSize: 20,
@@ -65,8 +67,9 @@ const styles = StyleSheet.create({
   },
   subtitleText: {
     fontSize: 14,
-    color: "#333333",
-    marginBottom: 16,
+    color: "#666666",
+    marginBottom: 12,
+    lineHeight: 20,
   },
   searchContainer: {
     width: "100%",
@@ -81,7 +84,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 2,
     fontSize: 14,
     color: "#333333",
   },
