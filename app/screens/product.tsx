@@ -60,34 +60,34 @@ export default function ProductScreen() {
     }
   };
 
-  const getIngredientIcon = (iconName: string) => {
-    switch (iconName) {
-      case "ketchup":
-        return "🔴";
-      case "mayonnaise":
-        return "⚪";
-      case "onion":
-        return "🟤";
-      case "lettuce":
-        return "🟢";
-      case "chili":
-        return "🔴";
-      case "pepperoni":
-        return "🔴";
-      case "cheese":
-        return "🟡";
-      case "herbs":
-        return "🟢";
-      case "sauce":
-        return "🔴";
-      case "bacon":
-        return "🟤";
-      case "tomato":
-        return "🔴";
-      default:
-        return "";
-    }
-  };
+  // const getIngredientIcon = (iconName: string) => {
+  //   switch (iconName) {
+  //     case "ketchup":
+  //       return "🔴";
+  //     case "mayonnaise":
+  //       return "⚪";
+  //     case "onion":
+  //       return "🟤";
+  //     case "lettuce":
+  //       return "🟢";
+  //     case "chili":
+  //       return "🔴";
+  //     case "pepperoni":
+  //       return "🔴";
+  //     case "cheese":
+  //       return "🟡";
+  //     case "herbs":
+  //       return "🟢";
+  //     case "sauce":
+  //       return "🔴";
+  //     case "bacon":
+  //       return "🟤";
+  //     case "tomato":
+  //       return "🔴";
+  //     default:
+  //       return "";
+  //   }
+  // };
 
   const selectedDrinkData = selectedDrink
     ? product.drinks.find((d) => d.id === selectedDrink)
@@ -153,11 +153,11 @@ export default function ProductScreen() {
                 </View>
                 <Text style={styles.ingredientName}>{ingredient.name}</Text>
               </View>
-              {ingredient.icon && (
+              {/* {ingredient.icon && (
                 <Text style={styles.ingredientIcon}>
                   {getIngredientIcon(ingredient.icon)}
                 </Text>
-              )}
+              )} */}
             </TouchableOpacity>
           ))}
         </View>

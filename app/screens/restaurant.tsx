@@ -21,6 +21,7 @@ export default function RestaurantScreen() {
   const restaurant = restaurantsData.find((r) => r.id === restaurantId);
 
   const [isLiked, setIsLiked] = useState(restaurant?.isLiked || false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   if (!restaurant) {
     return (
@@ -134,7 +135,15 @@ export default function RestaurantScreen() {
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.detailsButton}>
+            <TouchableOpacity
+              style={styles.detailsButton}
+              onPress={() =>
+                router.push({
+                  pathname: "/screens/restaurantDetails",
+                  params: { restaurantId: restaurant.id },
+                })
+              }
+            >
               <Text style={styles.detailsButtonText}>დეტალური ინფორმაცია</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.shareButton}>

@@ -1,15 +1,31 @@
 import Feather from "@expo/vector-icons/build/Feather";
-import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { FilterModal } from "../app/components";
 import { IconSymbol } from "./ui/icon-symbol";
 
 export default function GreetingSection() {
+  const router = useRouter();
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  const handleSearchPress = () => {
+    router.push("/screens/search");
+  };
+
+  const handleFilterPress = () => {
+    setShowFilterModal(true);
+  };
+
+  const handleCloseFilter = () => {
+    setShowFilterModal(false);
+  };
+
+  const handleApplyFilters = (filters: any) => {
+    console.log("Applied filters:", filters);
+    // Here you can implement the actual filtering logic
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
@@ -23,22 +39,32 @@ export default function GreetingSection() {
       </Text>
 
       <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
+        <TouchableOpacity
+          style={styles.searchInputContainer}
+          onPress={handleSearchPress}
+        >
           <Feather name="search" size={22} color="#4A8F70" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="რესტორნები, მაღაზიები, ხელნა..."
-            placeholderTextColor="#9E9E9E"
-          />
-          <TouchableOpacity style={styles.filterButton}>
+          <Text style={styles.searchPlaceholder}>
+            რესტორნები, მაღაზიები, ხელნა...
+          </Text>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={handleFilterPress}
+          >
             <IconSymbol
               name="line.3.horizontal.decrease"
               size={22}
               color="#4A8F70"
             />
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
+
+      <FilterModal
+        visible={showFilterModal}
+        onClose={handleCloseFilter}
+        onApplyFilters={handleApplyFilters}
+      />
     </View>
   );
 }
@@ -87,6 +113,12 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     fontSize: 14,
     color: "#333333",
+  },
+  searchPlaceholder: {
+    flex: 1,
+    marginLeft: 2,
+    fontSize: 14,
+    color: "#9E9E9E",
   },
   filterButton: {
     padding: 4,

@@ -57,6 +57,96 @@ export default function RootLayout() {
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="screens/orderHistory"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/editName"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/editPhone"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/editEmail"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/phoneUpdateSuccess"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/selectCountry"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/promoCodes"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/settings"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/languageSelection"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/notificationsSettings"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/deleteAccount"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/paymentMethods"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/addCard"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/restaurantDetails"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="screens/search"
+            options={{
+              headerShown: false,
+            }}
+          />
         </Stack>
       </AuthGuard>
     </AuthProvider>

@@ -1,5 +1,5 @@
 // import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -20,6 +20,7 @@ const VerificationScreen = () => {
   const [timeLeft, setTimeLeft] = useState(60);
   const inputRefs = useRef<TextInput[]>([]);
   const { login } = useAuth();
+  const { from } = useLocalSearchParams<{ from?: string }>();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -59,9 +60,15 @@ const VerificationScreen = () => {
       return;
     }
 
-    // Accept any 4-digit code and navigate to main app
-    login();
-    router.replace("/(tabs)");
+    // Check if this is from phone edit flow
+    if (from === "editPhone") {
+      // Navigate to success screen for phone update
+      router.replace("/screens/phoneUpdateSuccess");
+    } else {
+      // Normal login flow - navigate to main app
+      login();
+      router.replace("/(tabs)");
+    }
   };
 
   const handleResend = async () => {
