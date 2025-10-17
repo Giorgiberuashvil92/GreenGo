@@ -2,7 +2,6 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -12,8 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MenuItem, restaurantsData } from "../../assets/data/restaurantsData";
-
-const { width } = Dimensions.get("window");
+import CartBottomBar from "../../components/CartBottomBar";
 
 export default function RestaurantScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
@@ -21,7 +19,7 @@ export default function RestaurantScreen() {
   const restaurant = restaurantsData.find((r) => r.id === restaurantId);
 
   const [isLiked, setIsLiked] = useState(restaurant?.isLiked || false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("ცომეული");
 
   if (!restaurant) {
     return (
@@ -36,15 +34,34 @@ export default function RestaurantScreen() {
   };
 
   const popularItems = restaurant.menuItems.filter((item) => item.isPopular);
-  const bakedGoods = restaurant.menuItems.filter(
-    (item) => item.category === "ცომეული"
+
+  // Get all unique categories (excluding "ყველაზე პოპულარული")
+  const categories = [
+    ...new Set(
+      restaurant.menuItems
+        .map((item) => item.category)
+        .filter((category) => category !== "ყველაზე პოპულარული")
+    ),
+  ];
+
+  // Filter items by selected category
+  const categoryItems = restaurant.menuItems.filter(
+    (item) => item.category === selectedCategory
   );
 
   const navigateToProduct = (itemId: string) => {
     router.push({
       pathname: "/screens/product",
-      params: { productId: itemId },
+      params: { productId: itemId, restaurantId: restaurant.id },
     });
+  };
+
+  // Helper function to handle both require() objects and URL strings for heroImage
+  const getImageSource = (image: any) => {
+    if (typeof image === "string") {
+      return { uri: image };
+    }
+    return image; // For require() objects
   };
 
   const renderMenuItem = (item: MenuItem) => (
@@ -61,7 +78,10 @@ export default function RestaurantScreen() {
           )}
           <Text style={styles.menuItemPrice}>{item.price.toFixed(2)} ₾</Text>
         </View>
-        <Image source={{ uri: item.image }} style={styles.menuItemImage} />
+        <Image
+          source={getImageSource(item.image)}
+          style={styles.menuItemImage}
+        />
       </View>
     </TouchableOpacity>
   );
@@ -72,7 +92,10 @@ export default function RestaurantScreen() {
       style={styles.popularItem}
       onPress={() => navigateToProduct(item.id)}
     >
-      <Image source={{ uri: item.image }} style={styles.popularItemImage} />
+      <Image
+        source={getImageSource(item.image)}
+        style={styles.popularItemImage}
+      />
       <Text style={styles.popularItemPrice}>{item.price.toFixed(2)}₾</Text>
       <Text style={styles.popularItemName}>{item.name}</Text>
     </TouchableOpacity>
@@ -84,7 +107,7 @@ export default function RestaurantScreen() {
         {/* Hero Image Section */}
         <View style={styles.heroSection}>
           <Image
-            source={{ uri: restaurant.heroImage }}
+            source={getImageSource(restaurant.heroImage)}
             style={styles.heroImage}
           />
 
@@ -164,12 +187,45 @@ export default function RestaurantScreen() {
           </ScrollView>
         </View>
 
-        {/* Baked Goods Section */}
+        {/* Category Tabs */}
+        <View style={styles.categoryTabsContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryTabsScroll}
+          >
+            {categories.map((category) => (
+              <TouchableOpacity
+                key={category}
+                style={[
+                  styles.categoryTab,
+                  selectedCategory === category && styles.categoryTabActive,
+                ]}
+                onPress={() => setSelectedCategory(category)}
+              >
+                <Text
+                  style={[
+                    styles.categoryTabText,
+                    selectedCategory === category &&
+                      styles.categoryTabTextActive,
+                  ]}
+                >
+                  {category}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Category Items Section */}
         <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>ცომეული</Text>
-          {bakedGoods.map(renderMenuItem)}
+          <Text style={styles.sectionTitle}>{selectedCategory}</Text>
+          {categoryItems.map(renderMenuItem)}
         </View>
       </ScrollView>
+
+      {/* Cart Bottom Bar */}
+      <CartBottomBar restaurantId={restaurant.id} />
     </SafeAreaView>
   );
 }
@@ -354,5 +410,32 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 10,
+  },
+  categoryTabsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  categoryTabsScroll: {
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+  },
+  categoryTab: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginRight: 16,
+    borderRadius: 25,
+    backgroundColor: "#F5F5F5",
+  },
+  categoryTabActive: {
+    backgroundColor: "#4CAF50",
+  },
+  categoryTabText: {
+    fontSize: 14,
+    color: "#666666",
+    fontWeight: "500",
+  },
+  categoryTabTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

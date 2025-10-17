@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,19 +10,25 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { productsData } from "../../assets/data/productsData";
-
-const { width } = Dimensions.get("window");
+import { restaurantsData } from "../../assets/data/restaurantsData";
+import { useCart } from "../../contexts/CartContext";
 
 export default function ProductScreen() {
-  const { productId } = useLocalSearchParams<{ productId: string }>();
+  const { productId, restaurantId } = useLocalSearchParams<{
+    productId: string;
+    restaurantId: string;
+  }>();
   const router = useRouter();
-  const product = productsData.find((p) => p.id === productId);
+  const { addToCart } = useCart();
+
+  // Find the restaurant and then the product within that restaurant
+  const restaurant = restaurantsData.find((r) => r.id === restaurantId);
+  const product = restaurant?.menuItems.find((item) => item.id === productId);
 
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(
     new Set(
       product?.ingredients
-        .filter((ing) => ing.isDefault)
+        ?.filter((ing) => ing.isDefault)
         .map((ing) => ing.id) || []
     )
   );
@@ -90,17 +95,42 @@ export default function ProductScreen() {
   // };
 
   const selectedDrinkData = selectedDrink
-    ? product.drinks.find((d) => d.id === selectedDrink)
+    ? product.drinks?.find((d) => d.id === selectedDrink)
     : null;
   const selectedDrinkPrice = selectedDrinkData ? selectedDrinkData.price : 0;
   const totalPrice = product.price + selectedDrinkPrice;
+
+  const handleAddToCart = () => {
+    if (restaurant) {
+      addToCart({
+        id: productId,
+        name: product.name,
+        price: totalPrice,
+        image: product.heroImage || product.image,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+      });
+
+      // Navigate back to restaurant screen
+      router.back();
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero Image Section */}
         <View style={styles.heroSection}>
-          <Image source={{ uri: product.heroImage }} style={styles.heroImage} />
+          <Image
+            source={
+              product.heroImage
+                ? typeof product.heroImage === "string"
+                  ? { uri: product.heroImage }
+                  : product.heroImage
+                : { uri: product.image }
+            }
+            style={styles.heroImage}
+          />
 
           {/* Back Button */}
           <TouchableOpacity
@@ -112,7 +142,7 @@ export default function ProductScreen() {
 
           {/* Restaurant Info */}
           <View style={styles.restaurantInfo}>
-            <Text style={styles.restaurantName}>{product.restaurant}</Text>
+            <Text style={styles.restaurantName}>{restaurant?.name}</Text>
             <Text style={styles.restaurantPhone}>568 23 23</Text>
           </View>
         </View>
@@ -125,77 +155,86 @@ export default function ProductScreen() {
         </View>
 
         {/* Ingredients Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="grid-outline" size={20} color="#666666" />
-            <Text style={styles.sectionTitle}>ინგრედიენტები</Text>
-          </View>
+        {product.ingredients && product.ingredients.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="grid-outline" size={20} color="#666666" />
+              <Text style={styles.sectionTitle}>ინგრედიენტები</Text>
+            </View>
 
-          {product.ingredients.map((ingredient) => (
-            <TouchableOpacity
-              key={ingredient.id}
-              style={styles.ingredientItem}
-              onPress={() =>
-                ingredient.canRemove && toggleIngredient(ingredient.id)
-              }
-            >
-              <View style={styles.ingredientLeft}>
-                <View
-                  style={[
-                    styles.radioButton,
-                    selectedIngredients.has(ingredient.id) &&
-                      styles.radioButtonSelected,
-                  ]}
-                >
-                  {selectedIngredients.has(ingredient.id) && (
-                    <View style={styles.radioButtonInner} />
-                  )}
+            {product.ingredients.map((ingredient) => (
+              <TouchableOpacity
+                key={ingredient.id}
+                style={styles.ingredientItem}
+                onPress={() =>
+                  ingredient.canRemove && toggleIngredient(ingredient.id)
+                }
+              >
+                <View style={styles.ingredientLeft}>
+                  <View
+                    style={[
+                      styles.radioButton,
+                      selectedIngredients.has(ingredient.id) &&
+                        styles.radioButtonSelected,
+                    ]}
+                  >
+                    {selectedIngredients.has(ingredient.id) && (
+                      <View style={styles.radioButtonInner} />
+                    )}
+                  </View>
+                  <Text style={styles.ingredientName}>{ingredient.name}</Text>
                 </View>
-                <Text style={styles.ingredientName}>{ingredient.name}</Text>
-              </View>
-              {/* {ingredient.icon && (
+                {/* {ingredient.icon && (
                 <Text style={styles.ingredientIcon}>
                   {getIngredientIcon(ingredient.icon)}
                 </Text>
               )} */}
-            </TouchableOpacity>
-          ))}
-        </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Drinks Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="cafe-outline" size={20} color="#666666" />
-            <Text style={styles.sectionTitle}>აირჩიეთ სასმელი</Text>
-          </View>
+        {product.drinks && product.drinks.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="cafe-outline" size={20} color="#666666" />
+              <Text style={styles.sectionTitle}>აირჩიეთ სასმელი</Text>
+            </View>
 
-          {product.drinks.map((drink) => (
-            <TouchableOpacity
-              key={drink.id}
-              style={[
-                styles.drinkItem,
-                selectedDrink === drink.id && styles.drinkItemSelected,
-              ]}
-              onPress={() => setSelectedDrink(drink.id)}
-            >
-              <Image source={{ uri: drink.image }} style={styles.drinkImage} />
-              <View style={styles.drinkInfo}>
-                <Text style={styles.drinkName}>{drink.name}</Text>
-                <Text style={styles.drinkPrice}>{drink.price.toFixed(2)}₾</Text>
-              </View>
-              <View
+            {product.drinks.map((drink) => (
+              <TouchableOpacity
+                key={drink.id}
                 style={[
-                  styles.radioButton,
-                  selectedDrink === drink.id && styles.radioButtonSelected,
+                  styles.drinkItem,
+                  selectedDrink === drink.id && styles.drinkItemSelected,
                 ]}
+                onPress={() => setSelectedDrink(drink.id)}
               >
-                {selectedDrink === drink.id && (
-                  <View style={styles.radioButtonInner} />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Image
+                  source={{ uri: drink.image }}
+                  style={styles.drinkImage}
+                />
+                <View style={styles.drinkInfo}>
+                  <Text style={styles.drinkName}>{drink.name}</Text>
+                  <Text style={styles.drinkPrice}>
+                    {drink.price.toFixed(2)}₾
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.radioButton,
+                    selectedDrink === drink.id && styles.radioButtonSelected,
+                  ]}
+                >
+                  {selectedDrink === drink.id && (
+                    <View style={styles.radioButtonInner} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Add to Cart Section */}
         <View style={styles.addToCartSection}>
@@ -215,7 +254,10 @@ export default function ProductScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.addToCartButton}>
+          <TouchableOpacity
+            style={styles.addToCartButton}
+            onPress={handleAddToCart}
+          >
             <Text style={styles.addToCartText}>დამატება</Text>
             <Text style={styles.addToCartPrice}>
               {(totalPrice * quantity).toFixed(2)}₾
