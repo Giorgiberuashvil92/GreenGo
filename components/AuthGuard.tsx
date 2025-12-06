@@ -7,7 +7,7 @@ interface AuthGuardProps {
 }
 
 const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -20,14 +20,17 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (isReady) {
+    if (isReady && !loading) {
       if (!isAuthenticated) {
         router.replace("/screens/login");
-      } else {
-        router.replace("/(tabs)");
       }
     }
-  }, [isAuthenticated, isReady]);
+  }, [isAuthenticated, isReady, loading]);
+
+  // Show loading state while checking auth
+  if (loading || !isReady) {
+    return null; // Or show loading spinner
+  }
 
   return <>{children}</>;
 };

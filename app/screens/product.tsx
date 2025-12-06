@@ -1,17 +1,45 @@
+import { apiService } from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { restaurantsData } from "../../assets/data/restaurantsData";
 import { useCart } from "../../contexts/CartContext";
+import { useRestaurant } from "../../hooks/useRestaurants";
+
+interface MenuItem {
+  _id: string;
+  id?: string;
+  name: string;
+  description?: string;
+  price: number;
+  image: string;
+  heroImage?: string;
+  category: string;
+  isPopular?: boolean;
+  restaurantId: string;
+  ingredients?: {
+    id: string;
+    name: string;
+    icon: string;
+    canRemove: boolean;
+    isDefault: boolean;
+  }[];
+  drinks?: {
+    id: string;
+    name: string;
+    price: number;
+    image: string;
+  }[];
+}
 
 export default function ProductScreen() {
   const { productId, restaurantId } = useLocalSearchParams<{
@@ -20,25 +48,78 @@ export default function ProductScreen() {
   }>();
   const router = useRouter();
   const { addToCart } = useCart();
-
-  // Find the restaurant and then the product within that restaurant
-  const restaurant = restaurantsData.find((r) => r.id === restaurantId);
-  const product = restaurant?.menuItems.find((item) => item.id === productId);
+  const { restaurant, loading: restaurantLoading } = useRestaurant(restaurantId || "");
+  const [product, setProduct] = useState<MenuItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(
-    new Set(
-      product?.ingredients
-        ?.filter((ing) => ing.isDefault)
-        .map((ing) => ing.id) || []
-    )
+    new Set()
   );
   const [selectedDrink, setSelectedDrink] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
 
-  if (!product) {
+  useEffect(() => {
+    if (productId && restaurantId) {
+      fetchProduct();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, restaurantId]);
+
+  const fetchProduct = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Try to get single menu item by ID first
+      const response = await apiService.getMenuItem(productId || "");
+
+      if (response.success && response.data) {
+        const menuItem = response.data as unknown as MenuItem;
+        setProduct(menuItem);
+        
+        // Initialize selected ingredients with default ones
+        if (menuItem.ingredients) {
+          const defaultIngredientIds = menuItem.ingredients
+            .filter((ing) => ing.isDefault)
+            .map((ing) => ing.id);
+          setSelectedIngredients(new Set(defaultIngredientIds));
+        }
+      } else {
+        setError("პროდუქტი ვერ მოიძებნა");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "უცნობი შეცდომა");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || restaurantLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Product not found</Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>იტვირთება...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !product || !restaurant) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            {error || "პროდუქტი ვერ მოიძებნა"}
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -101,13 +182,13 @@ export default function ProductScreen() {
   const totalPrice = product.price + selectedDrinkPrice;
 
   const handleAddToCart = () => {
-    if (restaurant) {
+    if (restaurant && product) {
       addToCart({
-        id: productId,
+        id: product._id || product.id || productId,
         name: product.name,
         price: totalPrice,
         image: product.heroImage || product.image,
-        restaurantId: restaurant.id,
+        restaurantId: restaurant._id || restaurant.id || restaurantId,
         restaurantName: restaurant.name,
       });
 
@@ -142,8 +223,10 @@ export default function ProductScreen() {
 
           {/* Restaurant Info */}
           <View style={styles.restaurantInfo}>
-            <Text style={styles.restaurantName}>{restaurant?.name}</Text>
-            <Text style={styles.restaurantPhone}>568 23 23</Text>
+            <Text style={styles.restaurantName}>{restaurant.name}</Text>
+            <Text style={styles.restaurantPhone}>
+              {restaurant.contact?.phone || "ტელეფონი არ არის მითითებული"}
+            </Text>
           </View>
         </View>
 
@@ -477,5 +560,38 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#EF4444",
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

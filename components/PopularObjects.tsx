@@ -2,24 +2,20 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import { restaurantsData } from "../assets/data/restaurantsData";
+import { useRestaurants } from "../hooks/useRestaurants";
 
 export default function PopularObjects() {
   const router = useRouter();
-  const [likedItems, setLikedItems] = useState<Set<string>>(
-    new Set(
-      restaurantsData
-        .filter((restaurant) => restaurant.isLiked)
-        .map((restaurant) => restaurant.id)
-    )
-  );
+  const { restaurants, loading } = useRestaurants({ limit: 10 });
+  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
 
   const toggleLike = (id: string) => {
     setLikedItems((prev) => {
@@ -40,6 +36,25 @@ export default function PopularObjects() {
     });
   };
 
+  // Filter active restaurants and sort by rating (popular)
+  const popularRestaurants = restaurants
+    .filter((r) => r.isActive)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 10);
+
+  if (loading) {
+    return (
+      <View style={styles.popularContainer}>
+        <View style={styles.popularHeader}>
+          <Text style={styles.popularTitle}>პოპულარული ობიექტები</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#4CAF50" />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.popularContainer}>
       <View style={styles.popularHeader}>
@@ -51,6 +66,7 @@ export default function PopularObjects() {
             paddingVertical: 4,
             borderRadius: 12,
           }}
+          onPress={() => router.push("/(tabs)/restaurants")}
         >
           <Text style={styles.seeAllText}>
             სრულად <Feather name="arrow-right" size={14} color="#4CAF50" />
@@ -63,30 +79,37 @@ export default function PopularObjects() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.popularScrollContent}
       >
-        {restaurantsData.map((restaurant) => (
+        {popularRestaurants.map((restaurant) => (
           <TouchableOpacity
-            key={restaurant.id}
+            key={restaurant._id || restaurant.id}
             style={styles.popularCard}
-            onPress={() => navigateToRestaurant(restaurant.id)}
+            onPress={() => navigateToRestaurant(restaurant._id || restaurant.id || "")}
           >
             {/* Image Section */}
             <View style={styles.imageContainer}>
-              <Image source={restaurant.image} style={styles.cardImage} />
+              <Image
+                source={
+                  typeof restaurant.image === "string"
+                    ? { uri: restaurant.image }
+                    : restaurant.image || require("../assets/images/magnolia.png")
+                }
+                style={styles.cardImage}
+              />
 
               {/* Delivery Time Overlay */}
               <View style={styles.deliveryTimeOverlay}>
                 <Ionicons name="time-outline" size={12} color="#666666" />
                 <Text style={styles.deliveryTimeText}>
-                  {restaurant.deliveryTime} წუთი
+                  {restaurant.deliveryTime} წთ
                 </Text>
               </View>
 
               {/* Like Button */}
               <TouchableOpacity
                 style={styles.likeButton}
-                onPress={() => toggleLike(restaurant.id)}
+                onPress={() => toggleLike(restaurant._id || restaurant.id || "")}
               >
-                {likedItems.has(restaurant.id) ? (
+                {likedItems.has(restaurant._id || restaurant.id || "") ? (
                   <Feather name="heart" size={20} color="#FF3B30" />
                 ) : (
                   <Feather name="heart" size={20} color="#FFFFFF" />
@@ -97,7 +120,11 @@ export default function PopularObjects() {
             {/* Bottom Section */}
             <View style={styles.cardBottomSection}>
               <Text style={styles.restaurantName}>{restaurant.name}</Text>
-              <Text style={styles.restaurantCategory}>რესტორანი</Text>
+              <Text style={styles.restaurantCategory}>
+                {restaurant.cuisine && restaurant.cuisine.length > 0
+                  ? restaurant.cuisine[0]
+                  : "რესტორანი"}
+              </Text>
 
               {/* Dashed Line */}
               <View style={styles.dashedLine} />
@@ -113,7 +140,7 @@ export default function PopularObjects() {
                 <View style={styles.ratingInfo}>
                   <Ionicons name="star" size={12} color="#FFD700" />
                   <Text style={styles.ratingText}>
-                    {restaurant.rating} ({restaurant.reviewCount})
+                    {restaurant.rating.toFixed(1)} ({restaurant.reviewCount})
                   </Text>
                 </View>
               </View>
@@ -242,5 +269,9 @@ const styles = StyleSheet.create({
     color: "#333333",
     marginLeft: 4,
     fontWeight: "500",
+  },
+  loadingContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
 });

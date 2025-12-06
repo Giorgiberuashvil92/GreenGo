@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   ScrollView,
@@ -12,14 +13,14 @@ import {
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { restaurantsData } from "../../assets/data/restaurantsData";
-import { getContactInfo, getWorkingHours } from "../../utils/restaurantUtils";
+import { useRestaurant } from "../../hooks/useRestaurants";
 
 export default function RestaurantDetailsScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
   const router = useRouter();
-  const restaurant = restaurantsData.find((r) => r.id === restaurantId);
+  const { restaurant, loading, error } = useRestaurant(restaurantId || "");
 
+  // Map region (centered initially on restaurant)
   const [region, setRegion] = useState({
     latitude: 41.7151,
     longitude: 44.8271,
@@ -27,21 +28,75 @@ export default function RestaurantDetailsScreen() {
     longitudeDelta: 0.01,
   });
 
+  // Simple delivery simulation state
+  const [isSimulatingDelivery, setIsSimulatingDelivery] = useState(false);
+  const [simulationProgress, setSimulationProgress] = useState(0); // 0 → 1
+
+  // Fixed "user" location for simulation (could be current user in the future)
+  const simulatedUserLocation = useMemo(
+    () => ({
+      latitude: region.latitude + 0.01,
+      longitude: region.longitude + 0.01,
+    }),
+    [region.latitude, region.longitude]
+  );
+
+  const deliveryMarkerPosition = useMemo(() => {
+    if (!restaurant || !restaurant.location) {
+      return null;
+    }
+
+    const startLat = restaurant.location.latitude;
+    const startLng = restaurant.location.longitude;
+    const endLat = simulatedUserLocation.latitude;
+    const endLng = simulatedUserLocation.longitude;
+
+    const lat = startLat + (endLat - startLat) * simulationProgress;
+    const lng = startLng + (endLng - startLng) * simulationProgress;
+
+    return { latitude: lat, longitude: lng };
+  }, [restaurant, simulatedUserLocation, simulationProgress]);
+
   // Location states for future use
   // const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   // const [locationPermission, setLocationPermission] = useState<boolean>(false);
 
   useEffect(() => {
-    if (restaurant) {
+    if (restaurant && restaurant.location) {
       // Set restaurant location on map
       setRegion({
-        latitude: restaurant.location?.latitude || 41.7151,
-        longitude: restaurant.location?.longitude || 44.8271,
+        latitude: restaurant.location.latitude || 41.7151,
+        longitude: restaurant.location.longitude || 44.8271,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
     }
   }, [restaurant]);
+
+  // Very simple timer-based simulation (no real GPS)
+  useEffect(() => {
+    if (!isSimulatingDelivery) {
+      return;
+    }
+
+    setSimulationProgress(0);
+    const start = Date.now();
+    const durationMs = 15000; // ~15 წამი რესტორნიდან "კლიენტამდე"
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(1, elapsed / durationMs);
+      setSimulationProgress(progress);
+
+      if (progress >= 1) {
+        clearInterval(interval);
+        setIsSimulatingDelivery(false);
+        Alert.alert("მიტანა დასრულდა", "შეკვეთა ადგილზეა (სიმულაცია) 🛵");
+      }
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, [isSimulatingDelivery]);
 
   // Location functions for future use
   // const getCurrentLocation = useCallback(async () => {
@@ -71,15 +126,37 @@ export default function RestaurantDetailsScreen() {
   //   getLocationPermission();
   // }, [getLocationPermission]);
 
-  if (!restaurant) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Restaurant not found</Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>იტვირთება...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !restaurant) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            {error || "რესტორნი ვერ მოიძებნა"}
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
 
   const handleViewOnMap = () => {
+    if (!restaurant.location) return;
     const { latitude, longitude } = restaurant.location;
     const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 
@@ -89,7 +166,7 @@ export default function RestaurantDetailsScreen() {
   };
 
   const handleContact = () => {
-    const contactInfo = getContactInfo(restaurant);
+    const contactInfo = restaurant.contact || {};
     Alert.alert(
       "კონტაქტი",
       `ტელეფონი: ${contactInfo.phone || "არ არის მითითებული"}\nელ-ფოსტა: ${
@@ -99,17 +176,24 @@ export default function RestaurantDetailsScreen() {
     );
   };
 
-  // const handleCall = () => {
-  //   if (restaurant.contact.phone) {
-  //     Linking.openURL(`tel:${restaurant.contact.phone}`).catch(() => {
-  //       Alert.alert("შეცდომა", "ვერ მოვახერხეთ ზარის გაკეთება");
-  //     });
-  //   } else {
-  //     Alert.alert("შეცდომა", "ტელეფონის ნომერი არ არის მითითებული");
-  //   }
-  // };
-
-  const workingHours = getWorkingHours(restaurant);
+  // Format working hours for display
+  const workingHours = restaurant.workingHours
+    ? Object.entries(restaurant.workingHours).map(([day, hours]) => {
+        const dayNames: { [key: string]: string } = {
+          monday: "ორშაბათი",
+          tuesday: "სამშაბათი",
+          wednesday: "ოთხშაბათი",
+          thursday: "ხუთშაბათი",
+          friday: "პარასკევი",
+          saturday: "შაბათი",
+          sunday: "კვირა",
+        };
+        return {
+          day: dayNames[day.toLowerCase()] || day,
+          hours: hours as string,
+        };
+      })
+    : [];
   // const isOpen = isRestaurantOpen(restaurant);
   // const currentDayHours = getCurrentDayHours(restaurant);
   // const fullAddress = formatAddress(restaurant);
@@ -133,20 +217,49 @@ export default function RestaurantDetailsScreen() {
             onRegionChangeComplete={setRegion}
           >
             {/* Restaurant Marker */}
+            {restaurant.location && (
+              <Marker
+                coordinate={{
+                  latitude: restaurant.location.latitude,
+                  longitude: restaurant.location.longitude,
+                }}
+                title={restaurant.name}
+                description={restaurant.location.address}
+              />
+            )}
+
+            {/* Simulated user location marker */}
             <Marker
-              coordinate={{
-                latitude: restaurant.location.latitude,
-                longitude: restaurant.location.longitude,
-              }}
-              title={restaurant.name}
-              description={restaurant.location.address}
+              coordinate={simulatedUserLocation}
+              pinColor="#3B82F6"
+              title="კლიენტის ლოკაცია (სიმულაცია)"
             />
+
+            {/* Delivery in-progress marker */}
+            {deliveryMarkerPosition && (
+              <Marker
+                coordinate={deliveryMarkerPosition}
+                pinColor="#F97316"
+                title="კურიერი გზაშია (სიმულაცია)"
+                description="ეს არის ვიზუალური დემო მიტანისთვის"
+              />
+            )}
           </MapView>
 
           {/* Back Button */}
           <TouchableOpacity
             style={styles.mapBackButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              // Try to go back to restaurant screen, or just go back
+              if (restaurantId) {
+                router.push({
+                  pathname: "/screens/restaurant",
+                  params: { restaurantId },
+                });
+              } else {
+                router.back();
+              }
+            }}
           >
             <Ionicons name="arrow-back" size={24} color="#4CAF50" />
           </TouchableOpacity>
@@ -156,16 +269,54 @@ export default function RestaurantDetailsScreen() {
         <View style={styles.infoCard}>
           <Text style={styles.restaurantName}>{restaurant.name}</Text>
 
-          <View style={styles.addressContainer}>
-            <Ionicons name="location-outline" size={20} color="#666" />
-            <Text style={styles.address}>{restaurant.location.address}</Text>
+          {restaurant.location && (
+            <View style={styles.addressContainer}>
+              <Ionicons name="location-outline" size={20} color="#666" />
+              <Text style={styles.address}>
+                {restaurant.location.address}, {restaurant.location.city}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.viewOnMapButton, { flex: 1, marginRight: 8 }]}
+              onPress={handleViewOnMap}
+            >
+              <Text style={styles.viewOnMapText}>რუკაზე ნახვა</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.menuButton, { flex: 1, marginLeft: 8 }]}
+              onPress={() => {
+                if (restaurantId) {
+                  router.push({
+                    pathname: "/screens/restaurant",
+                    params: { restaurantId },
+                  });
+                }
+              }}
+            >
+              <Text style={styles.menuButtonText}>მენიუ</Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={styles.viewOnMapButton}
-            onPress={handleViewOnMap}
+            style={[
+              styles.simulationButton,
+              isSimulatingDelivery && styles.simulationButtonDisabled,
+            ]}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (!isSimulatingDelivery) {
+                setIsSimulatingDelivery(true);
+              }
+            }}
           >
-            <Text style={styles.viewOnMapText}>რუკაზე ნახვა</Text>
+            <Text style={styles.simulationButtonText}>
+              {isSimulatingDelivery
+                ? "მიტანა მიმდინარეობს..."
+                : "მიტანის სიმულაცია"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -274,6 +425,10 @@ const styles = StyleSheet.create({
     color: "#666",
     marginLeft: 8,
   },
+  buttonRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
   viewOnMapButton: {
     backgroundColor: "#E8F5E8",
     borderRadius: 25,
@@ -283,6 +438,34 @@ const styles = StyleSheet.create({
   },
   viewOnMapText: {
     color: "#4CAF50",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  menuButton: {
+    backgroundColor: "#4CAF50",
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: "center",
+  },
+  menuButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  simulationButton: {
+    marginTop: 12,
+    backgroundColor: "#22C55E",
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: "center",
+  },
+  simulationButtonDisabled: {
+    backgroundColor: "#BBF7D0",
+  },
+  simulationButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
   },
@@ -332,6 +515,39 @@ const styles = StyleSheet.create({
   },
   contactButtonText: {
     color: "#4CAF50",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#EF4444",
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "white",
     fontSize: 16,
     fontWeight: "600",
   },

@@ -1,17 +1,82 @@
+import { useAuth } from "@/contexts/AuthContext";
+import apiService from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import { orderHistory } from "../../assets/data/ordersData";
+
+interface Order {
+  _id: string;
+  restaurantId: {
+    name: string;
+  };
+  items: {
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+  totalAmount: number;
+  deliveryFee: number;
+  status: string;
+  createdAt: string;
+  orderDate?: string;
+}
 
 export default function OrderHistoryScreen() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchOrders();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await apiService.getOrders({
+        userId: user?.id || "",
+        status: "delivered",
+        limit: 50,
+      });
+
+      if (response.success && response.data) {
+        const backendResponse = response.data as unknown;
+        let ordersList: Order[] = [];
+        
+        if (Array.isArray(backendResponse)) {
+          ordersList = backendResponse;
+        } else if (backendResponse && typeof backendResponse === 'object' && 'data' in backendResponse) {
+          ordersList = Array.isArray((backendResponse as { data: Order[] }).data) 
+            ? (backendResponse as { data: Order[] }).data 
+            : [];
+        }
+
+        setOrders(ordersList);
+      } else {
+        setError("შეცდომა მონაცემების მიღებისას");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "უცნობი შეცდომა");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("ka-GE", {
@@ -49,7 +114,7 @@ export default function OrderHistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -64,21 +129,38 @@ export default function OrderHistoryScreen() {
       </View>
 
       {/* Orders List */}
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.ordersList}>
-          {orderHistory.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>იტვირთება...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchOrders}
+          >
+            <Text style={styles.retryButtonText}>ხელახლა ცდა</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.ordersList}>
+            {orders.length > 0 ? (
+              orders.map((order: Order) => (
+            <View key={order._id} style={styles.orderCard}>
               {/* Order Header */}
               <View style={styles.orderHeader}>
                 <View style={styles.orderInfo}>
                   <Text style={styles.restaurantName}>
-                    {order.restaurantName}
+                    {order.restaurantId.name}
                   </Text>
                   <Text style={styles.orderDate}>
-                    {formatDate(order.orderDate)}
+                    {formatDate(order.orderDate || order.createdAt)}
                   </Text>
                 </View>
                 <View style={styles.orderStatus}>
@@ -91,21 +173,23 @@ export default function OrderHistoryScreen() {
                     {getStatusText(order.status)}
                   </Text>
                   <Text style={styles.totalAmount}>
-                    {order.totalAmount.toFixed(2)} ₾
+                    {(order.totalAmount + order.deliveryFee).toFixed(2)} ₾
                   </Text>
                 </View>
               </View>
 
               {/* Order Items */}
               <View style={styles.orderItems}>
-                {order.items.map((item, index) => (
+                {order.items.map((item: { name: string; quantity: number; price: number }, index: number) => (
                   <View key={index} style={styles.orderItem}>
                     <Ionicons
                       name="restaurant-outline"
                       size={16}
                       color="#666"
                     />
-                    <Text style={styles.itemText}>{item}</Text>
+                    <Text style={styles.itemText}>
+                      {item.quantity}x {item.name} - {item.price.toFixed(2)}₾
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -120,11 +204,17 @@ export default function OrderHistoryScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
-        </View>
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>შეკვეთების ისტორია ცარიელია</Text>
+              </View>
+            )}
+          </View>
 
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -245,5 +335,49 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 30,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#EF4444",
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#FFFFFF",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
   },
 });

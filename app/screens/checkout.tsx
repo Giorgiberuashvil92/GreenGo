@@ -1,30 +1,66 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { restaurantsData } from "../../assets/data/restaurantsData";
+import { useAuth } from "../../contexts/AuthContext";
 import { useCart } from "../../contexts/CartContext";
+import { useRestaurant } from "../../hooks/useRestaurants";
+import { apiService } from "../../utils/api";
 
 export default function CheckoutScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
   const router = useRouter();
   const { cartItems, updateQuantity, removeFromCart } = useCart();
+  const { user } = useAuth();
+  const { restaurant } = useRestaurant(restaurantId || "");
   const [selectedTip, setSelectedTip] = useState<number>(3);
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
     "delivery"
   );
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'greengo_balance'>('card');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState<{
+    street: string;
+    city: string;
+    district?: string;
+    postalCode?: string;
+    coordinates: { lat: number; lng: number };
+    instructions?: string;
+  } | null>(null);
 
-  const restaurant = restaurantsData.find((r) => r.id === restaurantId);
+  // Listen for address selection from selectAddress screen
+  useFocusEffect(
+    useCallback(() => {
+      const loadSelectedAddress = async () => {
+        try {
+          const addressJson = await AsyncStorage.getItem("@greengo:selected_address");
+          if (addressJson) {
+            const address = JSON.parse(addressJson);
+            setDeliveryAddress(address);
+            // Clear stored address after loading
+            await AsyncStorage.removeItem("@greengo:selected_address");
+          }
+        } catch (error) {
+          console.error("Error loading address:", error);
+        }
+      };
+      loadSelectedAddress();
+    }, [])
+  );
+
   const restaurantCartItems = cartItems.filter(
     (item) => item.restaurantId === restaurantId
   );
@@ -33,7 +69,7 @@ export default function CheckoutScreen() {
     (total, item) => total + item.price * item.quantity,
     0
   );
-  const deliveryFee = deliveryType === "delivery" ? 4.99 : 0;
+  const deliveryFee = deliveryType === "delivery" ? (restaurant?.deliveryFee || 4.99) : 0;
   const total = subtotal + deliveryFee + selectedTip;
 
   const tipOptions = [0, 1, 3, 5];
@@ -46,22 +82,127 @@ export default function CheckoutScreen() {
     }
   };
 
-  const handleConfirmOrder = () => {
-    // Here you would typically process the order
-    console.log("Order confirmed:", {
-      restaurantId,
-      items: restaurantCartItems,
-      tip: selectedTip,
-      comment,
-      deliveryType,
-      total,
-    });
+  const handleConfirmOrder = async () => {
+    if (!user?.id || !restaurant?._id) {
+      Alert.alert("შეცდომა", "გთხოვთ დალოგინდეთ და სცადეთ თავიდან");
+      return;
+    }
 
-    // Navigate to order confirmation or success page
-    router.push({
-      pathname: "/screens/orderSuccess",
-      params: { restaurantId },
-    });
+    if (restaurantCartItems.length === 0) {
+      Alert.alert("შეცდომა", "კალათა ცარიელია");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // Prepare order items
+      const orderItems = restaurantCartItems.map((item) => ({
+        menuItemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        specialInstructions: comment || undefined,
+      }));
+
+      // Calculate estimated delivery time (30-45 minutes)
+      const estimatedDelivery = new Date();
+      estimatedDelivery.setMinutes(estimatedDelivery.getMinutes() + 35);
+
+      // Prepare delivery address - only include required fields for backend
+      let finalDeliveryAddress: {
+        street: string;
+        city: string;
+        coordinates: { lat: number; lng: number };
+        instructions?: string;
+      };
+      
+      if (deliveryType === "delivery" && deliveryAddress) {
+        if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.coordinates) {
+          throw new Error("მისამართის მონაცემები არასრულია");
+        }
+        finalDeliveryAddress = {
+          street: deliveryAddress.street,
+          city: deliveryAddress.city,
+          coordinates: {
+            lat: Number(deliveryAddress.coordinates.lat),
+            lng: Number(deliveryAddress.coordinates.lng),
+          },
+          instructions: deliveryAddress.instructions || comment || undefined,
+        };
+      } else if (deliveryType === "delivery") {
+        // Fallback address if not selected (should not happen due to validation)
+        finalDeliveryAddress = {
+          street: "მისამართი არ არის მითითებული",
+          city: "თბილისი",
+          coordinates: {
+            lat: Number(restaurant.location?.latitude || 41.7151),
+            lng: Number(restaurant.location?.longitude || 44.8271),
+          },
+          instructions: comment || undefined,
+        };
+      } else {
+        // For pickup, use restaurant address
+        finalDeliveryAddress = {
+          street: restaurant.location?.address || restaurant.name || "რესტორანი",
+          city: restaurant.location?.city || "თბილისი",
+          coordinates: {
+            lat: Number(restaurant.location?.latitude || 41.7151),
+            lng: Number(restaurant.location?.longitude || 44.8271),
+          },
+          instructions: comment || undefined,
+        };
+      }
+
+      // Create order
+      const orderData = {
+        userId: user.id,
+        restaurantId: restaurant._id || restaurant.id || restaurantId,
+        items: orderItems,
+        totalAmount: Number(subtotal.toFixed(2)),
+        deliveryFee: Number(deliveryFee.toFixed(2)),
+        paymentMethod: paymentMethod,
+        deliveryAddress: finalDeliveryAddress,
+        estimatedDelivery: estimatedDelivery.toISOString(),
+        notes: comment || undefined,
+        tip: selectedTip,
+        deliveryType: deliveryType,
+      };
+
+      console.log("Creating order with data:", JSON.stringify(orderData, null, 2));
+
+      const response = await apiService.createOrder(orderData);
+      
+      console.log("Order response:", response);
+
+      if (response.success) {
+        // Clear cart for this restaurant
+        restaurantCartItems.forEach((item) => {
+          removeFromCart(item.id);
+        });
+
+        // Navigate to order success page
+        router.push({
+          pathname: "/screens/orderSuccess",
+          params: { 
+            restaurantId,
+            orderId: (response.data as any)?._id || "",
+          },
+        });
+      } else {
+        Alert.alert(
+          "შეცდომა",
+          response.error?.details || "შეკვეთის შექმნა ვერ მოხერხდა"
+        );
+      }
+    } catch (error: unknown) {
+      Alert.alert(
+        "შეცდომა",
+        error instanceof Error ? error.message : "უცნობი შეცდომა"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -74,22 +215,34 @@ export default function CheckoutScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{restaurant?.name}</Text>
+        <Text style={styles.headerTitle}>{restaurant?.name || "შეკვეთა"}</Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Location Section */}
         <View style={styles.section}>
-          <View style={styles.locationCard}>
+          <TouchableOpacity
+            style={styles.locationCard}
+            onPress={() => {
+              router.push({
+                pathname: "/screens/selectAddress",
+                params: {},
+              });
+            }}
+          >
             <View style={styles.locationLeft}>
               <Ionicons name="location" size={20} color="#2E7D32" />
               <View style={styles.locationText}>
-                <Text style={styles.addressText}>4 ტაბიძის ქუჩა</Text>
-                <Text style={styles.detailsText}>დამატებითი დეტალები</Text>
+                <Text style={styles.addressText}>
+                  {deliveryAddress?.street || "აირჩიეთ მისამართი"}
+                </Text>
+                <Text style={styles.detailsText}>
+                  {deliveryAddress?.city || "დააჭირეთ მისამართის ასარჩევად"}
+                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#666666" />
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Delivery/Pickup Options */}
@@ -269,18 +422,72 @@ export default function CheckoutScreen() {
 
         {/* Payment Method */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.paymentCard}>
-            <View style={styles.paymentLeft}>
-              <View style={styles.cardIcon}>
-                <Text style={styles.cardText}>AMEX</Text>
-              </View>
-              <Text style={styles.cardNumber}>**** 7729</Text>
-            </View>
-            <View style={styles.paymentRight}>
-              <Text style={styles.paymentAmount}>{subtotal.toFixed(2)}₾</Text>
-              <Ionicons name="chevron-forward" size={20} color="#666666" />
-            </View>
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>გადახდის მეთოდი</Text>
+          <View style={styles.paymentMethods}>
+            <TouchableOpacity
+              style={[
+                styles.paymentMethodCard,
+                paymentMethod === "card" && styles.paymentMethodCardSelected,
+              ]}
+              onPress={() => setPaymentMethod("card")}
+            >
+              <Ionicons
+                name="card"
+                size={24}
+                color={paymentMethod === "card" ? "#FFFFFF" : "#666666"}
+              />
+              <Text
+                style={[
+                  styles.paymentMethodText,
+                  paymentMethod === "card" && styles.paymentMethodTextSelected,
+                ]}
+              >
+                ბარათი
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.paymentMethodCard,
+                paymentMethod === "cash" && styles.paymentMethodCardSelected,
+              ]}
+              onPress={() => setPaymentMethod("cash")}
+            >
+              <Ionicons
+                name="cash"
+                size={24}
+                color={paymentMethod === "cash" ? "#FFFFFF" : "#666666"}
+              />
+              <Text
+                style={[
+                  styles.paymentMethodText,
+                  paymentMethod === "cash" && styles.paymentMethodTextSelected,
+                ]}
+              >
+                ნაღდი
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.paymentMethodCard,
+                paymentMethod === "greengo_balance" && styles.paymentMethodCardSelected,
+              ]}
+              onPress={() => setPaymentMethod("greengo_balance")}
+            >
+              <Ionicons
+                name="wallet"
+                size={24}
+                color={paymentMethod === "greengo_balance" ? "#FFFFFF" : "#666666"}
+              />
+              <Text
+                style={[
+                  styles.paymentMethodText,
+                  paymentMethod === "greengo_balance" && styles.paymentMethodTextSelected,
+                ]}
+              >
+                GreenGo ბალანსი
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Bottom Spacing */}
@@ -290,10 +497,15 @@ export default function CheckoutScreen() {
       {/* Confirm Order Button */}
       <View style={styles.confirmButtonContainer}>
         <TouchableOpacity
-          style={styles.confirmButton}
+          style={[styles.confirmButton, isSubmitting && styles.confirmButtonDisabled]}
           onPress={handleConfirmOrder}
+          disabled={isSubmitting}
         >
-          <Text style={styles.confirmButtonText}>დაადასტურე შეკვეთა</Text>
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.confirmButtonText}>დაადასტურე შეკვეთა</Text>
+          )}
         </TouchableOpacity>
         <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>სულ</Text>
@@ -559,46 +771,31 @@ const styles = StyleSheet.create({
   tipButtonTextSelected: {
     color: "#FFFFFF",
   },
-  paymentCard: {
+  paymentMethods: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  paymentMethodCard: {
+    flex: 1,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
   },
-  paymentLeft: {
-    flexDirection: "row",
-    alignItems: "center",
+  paymentMethodCardSelected: {
+    backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
   },
-  cardIcon: {
-    width: 32,
-    height: 20,
-    backgroundColor: "#0066CC",
-    borderRadius: 4,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cardText: {
-    fontSize: 8,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  cardNumber: {
-    fontSize: 16,
+  paymentMethodText: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#000000",
-    marginLeft: 12,
+    color: "#666666",
+    marginTop: 8,
   },
-  paymentRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  paymentAmount: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#2E7D32",
-    marginRight: 8,
+  paymentMethodTextSelected: {
+    color: "#FFFFFF",
   },
   bottomSpacing: {
     height: 100,
@@ -621,6 +818,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#FFFFFF",
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
   },
   totalContainer: {
     flexDirection: "row",

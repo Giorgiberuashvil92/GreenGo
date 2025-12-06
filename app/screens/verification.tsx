@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -18,9 +19,10 @@ import { useAuth } from "../../contexts/AuthContext";
 const VerificationScreen = () => {
   const [code, setCode] = useState(["", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(60);
+  const [loading, setLoading] = useState(false);
   const inputRefs = useRef<TextInput[]>([]);
-  const { login } = useAuth();
-  const { from } = useLocalSearchParams<{ from?: string }>();
+  const { login, sendVerificationCode } = useAuth();
+  const { from, phoneNumber } = useLocalSearchParams<{ from?: string; phoneNumber?: string }>();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -53,31 +55,55 @@ const VerificationScreen = () => {
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const fullCode = code.join("");
     if (fullCode.length !== 4) {
       Alert.alert("შეცდომა", "გთხოვთ შეიყვანოთ 4-ნიშნიანი კოდი");
       return;
     }
 
-    // Check if this is from phone edit flow
-    if (from === "editPhone") {
-      // Navigate to success screen for phone update
-      router.replace("/screens/phoneUpdateSuccess");
-    } else {
-      // Normal login flow - navigate to main app
-      login();
-      router.replace("/(tabs)");
+    try {
+      setLoading(true);
+      
+      // Check if this is from phone edit flow
+      if (from === "editPhone") {
+        // Navigate to success screen for phone update
+        router.replace("/screens/phoneUpdateSuccess");
+      } else {
+        // Normal login flow
+        const phone = phoneNumber || "";
+        const result = await login(phone, fullCode);
+        
+        // If new user, navigate to registration screen
+        if (result.isNewUser) {
+          router.replace({
+            pathname: "/screens/registration",
+            params: { phoneNumber: phone },
+          });
+        } else {
+          // Existing user, go to main app
+          router.replace("/(tabs)");
+        }
+      }
+    } catch (error: any) {
+      Alert.alert("შეცდომა", error.message || "ვერიფიკაცია ვერ მოხერხდა");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleResend = async () => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!phoneNumber) {
+        Alert.alert("შეცდომა", "ტელეფონის ნომერი არ არის მითითებული");
+        return;
+      }
+      
+      await sendVerificationCode(phoneNumber, "+995");
       setTimeLeft(60);
       Alert.alert("წარმატება", "ვერიფიკაციის კოდი გამოიგზავნა");
-    } catch (error) {
-      Alert.alert("შეცდომა", "ვერ მოვახერხეთ კოდის გაგზავნა");
+    } catch (error: any) {
+      Alert.alert("შეცდომა", error.message || "ვერ მოვახერხეთ კოდის გაგზავნა");
     }
   };
 
@@ -125,12 +151,22 @@ const VerificationScreen = () => {
             <Text style={styles.subtitle}>
               SMS-ით გამოგზავნილი 4-ნიშნიანი კოდი შეიყვანეთ
             </Text>
+            
+            {/* Phone Number Display (Temporary until SMS integration) */}
+            {phoneNumber && (
+              <View style={styles.phoneDisplayContainer}>
+                <Text style={styles.phoneDisplayLabel}>ტელეფონის ნომერი:</Text>
+                <Text style={styles.phoneDisplayNumber}>+995 {phoneNumber}</Text>
+              </View>
+            )}
 
             <View style={styles.codeContainer}>
               {code.map((digit, index) => (
                 <TextInput
                   key={index}
-                  ref={(ref) => (inputRefs.current[index] = ref!)}
+                  ref={(ref) => {
+                    if (ref) inputRefs.current[index] = ref;
+                  }}
                   style={styles.codeInput}
                   value={digit}
                   onChangeText={(text) => handleCodeChange(text, index)}
@@ -167,10 +203,15 @@ const VerificationScreen = () => {
         {/* Continue Button */}
         <View style={styles.buttonSection}>
           <TouchableOpacity
-            style={styles.continueButton}
+            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
             onPress={handleVerify}
+            disabled={loading}
           >
-            <Text style={styles.continueButtonText}>ვერიფიკაცია</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.continueButtonText}>ვერიფიკაცია</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -264,7 +305,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
+    marginBottom: 16,
+  },
+  phoneDisplayContainer: {
+    backgroundColor: "#F0F8F0",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     marginBottom: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E0F2E0",
+  },
+  phoneDisplayLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  phoneDisplayNumber: {
+    fontSize: 18,
+    color: "#4CAF50",
+    fontWeight: "600",
   },
   codeContainer: {
     flexDirection: "row",
@@ -308,6 +369,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  continueButtonDisabled: {
+    opacity: 0.6,
   },
 });
 

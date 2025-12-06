@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -13,18 +14,68 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../../contexts/AuthContext";
+import { checkApiHealth, getApiInfo } from "../../utils/apiConfig";
 
 const LoginScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { sendVerificationCode } = useAuth();
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!phoneNumber || phoneNumber.length < 9) {
       Alert.alert("შეცდომა", "გთხოვთ შეიყვანოთ სწორი ტელეფონის ნომერი");
       return;
     }
 
-    // Navigate to verification screen
-    router.push("/screens/verification");
+    try {
+      setLoading(true);
+      
+      // Check if backend is available
+      const isBackendAvailable = await checkApiHealth();
+      if (!isBackendAvailable) {
+        const apiInfo = getApiInfo();
+        Alert.alert(
+          "Backend არ არის გაშვებული",
+          `გთხოვთ გაუშვით backend server:\n\n` +
+          `cd greengo-backend\n` +
+          `npm run start:dev\n\n` +
+          `Platform: ${apiInfo.platform}\n` +
+          `API URL: ${apiInfo.url}`,
+          [
+            { text: "OK", style: "default" },
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+      
+      await sendVerificationCode(phoneNumber, "+995");
+      
+      // Navigate to verification screen with phone number
+      router.push({
+        pathname: "/screens/verification",
+        params: { phoneNumber },
+      });
+    } catch (error: any) {
+      const errorMessage = error.message || "ვერ მოვახერხეთ კოდის გაგზავნა";
+      
+      // Check if it's a timeout/connection error
+      if (errorMessage.includes('timed out') || errorMessage.includes('not responding')) {
+        const apiInfo = getApiInfo();
+        Alert.alert(
+          "Backend Connection Error",
+          `${errorMessage}\n\n` +
+          `Platform: ${Platform.OS}\n` +
+          `API URL: ${apiInfo.url}\n\n` +
+          `გთხოვთ დარწმუნდეთ რომ backend გაშვებულია: cd greengo-backend && npm run start:dev`
+        );
+      } else {
+        Alert.alert("შეცდომა", errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -98,10 +149,15 @@ const LoginScreen = () => {
         {/* Continue Button */}
         <View style={styles.buttonSection}>
           <TouchableOpacity
-            style={styles.continueButton}
+            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
             onPress={handleSendCode}
+            disabled={loading}
           >
-            <Text style={styles.continueButtonText}>გაგრძელება</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.continueButtonText}>გაგრძელება</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -248,6 +304,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  continueButtonDisabled: {
+    opacity: 0.6,
   },
 });
 

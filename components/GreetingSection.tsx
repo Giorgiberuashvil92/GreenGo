@@ -3,11 +3,24 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { FilterModal } from "../app/components";
+import { useAuth } from "../contexts/AuthContext";
 import { IconSymbol } from "./ui/icon-symbol";
 
 export default function GreetingSection() {
   const router = useRouter();
+  const { user } = useAuth();
   const [showFilterModal, setShowFilterModal] = useState(false);
+  
+  const getUserName = () => {
+    if (user?.name) {
+      const nameParts = user.name.split(' ');
+      return nameParts[0];
+    }
+    if (user?.firstName) {
+      return user.firstName;
+    }
+    return "მომხმარებელო"; // Fallback
+  };
 
   const handleSearchPress = () => {
     router.push("/screens/search");
@@ -30,7 +43,7 @@ export default function GreetingSection() {
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
         <Text style={[styles.greetingText, { color: "#2F80ED" }]}>
-          გამარჯობა! <Text style={{ color: "#00592D" }}>დათო</Text>
+          გამარჯობა! <Text style={{ color: "#00592D" }}>{getUserName()}</Text>
         </Text>
         <Text style={styles.waveText}>👋</Text>
       </View>

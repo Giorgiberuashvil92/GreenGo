@@ -1,7 +1,8 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -10,21 +11,99 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MenuItem, restaurantsData } from "../../assets/data/restaurantsData";
 import CartBottomBar from "../../components/CartBottomBar";
+import { useRestaurant } from "../../hooks/useRestaurants";
+import { apiService } from "../../utils/api";
+
+interface MenuItem {
+  _id: string;
+  id?: string;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  category: string;
+  isPopular?: boolean;
+  restaurantId: string;
+}
 
 export default function RestaurantScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
   const router = useRouter();
-  const restaurant = restaurantsData.find((r) => r.id === restaurantId);
+  const { restaurant, loading: restaurantLoading } = useRestaurant(
+    restaurantId || ""
+  );
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loadingMenuItems, setLoadingMenuItems] = useState(true);
+  const [isLiked, setIsLiked] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
 
-  const [isLiked, setIsLiked] = useState(restaurant?.isLiked || false);
-  const [selectedCategory, setSelectedCategory] = useState("ცომეული");
+  const fetchMenuItems = async () => {
+    try {
+      setLoadingMenuItems(true);
+      const response = await apiService.getMenuItems({
+        restaurantId: restaurantId || "",
+      });
+      if (response.success && response.data) {
+        // Handle paginated response
+        const items = Array.isArray(response.data)
+          ? response.data
+          : (response.data as any)?.data || [];
+        setMenuItems(items);
+      }
+    } catch (error) {
+      console.error("Error fetching menu items:", error);
+    } finally {
+      setLoadingMenuItems(false);
+    }
+  };
+
+  useEffect(() => {
+    if (restaurantId) {
+      fetchMenuItems();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (menuItems.length > 0 && !selectedCategory) {
+      // Set first category as default
+      const categories = [
+        ...new Set(
+          menuItems
+            .map((item) => item.category)
+            .filter((category) => category && category !== "ყველაზე პოპულარული")
+        ),
+      ];
+      if (categories.length > 0) {
+        setSelectedCategory(categories[0]);
+      }
+    }
+  }, [menuItems, selectedCategory]);
+
+  if (restaurantLoading || loadingMenuItems) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>იტვირთება...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!restaurant) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Restaurant not found</Text>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>რესტორნი ვერ მოიძებნა</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -33,26 +112,29 @@ export default function RestaurantScreen() {
     setIsLiked(!isLiked);
   };
 
-  const popularItems = restaurant.menuItems.filter((item) => item.isPopular);
+  const popularItems = menuItems.filter((item) => item.isPopular);
 
   // Get all unique categories (excluding "ყველაზე პოპულარული")
   const categories = [
     ...new Set(
-      restaurant.menuItems
+      menuItems
         .map((item) => item.category)
-        .filter((category) => category !== "ყველაზე პოპულარული")
+        .filter((category) => category && category !== "ყველაზე პოპულარული")
     ),
   ];
 
   // Filter items by selected category
-  const categoryItems = restaurant.menuItems.filter(
+  const categoryItems = menuItems.filter(
     (item) => item.category === selectedCategory
   );
 
   const navigateToProduct = (itemId: string) => {
     router.push({
       pathname: "/screens/product",
-      params: { productId: itemId, restaurantId: restaurant.id },
+      params: {
+        productId: itemId,
+        restaurantId: restaurant._id || restaurant.id || restaurantId,
+      },
     });
   };
 
@@ -66,9 +148,9 @@ export default function RestaurantScreen() {
 
   const renderMenuItem = (item: MenuItem) => (
     <TouchableOpacity
-      key={item.id}
+      key={item._id || item.id}
       style={styles.menuItem}
-      onPress={() => navigateToProduct(item.id)}
+      onPress={() => navigateToProduct(item._id || item.id || "")}
     >
       <View style={styles.menuItemContent}>
         <View style={styles.menuItemText}>
@@ -78,24 +160,28 @@ export default function RestaurantScreen() {
           )}
           <Text style={styles.menuItemPrice}>{item.price.toFixed(2)} ₾</Text>
         </View>
-        <Image
-          source={getImageSource(item.image)}
-          style={styles.menuItemImage}
-        />
+        {item.image && (
+          <Image
+            source={getImageSource(item.image)}
+            style={styles.menuItemImage}
+          />
+        )}
       </View>
     </TouchableOpacity>
   );
 
   const renderPopularItem = (item: MenuItem) => (
     <TouchableOpacity
-      key={item.id}
+      key={item._id || item.id}
       style={styles.popularItem}
-      onPress={() => navigateToProduct(item.id)}
+      onPress={() => navigateToProduct(item._id || item.id || "")}
     >
-      <Image
-        source={getImageSource(item.image)}
-        style={styles.popularItemImage}
-      />
+      {item.image && (
+        <Image
+          source={getImageSource(item.image)}
+          style={styles.popularItemImage}
+        />
+      )}
       <Text style={styles.popularItemPrice}>{item.price.toFixed(2)}₾</Text>
       <Text style={styles.popularItemName}>{item.name}</Text>
     </TouchableOpacity>
@@ -106,10 +192,12 @@ export default function RestaurantScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero Image Section */}
         <View style={styles.heroSection}>
-          <Image
-            source={getImageSource(restaurant.heroImage)}
-            style={styles.heroImage}
-          />
+          {restaurant.heroImage && (
+            <Image
+              source={getImageSource(restaurant.heroImage)}
+              style={styles.heroImage}
+            />
+          )}
 
           {/* Back Button */}
           <TouchableOpacity
@@ -151,7 +239,9 @@ export default function RestaurantScreen() {
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="time-outline" size={20} color="#9B9B9B" />
-              <Text style={styles.infoValue}>{restaurant.deliveryTime}</Text>
+              <Text style={styles.infoValue}>
+                {restaurant.deliveryTime || "N/A"}
+              </Text>
               <Text style={styles.infoLabel}>წუთი</Text>
             </View>
           </View>
@@ -225,7 +315,9 @@ export default function RestaurantScreen() {
       </ScrollView>
 
       {/* Cart Bottom Bar */}
-      <CartBottomBar restaurantId={restaurant.id} />
+      <CartBottomBar
+        restaurantId={restaurant._id || restaurant.id || restaurantId || ""}
+      />
     </SafeAreaView>
   );
 }
@@ -436,6 +528,39 @@ const styles = StyleSheet.create({
   },
   categoryTabTextActive: {
     color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#EF4444",
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "white",
+    fontSize: 16,
     fontWeight: "600",
   },
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Alert,
   ScrollView,
@@ -18,9 +18,44 @@ import RecentOrders from "../../components/RecentOrders";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function ProfileScreen() {
-  const { logout } = useAuth();
+  const { logout, user, refreshUser } = useAuth();
   const totalOrders = getTotalOrderCount();
   const recentOrders = getRecentOrders();
+  
+  useEffect(() => {
+    refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (user?.name) {
+      return user.name;
+    }
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    if (user?.firstName) {
+      return user.firstName;
+    }
+    return "მომხმარებელი";
+  };
+  
+  const getUserPhone = () => {
+    if (user?.phoneNumber) {
+      // Format: +995555123456 -> +995 555 12 34 56
+      const phone = user.phoneNumber.replace('+995', '');
+      if (phone.length === 9) {
+        return `+995 ${phone.slice(0, 3)} ${phone.slice(3, 5)} ${phone.slice(5, 7)} ${phone.slice(7, 9)}`;
+      }
+      return user.phoneNumber;
+    }
+    return "+995 -- -- -- --";
+  };
+  
+  const getUserEmail = () => {
+    return user?.email || "email@example.com";
+  };
 
   const handleLogout = () => {
     Alert.alert("გასვლა", "ნამდვილად გსურთ გასვლა?", [
@@ -49,7 +84,9 @@ export default function ProfileScreen() {
       >
         {/* Greeting Section */}
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingText}>გამარჯობა დავით! 👋</Text>
+          <Text style={styles.greetingText}>
+            გამარჯობა {getUserDisplayName().split(' ')[0]}! 👋
+          </Text>
         </View>
 
         {/* GreenGo Balance Card */}
@@ -90,7 +127,7 @@ export default function ProfileScreen() {
             onPress={() => router.push("/screens/editName")}
           >
             <Ionicons name="person-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>Dato Avaliani</Text>
+            <Text style={styles.infoText}>{getUserDisplayName()}</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
@@ -99,7 +136,7 @@ export default function ProfileScreen() {
             onPress={() => router.push("/screens/editPhone")}
           >
             <Ionicons name="call-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>+995 123 12 12 12</Text>
+            <Text style={styles.infoText}>{getUserPhone()}</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
@@ -108,7 +145,7 @@ export default function ProfileScreen() {
             onPress={() => router.push("/screens/editEmail")}
           >
             <Ionicons name="mail-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>greengodelivery@gmail.com</Text>
+            <Text style={styles.infoText}>{getUserEmail()}</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 

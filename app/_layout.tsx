@@ -62,6 +62,12 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="screens/registration"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="screens/orderHistory"
               options={{
                 headerShown: false,
@@ -159,6 +165,12 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="screens/orderSuccess"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="screens/selectAddress"
               options={{
                 headerShown: false,
               }}
