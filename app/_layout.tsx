@@ -175,6 +175,18 @@ export default function RootLayout() {
                 headerShown: false,
               }}
             />
+            <Stack.Screen
+              name="screens/orderTracking"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="screens/orderDetails"
+              options={{
+                headerShown: false,
+              }}
+            />
           </Stack>
         </AuthGuard>
       </CartProvider>

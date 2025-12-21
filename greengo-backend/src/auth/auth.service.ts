@@ -59,9 +59,21 @@ export class AuthService {
     return { code };
   }
 
+  async verifyCodeOnly(phoneNumber: string, code: string): Promise<boolean> {
+    // Simple validation - code should be 4 digits
+    // No database calls, no user creation, just format validation
+    if (!code || code.length !== 4 || !/^\d{4}$/.test(code)) {
+      throw new UnauthorizedException('Invalid verification code format');
+    }
+    
+    // TODO: In production, verify against stored code in database/cache
+    // For now, accept any 4-digit code (NOT SECURE for production!)
+    return true;
+  }
+
   async verifyCode(phoneNumber: string, code: string): Promise<any> {
-    // TODO: Verify code from database/cache
-    // For now, accept any 4-digit code (NOT SECURE!)
+    // Verify code first
+    await this.verifyCodeOnly(phoneNumber, code);
     
     let user = await this.usersService.findByPhone(phoneNumber);
     let isNewUser = false;

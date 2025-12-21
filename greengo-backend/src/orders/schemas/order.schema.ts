@@ -99,6 +99,9 @@ export class Order {
     default: 'delivery',
   })
   deliveryType?: 'delivery' | 'pickup';
+
+  @Prop({ type: Types.ObjectId, ref: 'Courier' })
+  courierId?: Types.ObjectId;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

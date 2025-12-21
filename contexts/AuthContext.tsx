@@ -81,11 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       if (response.success) {
-        // Store phone number for verification
         await AsyncStorage.setItem(PHONE_KEY, fullPhoneNumber);
         
-        // In development, return the code from response (remove in production!)
-        // For now, backend returns code in response for testing
         return response.code || "1234"; // Temporary for testing
       }
       throw new Error(response.error?.details || "Failed to send code");

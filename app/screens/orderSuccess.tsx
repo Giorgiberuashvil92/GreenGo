@@ -7,7 +7,7 @@ import { restaurantsData } from "../../assets/data/restaurantsData";
 import { useCart } from "../../contexts/CartContext";
 
 export default function OrderSuccessScreen() {
-  const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
+  const { restaurantId, orderId } = useLocalSearchParams<{ restaurantId: string; orderId: string }>();
   const router = useRouter();
   const { clearCart } = useCart();
 
@@ -21,6 +21,18 @@ export default function OrderSuccessScreen() {
   const handleViewOrders = () => {
     clearCart();
     router.push("/(tabs)/orders");
+  };
+
+  const handleViewTracking = () => {
+    if (orderId) {
+      router.push({
+        pathname: "/screens/orderTracking",
+        params: { orderId },
+      });
+    } else {
+      // If no orderId, go to orders page
+      handleViewOrders();
+    }
   };
 
   return (
@@ -47,6 +59,18 @@ export default function OrderSuccessScreen() {
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
+          {orderId && (
+            <TouchableOpacity
+              style={styles.trackingButton}
+              onPress={handleViewTracking}
+            >
+              <Ionicons name="location" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.trackingButtonText}>
+                შეკვეთის მდებარეობის ნახვა
+              </Text>
+            </TouchableOpacity>
+          )}
+          
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={handleBackToHome}
@@ -117,6 +141,19 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: "100%",
     gap: 12,
+  },
+  trackingButton: {
+    backgroundColor: "#2196F3",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  trackingButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
   },
   primaryButton: {
     backgroundColor: "#2E7D32",

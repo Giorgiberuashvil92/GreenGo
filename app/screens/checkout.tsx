@@ -1,7 +1,8 @@
+import { getDistance } from "@/utils/restaurantUtils";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -69,8 +70,36 @@ export default function CheckoutScreen() {
     (total, item) => total + item.price * item.quantity,
     0
   );
-  const deliveryFee = deliveryType === "delivery" ? (restaurant?.deliveryFee || 4.99) : 0;
-  const total = subtotal + deliveryFee + selectedTip;
+
+  // Calculate delivery fee based on distance
+  const deliveryFee = useMemo(() => {
+    if (deliveryType !== "delivery" || !deliveryAddress || !restaurant?.location) {
+      return 0;
+    }
+
+    const baseFee = restaurant.deliveryFee || 4.99;
+    
+    // Calculate distance between restaurant and delivery address
+    const distanceKm = getDistance(
+      restaurant.location.latitude,
+      restaurant.location.longitude,
+      deliveryAddress.coordinates.lat,
+      deliveryAddress.coordinates.lng
+    );
+
+    // If distance > 10 km, add 1.20 GEL per additional kilometer
+    if (distanceKm <= 10) {
+      return baseFee;
+    }
+
+    const additionalKm = distanceKm - 10;
+    const additionalFee = additionalKm * 1.20;
+    return baseFee + additionalFee;
+  }, [deliveryType, deliveryAddress, restaurant?.location, restaurant?.deliveryFee]);
+
+  const total = useMemo(() => {
+    return subtotal + deliveryFee + selectedTip;
+  }, [subtotal, deliveryFee, selectedTip]);
 
   const tipOptions = [0, 1, 3, 5];
 
@@ -83,17 +112,25 @@ export default function CheckoutScreen() {
   };
 
   const handleConfirmOrder = async () => {
+    console.log("🔵 handleConfirmOrder called");
+    console.log("User:", user?.id);
+    console.log("Restaurant:", restaurant?._id);
+    console.log("Cart items:", restaurantCartItems.length);
+
     if (!user?.id || !restaurant?._id) {
+      console.log("❌ Missing user or restaurant");
       Alert.alert("შეცდომა", "გთხოვთ დალოგინდეთ და სცადეთ თავიდან");
       return;
     }
 
     if (restaurantCartItems.length === 0) {
+      console.log("❌ Cart is empty");
       Alert.alert("შეცდომა", "კალათა ცარიელია");
       return;
     }
 
     try {
+      console.log("🟢 Starting order creation...");
       setIsSubmitting(true);
 
       // Prepare order items
@@ -105,9 +142,36 @@ export default function CheckoutScreen() {
         specialInstructions: comment || undefined,
       }));
 
-      // Calculate estimated delivery time (30-45 minutes)
+      // Calculate estimated delivery time based on distance
+      let estimatedMinutes = 20; // Base preparation time
+      
+      if (deliveryType === "delivery" && deliveryAddress && restaurant?.location) {
+        // Calculate distance between restaurant and delivery address
+        const distanceKm = getDistance(
+          restaurant.location.latitude,
+          restaurant.location.longitude,
+          deliveryAddress.coordinates.lat,
+          deliveryAddress.coordinates.lng
+        );
+        
+        // Calculate delivery time:
+        // - Preparation time: 15-20 minutes
+        // - Travel time: distance / average speed (30 km/h in city = 0.5 km/min)
+        // - Add buffer: 5-10 minutes
+        const travelTimeMinutes = Math.ceil(distanceKm / 0.5); // ~30 km/h average speed
+        estimatedMinutes = 20 + travelTimeMinutes + 5; // Base + travel + buffer
+        
+        // Minimum 25 minutes, maximum 60 minutes
+        estimatedMinutes = Math.max(25, Math.min(60, estimatedMinutes));
+        
+        console.log(`📍 Distance: ${distanceKm.toFixed(2)} km, Estimated time: ${estimatedMinutes} minutes`);
+      } else if (deliveryType === "pickup") {
+        // Pickup orders are faster - just preparation time
+        estimatedMinutes = 15;
+      }
+      
       const estimatedDelivery = new Date();
-      estimatedDelivery.setMinutes(estimatedDelivery.getMinutes() + 35);
+      estimatedDelivery.setMinutes(estimatedDelivery.getMinutes() + estimatedMinutes);
 
       // Prepare delivery address - only include required fields for backend
       let finalDeliveryAddress: {
@@ -117,10 +181,27 @@ export default function CheckoutScreen() {
         instructions?: string;
       };
       
-      if (deliveryType === "delivery" && deliveryAddress) {
-        if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.coordinates) {
-          throw new Error("მისამართის მონაცემები არასრულია");
+      if (deliveryType === "delivery") {
+        if (!deliveryAddress) {
+          console.log("❌ Delivery address is required for delivery orders");
+          Alert.alert(
+            "შეცდომა",
+            "გთხოვთ აირჩიოთ მიტანის მისამართი"
+          );
+          setIsSubmitting(false);
+          return;
         }
+        
+        if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.coordinates) {
+          console.log("❌ Delivery address data is incomplete");
+          Alert.alert(
+            "შეცდომა",
+            "მისამართის მონაცემები არასრულია. გთხოვთ აირჩიოთ მისამართი თავიდან"
+          );
+          setIsSubmitting(false);
+          return;
+        }
+        
         finalDeliveryAddress = {
           street: deliveryAddress.street,
           city: deliveryAddress.city,
@@ -130,17 +211,7 @@ export default function CheckoutScreen() {
           },
           instructions: deliveryAddress.instructions || comment || undefined,
         };
-      } else if (deliveryType === "delivery") {
-        // Fallback address if not selected (should not happen due to validation)
-        finalDeliveryAddress = {
-          street: "მისამართი არ არის მითითებული",
-          city: "თბილისი",
-          coordinates: {
-            lat: Number(restaurant.location?.latitude || 41.7151),
-            lng: Number(restaurant.location?.longitude || 44.8271),
-          },
-          instructions: comment || undefined,
-        };
+        console.log("✅ Delivery address prepared:", finalDeliveryAddress);
       } else {
         // For pickup, use restaurant address
         finalDeliveryAddress = {
@@ -159,7 +230,7 @@ export default function CheckoutScreen() {
         userId: user.id,
         restaurantId: restaurant._id || restaurant.id || restaurantId,
         items: orderItems,
-        totalAmount: Number(subtotal.toFixed(2)),
+        totalAmount: Number(total.toFixed(2)), // Include subtotal + deliveryFee + tip
         deliveryFee: Number(deliveryFee.toFixed(2)),
         paymentMethod: paymentMethod,
         deliveryAddress: finalDeliveryAddress,
@@ -169,38 +240,45 @@ export default function CheckoutScreen() {
         deliveryType: deliveryType,
       };
 
-      console.log("Creating order with data:", JSON.stringify(orderData, null, 2));
+      console.log("📦 Creating order with data:", JSON.stringify(orderData, null, 2));
 
       const response = await apiService.createOrder(orderData);
       
-      console.log("Order response:", response);
+      console.log("📥 Order response:", JSON.stringify(response, null, 2));
 
       if (response.success) {
+        console.log("✅ Order created successfully!");
         // Clear cart for this restaurant
         restaurantCartItems.forEach((item) => {
           removeFromCart(item.id);
         });
 
         // Navigate to order success page
+        console.log("🔄 Navigating to order success page...");
         router.push({
           pathname: "/screens/orderSuccess",
           params: { 
             restaurantId,
-            orderId: (response.data as any)?._id || "",
+            orderId: (response.data as any)?._id || (response.data as any)?.id || "",
           },
         });
       } else {
+        console.error("❌ Order creation failed:", response.error);
         Alert.alert(
           "შეცდომა",
           response.error?.details || "შეკვეთის შექმნა ვერ მოხერხდა"
         );
       }
     } catch (error: unknown) {
+      console.error("❌ Exception in handleConfirmOrder:", error);
+      const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
+      console.error("Error message:", errorMessage);
       Alert.alert(
         "შეცდომა",
-        error instanceof Error ? error.message : "უცნობი შეცდომა"
+        errorMessage
       );
     } finally {
+      console.log("🏁 handleConfirmOrder finished");
       setIsSubmitting(false);
     }
   };
@@ -490,6 +568,33 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        {/* Order Summary Section */}
+        <View style={styles.section}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.sectionTitle}>შეკვეთის დეტალები</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>პროდუქტების ჯამი</Text>
+              <Text style={styles.summaryValue}>{subtotal.toFixed(2)}₾</Text>
+            </View>
+            {deliveryType === "delivery" && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>მიტანის საფასური</Text>
+                <Text style={styles.summaryValue}>{deliveryFee.toFixed(2)}₾</Text>
+              </View>
+            )}
+            {selectedTip > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>თიფი</Text>
+                <Text style={styles.summaryValue}>{selectedTip.toFixed(2)}₾</Text>
+              </View>
+            )}
+            <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+              <Text style={styles.summaryTotalLabel}>სულ</Text>
+              <Text style={styles.summaryTotalValue}>{total.toFixed(2)}₾</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -498,8 +603,13 @@ export default function CheckoutScreen() {
       <View style={styles.confirmButtonContainer}>
         <TouchableOpacity
           style={[styles.confirmButton, isSubmitting && styles.confirmButtonDisabled]}
-          onPress={handleConfirmOrder}
+          onPress={() => {
+            console.log("🔘 Confirm button pressed");
+            console.log("isSubmitting:", isSubmitting);
+            handleConfirmOrder();
+          }}
           disabled={isSubmitting}
+          activeOpacity={0.7}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -833,6 +943,42 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   totalAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2E7D32",
+  },
+  summaryCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: "#666666",
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000000",
+  },
+  summaryTotalRow: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+  },
+  summaryTotalLabel: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000000",
+  },
+  summaryTotalValue: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#2E7D32",

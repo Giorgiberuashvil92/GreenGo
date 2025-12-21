@@ -62,14 +62,48 @@ class ApiService {
         10000 // 10 seconds timeout
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        // If response is not JSON, get text
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
         return {
           success: false,
           error: {
             code: 'API_ERROR',
-            details: data.error?.details || data.message || 'API Error',
+            details: text || `HTTP ${response.status}: ${response.statusText}`,
+          },
+        };
+      }
+
+      if (!response.ok) {
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data,
+        });
+        
+        // Handle validation errors
+        if (response.status === 400 && Array.isArray(data.message)) {
+          const validationErrors = data.message.map((err: any) => 
+            `${err.property}: ${Object.values(err.constraints || {}).join(', ')}`
+          ).join('; ');
+          return {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: validationErrors || 'Validation failed',
+            },
+          };
+        }
+        
+        return {
+          success: false,
+          error: {
+            code: 'API_ERROR',
+            details: data.error?.details || data.message || `HTTP ${response.status}: ${response.statusText}`,
           },
         };
       }
@@ -207,9 +241,20 @@ class ApiService {
   }
 
   async updateOrderStatus(id: string, status: string) {
-    return this.request(`/orders/${id}`, {
+    return this.request(`/orders/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  }
+
+  async getOrderTracking(id: string) {
+    return this.request(`/orders/${id}/tracking`);
+  }
+
+  async assignCourierToOrder(orderId: string, courierId?: string) {
+    return this.request(`/orders/${orderId}/assign-courier`, {
+      method: 'PATCH',
+      body: JSON.stringify({ courierId }),
     });
   }
 

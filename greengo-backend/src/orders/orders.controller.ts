@@ -1,17 +1,17 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-  ParseIntPipe,
+  Controller,
   DefaultValuePipe,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
-import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { OrdersService } from './orders.service';
 
 @Controller('orders')
 export class OrdersController {
@@ -19,7 +19,13 @@ export class OrdersController {
 
   @Post()
   create(@Body() createOrderDto: CreateOrderDto) {
-    return this.ordersService.create(createOrderDto);
+    console.log('📦 Received order request:', JSON.stringify(createOrderDto, null, 2));
+    try {
+      return this.ordersService.create(createOrderDto);
+    } catch (error: any) {
+      console.error('❌ Error creating order:', error);
+      throw error;
+    }
   }
 
   @Get()
@@ -29,6 +35,8 @@ export class OrdersController {
     @Query('status') status?: string,
     @Query('userId') userId?: string,
     @Query('restaurantId') restaurantId?: string,
+    @Query('courierId') courierId?: string,
+    @Query('forCourier') forCourier?: string, // courierId for checking active orders
   ) {
     return this.ordersService.findAll({
       page,
@@ -36,6 +44,8 @@ export class OrdersController {
       status,
       userId,
       restaurantId,
+      courierId,
+      forCourier,
     });
   }
 
@@ -47,6 +57,19 @@ export class OrdersController {
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body('status') status: string) {
     return this.ordersService.updateStatus(id, status);
+  }
+
+  @Get(':id/tracking')
+  getTracking(@Param('id') id: string) {
+    return this.ordersService.getOrderTracking(id);
+  }
+
+  @Patch(':id/assign-courier')
+  assignCourier(
+    @Param('id') id: string,
+    @Body('courierId') courierId?: string,
+  ) {
+    return this.ordersService.assignCourier(id, courierId);
   }
 
   @Delete(':id')

@@ -9,9 +9,10 @@ export const API_CONFIG = {
     // Android Emulator-ისთვის:
     ANDROID: 'http://10.0.2.2:3001/api',
     // iOS Simulator-ისთვის:
-    IOS: 'http://localhost:3001/api',
+    IOS_SIMULATOR: 'http://localhost:3001/api',
     // Physical Device-ისთვის (თქვენი კომპიუტერის IP):
-    // BASE_URL: 'http://192.168.1.XXX:3001/api',
+    // შეცვალეთ ეს IP თქვენი კომპიუტერის IP-ით (იპოვეთ: ipconfig getifaddr en0 ან en1)
+    IOS_DEVICE: 'http://172.20.10.4:3001/api',
   },
 
   // Production
@@ -27,7 +28,10 @@ export const getApiUrl = () => {
     if (Platform.OS === 'android') {
       return API_CONFIG.DEV.ANDROID;
     } else if (Platform.OS === 'ios') {
-      return API_CONFIG.DEV.IOS;
+      // For iOS: Use device IP for physical devices, localhost for simulator
+      // Physical device-ზე ყოველთვის გამოიყენება IOS_DEVICE
+      // თუ simulator-ზე გაქვთ, შეცვალეთ IOS_SIMULATOR-ზე
+      return API_CONFIG.DEV.IOS_DEVICE;
     }
     // Fallback to Android (most common)
     return API_CONFIG.DEV.ANDROID;

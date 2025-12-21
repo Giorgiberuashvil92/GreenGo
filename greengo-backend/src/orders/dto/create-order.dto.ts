@@ -4,11 +4,10 @@ import {
   IsDateString,
   IsEnum,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   Min,
-  ValidateNested,
+  ValidateNested
 } from 'class-validator';
 
 class OrderItemDto {
@@ -31,6 +30,14 @@ class OrderItemDto {
   specialInstructions?: string;
 }
 
+class CoordinatesDto {
+  @IsNumber()
+  lat: number;
+
+  @IsNumber()
+  lng: number;
+}
+
 class DeliveryAddressDto {
   @IsString()
   street: string;
@@ -38,11 +45,9 @@ class DeliveryAddressDto {
   @IsString()
   city: string;
 
-  @IsObject()
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
+  @ValidateNested()
+  @Type(() => CoordinatesDto)
+  coordinates: CoordinatesDto;
 
   @IsString()
   @IsOptional()
