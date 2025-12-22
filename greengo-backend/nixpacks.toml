@@ -7,7 +7,10 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = [
+  "npm run build",
+  "ls -la dist/src/main.js || echo 'Build failed - dist/src/main.js not found'"
+]
 
 [start]
 cmd = "npm run start:prod"
