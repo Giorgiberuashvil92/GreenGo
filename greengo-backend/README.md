@@ -200,10 +200,17 @@ openssl rand -base64 32
 
 ### 4. Build Settings
 
-Railway ავტომატურად გაიგებს NestJS პროექტს. თუ საჭიროა, დააყენეთ:
+Railway Dashboard -> Your Project -> Settings -> Build:
 
+**თუ `npm ci`-ს პრობლემა აქვს:**
+- **Build Command:** `npm install --legacy-peer-deps && npm run build`
+- **Start Command:** `npm run start:prod`
+
+**ან სტანდარტული (თუ `npm ci` მუშაობს):**
 - **Build Command:** `npm run build`
 - **Start Command:** `npm run start:prod`
+
+**შენიშვნა:** `railway.json` და `nixpacks.toml` ფაილები უკვე კონფიგურირებულია. თუ პრობლემა გაქვთ, Railway Dashboard-ში Build Settings-ში ხელით დააყენეთ build command.
 
 ### 5. Deploy
 
