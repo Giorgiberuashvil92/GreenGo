@@ -201,3 +201,4 @@ eas build --platform ios --profile production --auto-submit
 - Expo Forums-ზე დაწეროთ
 - Apple Developer Support-ს დაუკავშირდეთ
 
+

@@ -9,7 +9,7 @@ export const API_CONFIG = {
     // Android Emulator-ისთვის:
     ANDROID: 'http://10.0.2.2:3001/api',
     // iOS Simulator-ისთვის:
-    IOS_SIMULATOR: 'http://localhost:3001/api',
+    IOS_SIMULATOR: 'http://172.20.10.4:3001/api',
     // Physical Device-ისთვის (თქვენი კომპიუტერის IP):
     // შეცვალეთ ეს IP თქვენი კომპიუტერის IP-ით (იპოვეთ: ipconfig getifaddr en0 ან en1)
     IOS_DEVICE: 'http://172.20.10.4:3001/api',

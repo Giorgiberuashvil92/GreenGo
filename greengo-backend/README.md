@@ -167,9 +167,57 @@ npm run test
 - API prefix: `/api`
 - Default port: `3001`
 
+## 🚂 Railway Deployment
+
+### 1. Railway-ზე პროექტის შექმნა
+
+1. გადადით [Railway.app](https://railway.app)
+2. შექმენით ახალი პროექტი
+3. დააკავშირეთ GitHub repository
+4. აირჩიეთ `greengo-backend` ფოლდერი
+
+### 2. MongoDB Service-ის დამატება
+
+1. Railway Dashboard-ში დაამატეთ **MongoDB** service
+2. Railway ავტომატურად შექმნის `MONGODB_URI` environment variable-ს
+
+### 3. Environment Variables-ის დაყენება
+
+Railway Dashboard -> Your Project -> Variables -> Add Variable:
+
+```env
+PORT=3001
+JWT_SECRET=<generate-strong-secret-key>
+JWT_EXPIRES_IN=7d
+```
+
+**JWT_SECRET-ის გენერირება:**
+```bash
+openssl rand -base64 32
+```
+
+**შენიშვნა:** `MONGODB_URI` ავტომატურად დაემატება, როცა MongoDB service-ს დაამატებთ.
+
+### 4. Build Settings
+
+Railway ავტომატურად გაიგებს NestJS პროექტს. თუ საჭიროა, დააყენეთ:
+
+- **Build Command:** `npm run build`
+- **Start Command:** `npm run start:prod`
+
+### 5. Deploy
+
+Railway ავტომატურად განაახლებს deployment-ს, როცა GitHub-ში push-ს გააკეთებთ.
+
+### 6. Custom Domain (Optional)
+
+Railway Dashboard -> Settings -> Domains -> Add Domain
+
+მაგალითი: `api.greengo.ge`
+
 ## 🚀 Next Steps
 
-1. Add JWT Authentication
+1. Add JWT Authentication ✅
 2. Add File Upload (images)
 3. Add Real-time updates (WebSocket)
 4. Add SMS verification
