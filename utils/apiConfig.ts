@@ -17,7 +17,7 @@ export const API_CONFIG = {
 
   // Production
   PROD: {
-    BASE_URL: 'https://api.greengo.ge/api',
+    BASE_URL: 'https://greengo-production.up.railway.app/api',
   },
 };
 
