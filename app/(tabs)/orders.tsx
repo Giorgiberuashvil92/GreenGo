@@ -11,10 +11,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiService } from "../../utils/api";
+import { USE_MOCK_DATA } from "../../utils/mockData";
 
 interface Order {
   _id: string;
@@ -43,29 +43,15 @@ export default function OrdersScreen() {
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
-  const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
-  const [trackingData, setTrackingData] = useState<any>(null);
-  const [trackingLoading, setTrackingLoading] = useState(false);
-  const [mapRegion, setMapRegion] = useState({
-    latitude: 41.7151,
-    longitude: 44.8271,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  });
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    console.log('📦 Orders useEffect - User:', JSON.stringify(user, null, 2));
-    console.log('📦 Orders useEffect - User ID:', user?.id);
-    console.log('📦 Orders useEffect - User _id:', (user as any)?._id);
-    
     const userId = user?.id || (user as any)?._id;
-    
-    if (userId) {
-      console.log('📦 Fetching orders for user ID:', userId);
+
+    if (userId || USE_MOCK_DATA || apiService.isUsingMockData()) {
       fetchOrders();
     } else {
-      console.log('⚠️ No user ID available, user object:', user);
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,81 +61,61 @@ export default function OrdersScreen() {
     try {
       setLoading(true);
       setError(null);
-      
-      const userId = user?.id || (user as any)?._id || "";
-      console.log('📦 Fetching orders for user ID:', userId);
-      console.log('📦 Full user object:', JSON.stringify(user, null, 2));
-      
-      if (!userId) {
-        console.error('❌ No user ID available!');
+
+      const userId =
+        user?.id ||
+        (user as any)?._id ||
+        (USE_MOCK_DATA || apiService.isUsingMockData() ? "mock-user-001" : "");
+
+      if (!userId && !(USE_MOCK_DATA || apiService.isUsingMockData())) {
         setError("მომხმარებლის ID არ არის მითითებული");
         setLoading(false);
         return;
       }
-      
+
       const response = await apiService.getOrders({
         userId: userId,
         limit: 50,
       });
 
-      console.log('📦 Orders API Response:', JSON.stringify(response, null, 2));
-
       if (response.success && response.data) {
         let orders: Order[] = [];
-        
-        // Backend returns { data: Order[], total, page, limit }
-        // api.ts wraps it in { success: true, data: { data: Order[], total, page, limit } }
         const backendResponse = response.data as any;
-        
+
         if (Array.isArray(backendResponse)) {
-          // If response.data is directly an array
           orders = backendResponse;
-        } else if (backendResponse && typeof backendResponse === 'object') {
-          // If response.data is { data: Order[], total, page, limit }
-          if ('data' in backendResponse && Array.isArray(backendResponse.data)) {
+        } else if (backendResponse && typeof backendResponse === "object") {
+          if (
+            "data" in backendResponse &&
+            Array.isArray(backendResponse.data)
+          ) {
             orders = backendResponse.data;
           } else if (Array.isArray(backendResponse)) {
             orders = backendResponse;
           }
         }
 
-        console.log('📦 Parsed orders:', orders.length, 'Orders:', JSON.stringify(orders.slice(0, 2), null, 2));
-
-        // Filter orders by status
-        const current = orders.filter(o => 
-          ["pending", "confirmed", "preparing", "ready", "delivering"].includes(o.status)
+        const current = orders.filter((o) =>
+          ["pending", "confirmed", "preparing", "ready", "delivering"].includes(
+            o.status
+          )
         );
-        const previous = orders.filter(o => 
+        const previous = orders.filter((o) =>
           ["delivered", "cancelled"].includes(o.status)
         );
-
-        console.log('📦 Current orders:', current.length, 'Previous orders:', previous.length);
 
         setCurrentOrders(current);
         setPreviousOrders(previous);
       } else {
-        console.error('❌ Orders fetch failed:', response.error);
-        setError(response.error?.details || "შეცდომა მონაცემების მიღებისას");
+        const errorMessage =
+          (response as any).error?.details || "შეცდომა მონაცემების მიღებისას";
+        setError(errorMessage);
       }
     } catch (err: unknown) {
-      console.error('❌ Orders fetch error:', err);
       setError(err instanceof Error ? err.message : "უცნობი შეცდომა");
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      pending: "მოლოდინში",
-      confirmed: "დადასტურებული",
-      preparing: "მზადდება",
-      ready: "მზადაა",
-      delivering: "მიტანისას",
-      delivered: "მიწოდებული",
-      cancelled: "გაუქმებული",
-    };
-    return statusMap[status] || status;
   };
 
   const handleRepeatOrder = (order: Order) => {
@@ -157,88 +123,34 @@ export default function OrdersScreen() {
     // TODO: Implement repeat order functionality
   };
 
-  const handleOrderPress = (order: Order) => {
-    // Navigate to order details screen
-    router.push({
-      pathname: '/screens/orderDetails',
-      params: { orderId: order._id },
-    });
+  const handleInfoPress = (order: Order, e: any) => {
+    e.stopPropagation();
+    setSelectedOrder(order);
+    setActionSheetVisible(true);
   };
 
-  const handleTrackOrder = (orderId: string) => {
-    console.log('📍 Navigating to tracking screen with orderId:', orderId);
-    router.push({
-      pathname: '/screens/orderTracking',
-      params: { orderId: orderId },
-    });
-  };
-
-  const fetchTrackingData = async (orderId: string) => {
-    try {
-      setTrackingLoading(true);
-      const response = await apiService.getOrderTracking(orderId);
-      
-      if (response.success && response.data) {
-        const data = response.data as any;
-        setTrackingData(data);
-        
-        // Calculate map region
-        const locations: { lat: number; lng: number }[] = [];
-        
-        if (data.restaurant?.location) {
-          locations.push({
-            lat: data.restaurant.location.latitude,
-            lng: data.restaurant.location.longitude,
-          });
-        }
-        
-        if (data.order?.deliveryAddress?.coordinates) {
-          locations.push({
-            lat: data.order.deliveryAddress.coordinates.lat,
-            lng: data.order.deliveryAddress.coordinates.lng,
-          });
-        }
-        
-        if (data.courier?.currentLocation?.coordinates) {
-          const [lng, lat] = data.courier.currentLocation.coordinates;
-          locations.push({ lat, lng });
-        }
-        
-        if (locations.length > 0) {
-          const minLat = Math.min(...locations.map(l => l.lat));
-          const maxLat = Math.max(...locations.map(l => l.lat));
-          const minLng = Math.min(...locations.map(l => l.lng));
-          const maxLng = Math.max(...locations.map(l => l.lng));
-          
-          setMapRegion({
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLng + maxLng) / 2,
-            latitudeDelta: Math.max((maxLat - minLat) * 1.5, 0.01),
-            longitudeDelta: Math.max((maxLng - minLng) * 1.5, 0.01),
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching tracking data:', err);
-    } finally {
-      setTrackingLoading(false);
+  const handleAddDish = () => {
+    if (selectedOrder) {
+      setActionSheetVisible(false);
+      // TODO: Navigate to restaurant to add more items
     }
   };
 
+  const handleCancelOrder = () => {
+    if (selectedOrder) {
+      // TODO: Implement cancel order
+      setActionSheetVisible(false);
+    }
+  };
 
   const renderOrderCard = (order: Order) => {
     const firstItem = order.items[0];
     const total = order.totalAmount + order.deliveryFee;
-    const canTrack = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
-    
+
     return (
-      <TouchableOpacity
-        key={order._id}
-        style={styles.orderCard}
-        onPress={() => handleOrderPress(order)}
-        activeOpacity={0.7}
-      >
+      <View key={order._id} style={styles.orderCard}>
         <View style={styles.orderContent}>
+          {/* Order Image */}
           {order.restaurantId.image ? (
             <Image
               source={{ uri: order.restaurantId.image }}
@@ -249,40 +161,37 @@ export default function OrdersScreen() {
               <Ionicons name="restaurant" size={24} color="#9E9E9E" />
             </View>
           )}
+
+          {/* Order Details */}
           <View style={styles.orderDetails}>
-            <Text style={styles.orderName}>
-              {firstItem?.name || "შეკვეთა"}
-            </Text>
-            <Text style={styles.restaurantName}>
-              {order.restaurantId.name}
-            </Text>
-            <Text style={styles.price}>{total.toFixed(2)}₾</Text>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusText}>
-                {getStatusText(order.status)}
-              </Text>
-              {canTrack && (
-                <View style={styles.trackingBadge}>
-                  <Ionicons name="location" size={14} color="#4CAF50" />
-                  <Text style={styles.trackingBadgeText}>Tracking</Text>
-                </View>
-              )}
+            {/* Food Name, Restaurant Name and Info Icon Container */}
+            <View style={styles.orderInfoContainer}>
+              <View style={styles.orderNameAndRestaurant}>
+                <Text style={styles.orderName} numberOfLines={1}>
+                  {firstItem?.name || "შეკვეთა"}
+                </Text>
+                <Text style={styles.restaurantName} numberOfLines={1}>
+                  {order.restaurantId.name}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.infoButton}
+                onPress={(e) => handleInfoPress(order, e)}
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={24}
+                  color="#666666"
+                />
+              </TouchableOpacity>
             </View>
+
+            {/* Price */}
+            <Text style={styles.price}>{total.toFixed(2)}₾</Text>
           </View>
-          <TouchableOpacity
-            style={styles.infoButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleOrderPress(order);
-            }}
-          >
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color="#9E9E9E"
-            />
-          </TouchableOpacity>
         </View>
+
+        {/* Repeat Order Button - Only for Previous Orders */}
         {selectedTab === "previous" && (
           <TouchableOpacity
             style={styles.repeatButton}
@@ -294,29 +203,7 @@ export default function OrdersScreen() {
             <Text style={styles.repeatButtonText}>შეკვეთის განმეორება</Text>
           </TouchableOpacity>
         )}
-        
-        {/* Tracking Button - Small Map Preview (like Bolt) */}
-        {canTrack && selectedTab === "current" && (
-          <TouchableOpacity
-            style={styles.trackingPreview}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleTrackOrder(order._id);
-            }}
-          >
-            <View style={styles.trackingPreviewHeader}>
-              <Ionicons name="location" size={16} color="#4CAF50" />
-              <Text style={styles.trackingPreviewText}>შეკვეთის ტრეკინგი</Text>
-            </View>
-            <View style={styles.trackingMapContainer}>
-              <View style={styles.trackingMapPlaceholder}>
-                <Ionicons name="map" size={32} color="#4CAF50" />
-                <Text style={styles.trackingMapPlaceholderText}>რუკა</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -324,11 +211,7 @@ export default function OrdersScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        {/* <TouchableOpacity style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333333" />
-        </TouchableOpacity> */}
         <Text style={styles.headerTitle}>შეკვეთები</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       {/* Segmented Control */}
@@ -376,10 +259,7 @@ export default function OrdersScreen() {
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={fetchOrders}
-          >
+          <TouchableOpacity style={styles.retryButton} onPress={fetchOrders}>
             <Text style={styles.retryButtonText}>ხელახლა ცდა</Text>
           </TouchableOpacity>
         </View>
@@ -388,259 +268,61 @@ export default function OrdersScreen() {
           style={styles.ordersList}
           showsVerticalScrollIndicator={false}
         >
-          {selectedTab === "current"
-            ? currentOrders.length > 0
-              ? currentOrders.map(renderOrderCard)
-              : (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>მიმდინარე შეკვეთები არ არის</Text>
-                  </View>
-                )
-            : previousOrders.length > 0
-            ? previousOrders.map(renderOrderCard)
-            : (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>წინა შეკვეთები არ არის</Text>
-                </View>
-              )}
+          {selectedTab === "current" ? (
+            currentOrders.length > 0 ? (
+              currentOrders.map(renderOrderCard)
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  მიმდინარე შეკვეთები არ არის
+                </Text>
+              </View>
+            )
+          ) : previousOrders.length > 0 ? (
+            previousOrders.map(renderOrderCard)
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>წინა შეკვეთები არ არის</Text>
+            </View>
+          )}
         </ScrollView>
       )}
 
-      {/* Tracking Modal */}
+      {/* Action Sheet Modal */}
       <Modal
-        visible={trackingModalVisible}
+        visible={actionSheetVisible}
+        transparent={true}
         animationType="slide"
-        transparent={false}
-        onRequestClose={() => {
-          setTrackingModalVisible(false);
-          setTrackingData(null);
-        }}
+        onRequestClose={() => setActionSheetVisible(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setActionSheetVisible(false)}
+        >
+          <View style={styles.actionSheet}>
             <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => {
-                setTrackingModalVisible(false);
-                setTrackingData(null);
-              }}
+              style={[styles.actionSheetButton, styles.actionSheetButtonFirst]}
+              onPress={handleAddDish}
             >
-              <Ionicons name="close" size={24} color="#333333" />
+              <Text style={styles.actionSheetButtonText}>კერძის დამატება</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>შეკვეთის ტრეკინგი</Text>
-            <View style={styles.modalHeaderSpacer} />
+            <TouchableOpacity
+              style={[styles.actionSheetButton, styles.actionSheetButtonMiddle]}
+              onPress={handleCancelOrder}
+            >
+              <Text style={styles.actionSheetCancelOrderText}>
+                შეკვეთის გაუქმება
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionSheetButton, styles.actionSheetButtonLast]}
+              onPress={() => setActionSheetVisible(false)}
+            >
+              <Text style={styles.actionSheetCancelText}>გაუქმება</Text>
+            </TouchableOpacity>
           </View>
-
-          {trackingLoading ? (
-            <View style={styles.modalLoadingContainer}>
-              <ActivityIndicator size="large" color="#4CAF50" />
-              <Text style={styles.modalLoadingText}>იტვირთება...</Text>
-            </View>
-          ) : trackingData ? (
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {/* Map */}
-              <View style={styles.modalMapContainer}>
-                <MapView
-                  style={styles.modalMap}
-                  region={mapRegion}
-                  showsUserLocation={false}
-                  showsMyLocationButton={false}
-                >
-                  {/* Restaurant Marker */}
-                  {trackingData.restaurant?.location && (
-                    <Marker
-                      coordinate={{
-                        latitude: trackingData.restaurant.location.latitude,
-                        longitude: trackingData.restaurant.location.longitude,
-                      }}
-                      title={trackingData.restaurant.name}
-                      description="რესტორანი"
-                    >
-                      <View style={styles.restaurantMarker}>
-                        <Ionicons name="restaurant" size={24} color="#FF5722" />
-                      </View>
-                    </Marker>
-                  )}
-
-                  {/* Delivery Address Marker */}
-                  {trackingData.order?.deliveryAddress?.coordinates && (
-                    <Marker
-                      coordinate={{
-                        latitude: trackingData.order.deliveryAddress.coordinates.lat,
-                        longitude: trackingData.order.deliveryAddress.coordinates.lng,
-                      }}
-                      title="მიტანის მისამართი"
-                      description={trackingData.order.deliveryAddress.street}
-                    >
-                      <View style={styles.deliveryMarker}>
-                        <Ionicons name="location" size={24} color="#4CAF50" />
-                      </View>
-                    </Marker>
-                  )}
-
-                  {/* Courier Marker */}
-                  {trackingData.courier?.currentLocation?.coordinates && (
-                    <Marker
-                      coordinate={{
-                        latitude: trackingData.courier.currentLocation.coordinates[1],
-                        longitude: trackingData.courier.currentLocation.coordinates[0],
-                      }}
-                      title={trackingData.courier.name || "კურიერი"}
-                      description={trackingData.courier.phoneNumber}
-                    >
-                      <View style={styles.courierMarker}>
-                        <Ionicons name="bicycle" size={24} color="#2196F3" />
-                      </View>
-                    </Marker>
-                  )}
-
-                  {/* Route from restaurant to delivery */}
-                  {trackingData.restaurant?.location && trackingData.order?.deliveryAddress?.coordinates && (
-                    <Polyline
-                      coordinates={[
-                        {
-                          latitude: trackingData.restaurant.location.latitude,
-                          longitude: trackingData.restaurant.location.longitude,
-                        },
-                        {
-                          latitude: trackingData.order.deliveryAddress.coordinates.lat,
-                          longitude: trackingData.order.deliveryAddress.coordinates.lng,
-                        },
-                      ]}
-                      strokeColor="#4CAF50"
-                      strokeWidth={3}
-                      lineDashPattern={[5, 5]}
-                    />
-                  )}
-
-                  {/* Route from courier to delivery */}
-                  {trackingData.courier?.currentLocation?.coordinates && trackingData.order?.deliveryAddress?.coordinates && (
-                    <Polyline
-                      coordinates={[
-                        {
-                          latitude: trackingData.courier.currentLocation.coordinates[1],
-                          longitude: trackingData.courier.currentLocation.coordinates[0],
-                        },
-                        {
-                          latitude: trackingData.order.deliveryAddress.coordinates.lat,
-                          longitude: trackingData.order.deliveryAddress.coordinates.lng,
-                        },
-                      ]}
-                      strokeColor="#2196F3"
-                      strokeWidth={4}
-                    />
-                  )}
-                </MapView>
-              </View>
-
-              {/* Details */}
-              <View style={styles.modalDetailsContainer}>
-                {/* Status */}
-                <View style={styles.modalDetailCard}>
-                  <View style={styles.modalDetailHeader}>
-                    <Ionicons name="information-circle" size={20} color="#4CAF50" />
-                    <Text style={styles.modalDetailTitle}>შეკვეთის სტატუსი</Text>
-                  </View>
-                  <Text style={styles.modalDetailText}>
-                    {trackingData.order?.status === 'preparing' ? 'მზადდება' :
-                     trackingData.order?.status === 'ready' ? 'მზადაა' :
-                     trackingData.order?.status === 'delivering' ? 'მიტანისას' :
-                     trackingData.order?.status || 'უცნობი'}
-                  </Text>
-                </View>
-
-                {/* Restaurant */}
-                {trackingData.restaurant && (
-                  <View style={styles.modalDetailCard}>
-                    <View style={styles.modalDetailHeader}>
-                      <Ionicons name="restaurant" size={20} color="#4CAF50" />
-                      <Text style={styles.modalDetailTitle}>რესტორანი</Text>
-                    </View>
-                    <Text style={styles.modalDetailText}>{trackingData.restaurant.name}</Text>
-                    {trackingData.restaurant.location && (
-                      <Text style={styles.modalDetailSubtext}>
-                        {trackingData.restaurant.location.address || 'მისამართი ვერ მოიძებნა'}
-                      </Text>
-                    )}
-                  </View>
-                )}
-
-                {/* Courier */}
-                {trackingData.courier && (
-                  <View style={styles.modalDetailCard}>
-                    <View style={styles.modalDetailHeader}>
-                      <Ionicons name="bicycle" size={20} color="#4CAF50" />
-                      <Text style={styles.modalDetailTitle}>კურიერი</Text>
-                    </View>
-                    <Text style={styles.modalDetailText}>{trackingData.courier.name}</Text>
-                    <Text style={styles.modalDetailSubtext}>{trackingData.courier.phoneNumber}</Text>
-                    <Text style={styles.modalDetailSubtext}>
-                      სტატუსი: {trackingData.courier.status === 'available' ? 'ხელმისაწვდომი' :
-                                trackingData.courier.status === 'busy' ? 'დაკავებული' :
-                                trackingData.courier.status || 'უცნობი'}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Delivery Address */}
-                {trackingData.order?.deliveryAddress && (
-                  <View style={styles.modalDetailCard}>
-                    <View style={styles.modalDetailHeader}>
-                      <Ionicons name="location" size={20} color="#4CAF50" />
-                      <Text style={styles.modalDetailTitle}>მიტანის მისამართი</Text>
-                    </View>
-                    <Text style={styles.modalDetailText}>
-                      {trackingData.order.deliveryAddress.street}
-                    </Text>
-                    <Text style={styles.modalDetailSubtext}>
-                      {trackingData.order.deliveryAddress.city}
-                    </Text>
-                    {trackingData.order.deliveryAddress.instructions && (
-                      <Text style={styles.modalDetailSubtext}>
-                        ინსტრუქციები: {trackingData.order.deliveryAddress.instructions}
-                      </Text>
-                    )}
-                  </View>
-                )}
-
-                {/* Estimated Delivery */}
-                {trackingData.order?.estimatedDelivery && (
-                  <View style={styles.modalDetailCard}>
-                    <View style={styles.modalDetailHeader}>
-                      <Ionicons name="time" size={20} color="#4CAF50" />
-                      <Text style={styles.modalDetailTitle}>სავარაუდო მიტანის დრო</Text>
-                    </View>
-                    <Text style={styles.modalDetailText}>
-                      {new Date(trackingData.order.estimatedDelivery).toLocaleTimeString("ka-GE", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Full Screen Button */}
-              {selectedOrderForTracking && (
-                <TouchableOpacity
-                  style={styles.modalFullScreenButton}
-                  onPress={() => {
-                    setTrackingModalVisible(false);
-                    setTrackingData(null);
-                    handleTrackOrder(selectedOrderForTracking._id);
-                  }}
-                >
-                  <Text style={styles.modalFullScreenButtonText}>სრული ეკრანი</Text>
-                  <Ionicons name="expand" size={20} color="#4CAF50" />
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          ) : (
-            <View style={styles.modalErrorContainer}>
-              <Text style={styles.modalErrorText}>ტრეკინგის მონაცემები ვერ მოიძებნა</Text>
-            </View>
-          )}
-        </SafeAreaView>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -654,24 +336,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     backgroundColor: "#FFFFFF",
-  },
-  backButton: {
-    padding: 4,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333333",
-    textAlign: "center",
-    alignSelf: "center",
-    justifyContent: "center",
-    alignItems: "center",
-    flex: 1,
-  },
-  headerSpacer: {
-    width: 32,
+    color: "#000000",
   },
   segmentedControl: {
     flexDirection: "row",
@@ -685,15 +357,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 62,
+    borderRadius: 28,
     alignItems: "center",
   },
   segmentButtonActive: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#000",
-    color: "#181B1A",
-    fontWeight: "600",
-    fontSize: 14,
     shadowOffset: {
       width: 0,
       height: 1,
@@ -709,6 +378,7 @@ const styles = StyleSheet.create({
   },
   segmentTextActive: {
     color: "#333333",
+    fontWeight: "600",
   },
   ordersList: {
     flex: 1,
@@ -717,56 +387,73 @@ const styles = StyleSheet.create({
   orderCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#F3F2F2FF",
-    // borderRadius: 12,
-    borderRadius: 15,
+    borderColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 16,
-    padding: 16,
   },
   orderContent: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   orderImage: {
     width: 80,
     height: 80,
-    borderRadius: 8,
+    borderRadius: 12,
     marginRight: 12,
+    backgroundColor: "#F5F5F5",
+  },
+  orderImagePlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   orderDetails: {
+    flex: 1,
+  },
+  orderInfoContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  orderNameAndRestaurant: {
     flex: 1,
   },
   orderName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333333",
-    marginBottom: 4,
+    color: "#181B1A",
+    marginBottom: 8,
   },
   restaurantName: {
     fontSize: 14,
-    color: "#666666",
-    marginBottom: 4,
+    color: "#B3B3B3",
   },
   price: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#181B1A",
+    color: "#00592D",
+    marginTop: 16,
   },
   infoButton: {
     padding: 4,
+    marginLeft: 8,
   },
   repeatButton: {
-    backgroundColor: "#E8F5E8",
-    borderRadius: 8,
+    backgroundColor: "#EFFBF5",
+    color: "#2E7354",
+    borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginTop: 12,
     alignItems: "center",
+    justifyContent: "center",
+    // alignSelf: "center",
   },
   repeatButtonText: {
     fontSize: 14,
     fontWeight: "500",
     color: "#4CAF50",
+    textAlign: "center",
   },
   loadingContainer: {
     flex: 1,
@@ -812,192 +499,49 @@ const styles = StyleSheet.create({
     color: "#999",
     textAlign: "center",
   },
-  orderImagePlaceholder: {
-    backgroundColor: "#F5F5F5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statusText: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    gap: 8,
-  },
-  trackingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E8F5E8",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  trackingBadgeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  trackingPreview: {
-    marginTop: 12,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
-  trackingPreviewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#F5F5F5",
-    gap: 8,
-  },
-  trackingPreviewText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  trackingMapContainer: {
-    height: 120,
-    width: "100%",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  trackingMapPlaceholder: {
+  // Action Sheet Styles
+  modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F0F0F0",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
-  trackingMapPlaceholderText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
+  actionSheet: {
+    backgroundColor: "#F5F5F5",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    paddingTop: 8,
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+  actionSheetButton: {
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+    marginHorizontal: 8,
+    marginVertical: 4,
+    borderRadius: 8,
   },
-  modalCloseButton: {
-    padding: 4,
+  actionSheetButtonFirst: {
+    backgroundColor: "#E8E8E8",
+    marginTop: 8,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333333",
-    flex: 1,
+  actionSheetButtonMiddle: {
+    backgroundColor: "#F5F5F5",
+  },
+  actionSheetButtonLast: {
+    backgroundColor: "#F5F5F5",
+  },
+  actionSheetButtonText: {
+    fontSize: 16,
+    color: "#666666",
     textAlign: "center",
   },
-  modalHeaderSpacer: {
-    width: 32,
-  },
-  modalFullScreenButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    backgroundColor: "#F5F5F5",
-    gap: 8,
-  },
-  modalFullScreenButtonText: {
+  actionSheetCancelOrderText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#4CAF50",
+    color: "#FF4444",
+    textAlign: "center",
   },
-  modalLoadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-  },
-  modalLoadingText: {
+  actionSheetCancelText: {
     fontSize: 16,
-    color: "#666",
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalMapContainer: {
-    height: 300,
-    width: "100%",
-  },
-  modalMap: {
-    flex: 1,
-  },
-  restaurantMarker: {
-    backgroundColor: "#FF5722",
-    borderRadius: 20,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  deliveryMarker: {
-    backgroundColor: "#4CAF50",
-    borderRadius: 20,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  courierMarker: {
-    backgroundColor: "#2196F3",
-    borderRadius: 20,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  modalDetailsContainer: {
-    padding: 16,
-    gap: 12,
-  },
-  modalDetailCard: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalDetailHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    gap: 8,
-  },
-  modalDetailTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333333",
-  },
-  modalDetailText: {
-    fontSize: 15,
-    color: "#333333",
-    marginBottom: 4,
-  },
-  modalDetailSubtext: {
-    fontSize: 13,
-    color: "#666666",
-    marginTop: 2,
-  },
-  modalErrorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalErrorText: {
-    fontSize: 16,
-    color: "#EF4444",
+    color: "#2196F3",
     textAlign: "center",
   },
 });

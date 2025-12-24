@@ -86,11 +86,7 @@ const LoginScreen = () => {
     >
       <StatusBar style="dark" />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -101,52 +97,55 @@ const LoginScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Logo Section */}
-        <View style={styles.logoSection}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logoIcon}>
-              <Text style={styles.logoIconText}>📍</Text>
-              <Text style={styles.lightningIcon}>⚡</Text>
-            </View>
-            <View style={styles.logoText}>
-              <Text style={styles.greenText}>Green</Text>
-              <Text style={styles.yellowText}>Go</Text>
-            </View>
-            <Text style={styles.deliveryText}>Delivery</Text>
-          </View>
-        </View>
-
-        {/* Phone Input Section */}
-        <View style={styles.inputSection}>
-          <View style={styles.phoneInputContainer}>
-            {/* Country Code Selector */}
-            <View style={styles.countryCodeContainer}>
-              <View style={styles.flagIcon}>
-                <Text style={styles.flagText}>🇬🇪</Text>
+        {/* Centered Content: Logo and Input */}
+        <View style={styles.centeredContent}>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoIcon}>
+                <Text style={styles.logoIconText}>📍</Text>
+                <Text style={styles.lightningIcon}>⚡</Text>
               </View>
-              <Text style={styles.countryCode}>+995</Text>
-              <Text style={styles.chevronIcon}>▼</Text>
+              <View style={styles.logoText}>
+                <Text style={styles.greenText}>Green</Text>
+                <Text style={styles.yellowText}>Go</Text>
+              </View>
+              <Text style={styles.deliveryText}>Delivery</Text>
             </View>
-
-            {/* Phone Number Input */}
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="ტელეფონის ნომერი"
-              placeholderTextColor="#999"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              maxLength={9}
-              editable={true}
-            />
           </View>
 
-          <Text style={styles.helperText}>
-            ვერიფიკაციის კოდი გამოიგზავნება SMS-ით
-          </Text>
+          {/* Phone Input Section */}
+          <View style={styles.inputSection}>
+            <View style={styles.phoneInputContainer}>
+              {/* Country Code Selector */}
+              <View style={styles.countryCodeContainer}>
+                <View style={styles.flagIcon}>
+                  <Text style={styles.flagText}>🇬🇪</Text>
+                </View>
+                <Text style={styles.countryCode}>+995</Text>
+                <Text style={styles.chevronIcon}>▼</Text>
+              </View>
+
+              {/* Phone Number Input */}
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="ტელეფონის ნომერი"
+                placeholderTextColor="#999"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                maxLength={9}
+                editable={true}
+              />
+            </View>
+
+            <Text style={styles.helperText}>
+              ვერიფიკაციის კოდი გამოიგზავნება SMS-ით
+            </Text>
+          </View>
         </View>
 
-        {/* Continue Button */}
+        {/* Continue Button at Bottom */}
         <View style={styles.buttonSection}>
           <TouchableOpacity
             style={[styles.continueButton, loading && styles.continueButtonDisabled]}
@@ -160,7 +159,7 @@ const LoginScreen = () => {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -169,10 +168,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 20,
   },
   header: {
     flexDirection: "row",
@@ -190,11 +185,15 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
     fontWeight: "500",
   },
-  logoSection: {
+  centeredContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+  },
+  logoSection: {
+    alignItems: "center",
+    marginBottom: 40,
   },
   logoContainer: {
     alignItems: "center",
@@ -242,8 +241,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   inputSection: {
-    paddingHorizontal: 20,
-    marginBottom: 40,
+    width: "100%",
   },
   phoneInputContainer: {
     flexDirection: "row",
@@ -292,6 +290,7 @@ const styles = StyleSheet.create({
   buttonSection: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+    paddingTop: 20,
   },
   continueButton: {
     backgroundColor: "#4CAF50",

@@ -9,10 +9,12 @@ interface Restaurant {
   rating: number;
   reviewCount: number;
   deliveryFee: number;
+  discountedDeliveryFee?: number; // ფასდაკლებული მიტანის ფასი
   deliveryTime: string;
-  image: string;
-  heroImage: string;
+  image: any; // Can be string URL or require() object
+  heroImage: any; // Can be string URL or require() object
   isActive: boolean;
+  isLiked?: boolean;
   location: {
     latitude: number;
     longitude: number;
@@ -77,6 +79,8 @@ export const useRestaurants = (params?: {
         const transformedData = restaurantsData.map((restaurant: Restaurant) => ({
           ...restaurant,
           id: restaurant._id || restaurant.id,
+          // Ensure isActive is true for mock data
+          isActive: restaurant.isActive !== undefined ? restaurant.isActive : true,
         }));
         setRestaurants(transformedData);
       } else {
@@ -125,6 +129,8 @@ export const useRestaurant = (id: string) => {
         const transformedData: Restaurant = {
           ...restaurantData,
           id: restaurantData._id || restaurantData.id,
+          // Ensure isActive is true for mock data
+          isActive: restaurantData.isActive !== undefined ? restaurantData.isActive : true,
         };
         setRestaurant(transformedData);
       } else {
@@ -145,4 +151,3 @@ export const useRestaurant = (id: string) => {
     refetch: fetchRestaurant,
   };
 };
-

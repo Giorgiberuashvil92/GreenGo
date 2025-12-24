@@ -16,17 +16,55 @@ import {
 } from "../../assets/data/ordersData";
 import RecentOrders from "../../components/RecentOrders";
 import { useAuth } from "../../contexts/AuthContext";
+import { USE_MOCK_DATA } from "../../utils/mockData";
 
 export default function ProfileScreen() {
-  const { logout, user, refreshUser } = useAuth();
+  const { logout, user, refreshUser, isMockMode, isAuthenticated } = useAuth();
   const totalOrders = getTotalOrderCount();
   const recentOrders = getRecentOrders();
-  
+
   useEffect(() => {
     refreshUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
+
+  const isInMockMode = USE_MOCK_DATA || (isMockMode && isMockMode());
+
+  // If user is not authenticated, show only auth and support options
+  if (!isAuthenticated || !user) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.unauthContentContainer}
+        >
+          {/* Authorization Menu Item */}
+          <TouchableOpacity
+            style={styles.unauthMenuItem}
+            onPress={() => router.push("/screens/login")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-in-outline" size={24} color="#2E7D32" />
+            <Text style={styles.unauthMenuItemText}>ავტორიზაცია</Text>
+          </TouchableOpacity>
+
+          {/* Support Menu Item */}
+          <TouchableOpacity
+            style={styles.unauthMenuItem}
+            onPress={() => router.push("/screens/support")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="help-circle-outline" size={24} color="#2E7D32" />
+            <Text style={styles.unauthMenuItemText}>მხარდაჭერა</Text>
+            <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
+
   // Get user display name
   const getUserDisplayName = () => {
     if (user?.name) {
@@ -40,19 +78,22 @@ export default function ProfileScreen() {
     }
     return "მომხმარებელი";
   };
-  
+
   const getUserPhone = () => {
     if (user?.phoneNumber) {
       // Format: +995555123456 -> +995 555 12 34 56
-      const phone = user.phoneNumber.replace('+995', '');
+      const phone = user.phoneNumber.replace("+995", "");
       if (phone.length === 9) {
-        return `+995 ${phone.slice(0, 3)} ${phone.slice(3, 5)} ${phone.slice(5, 7)} ${phone.slice(7, 9)}`;
+        return `+995 ${phone.slice(0, 3)} ${phone.slice(3, 5)} ${phone.slice(
+          5,
+          7
+        )} ${phone.slice(7, 9)}`;
       }
       return user.phoneNumber;
     }
     return "+995 -- -- -- --";
   };
-  
+
   const getUserEmail = () => {
     return user?.email || "email@example.com";
   };
@@ -85,8 +126,14 @@ export default function ProfileScreen() {
         {/* Greeting Section */}
         <View style={styles.greetingSection}>
           <Text style={styles.greetingText}>
-            გამარჯობა {getUserDisplayName().split(' ')[0]}! 👋
+            გამარჯობა {getUserDisplayName().split(" ")[0]}! 👋
           </Text>
+          {isInMockMode && (
+            <View style={styles.mockModeBadge}>
+              <Ionicons name="flask-outline" size={14} color="#FF9800" />
+              <Text style={styles.mockModeText}>Demo მოხმარება</Text>
+            </View>
+          )}
         </View>
 
         {/* GreenGo Balance Card */}
@@ -179,7 +226,10 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.infoItem}>
+          <TouchableOpacity
+            style={styles.infoItem}
+            onPress={() => router.push("/screens/support")}
+          >
             <Ionicons name="help-circle-outline" size={20} color="#333" />
             <Text style={styles.infoText}>მხარდაჭერა</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -218,6 +268,22 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "#000",
+  },
+  mockModeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3E0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  mockModeText: {
+    fontSize: 12,
+    color: "#FF9800",
+    fontWeight: "500",
+    marginLeft: 6,
   },
   balanceCard: {
     marginHorizontal: 20,
@@ -326,5 +392,29 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 30,
+  },
+  // Unauthenticated styles
+  unauthContentContainer: {
+    flexGrow: 1,
+    paddingTop: 80,
+    paddingHorizontal: 20,
+  },
+  unauthMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    // backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  unauthMenuItemText: {
+    flex: 1,
+    fontSize: 16,
+    color: "#333333",
+    fontWeight: "400",
   },
 });

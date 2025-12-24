@@ -75,7 +75,7 @@ const RestaurantsScreen = () => {
             activeOpacity={0.8}
             onPress={() =>
               router.push({
-                pathname: "/screens/restaurant",
+                pathname: "/(tabs)/restaurant",
                 params: { restaurantId: item.id || item._id },
               })
             }

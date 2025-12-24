@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import apiService from "../utils/api";
+import { USE_MOCK_DATA, mockUser } from "../utils/mockData";
 
 interface User {
   id: string;
@@ -21,6 +22,9 @@ interface AuthContextType {
   completeRegistration: (firstName: string, lastName: string, email: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  // Mock data helpers
+  isMockMode: () => boolean;
+  loginWithMockUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -61,12 +65,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
         setIsAuthenticated(true);
+      } else if (USE_MOCK_DATA) {
+        // Auto-login with mock user in mock mode
+        console.log('🔶 Mock mode: Auto-authenticating with mock user');
+        await loginWithMockUser();
       }
     } catch (error) {
       console.error("Error loading stored auth:", error);
+      // In mock mode, still authenticate
+      if (USE_MOCK_DATA) {
+        await loginWithMockUser();
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const loginWithMockUser = async () => {
+    const mockToken = "mock-jwt-token-" + Date.now();
+    const mockUserData: User = {
+      id: mockUser._id,
+      phoneNumber: mockUser.phoneNumber,
+      firstName: mockUser.firstName,
+      lastName: mockUser.lastName,
+      name: mockUser.name,
+      email: mockUser.email,
+    };
+
+    await Promise.all([
+      AsyncStorage.setItem(TOKEN_KEY, mockToken),
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(mockUserData)),
+    ]);
+
+    setToken(mockToken);
+    setUser(mockUserData);
+    setIsAuthenticated(true);
+    console.log('✅ Logged in with mock user:', mockUserData.name);
+  };
+
+  const isMockMode = () => {
+    return USE_MOCK_DATA || apiService.isUsingMockData();
   };
 
   const sendVerificationCode = async (
@@ -83,11 +121,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (response.success) {
         await AsyncStorage.setItem(PHONE_KEY, fullPhoneNumber);
         
+        // Return mock code in mock mode for easy testing
+        if (USE_MOCK_DATA || apiService.isUsingMockData()) {
+          console.log('🔶 Mock mode: Verification code is 1234');
+          return "1234";
+        }
+        
         return response.code || "1234"; // Temporary for testing
       }
       throw new Error(response.error?.details || "Failed to send code");
     } catch (error: any) {
       console.error("Send verification code error:", error);
+      
+      // In mock mode, still return a code
+      if (USE_MOCK_DATA || apiService.isUsingMockData()) {
+        const fullPhoneNumber = `${countryCode}${phoneNumber}`;
+        await AsyncStorage.setItem(PHONE_KEY, fullPhoneNumber);
+        console.log('🔶 Mock mode fallback: Verification code is 1234');
+        return "1234";
+      }
+      
       throw error;
     }
   };
@@ -122,6 +175,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } catch (error: any) {
       console.error("Login error:", error);
+      
+      // In mock mode, authenticate anyway
+      if (USE_MOCK_DATA || apiService.isUsingMockData()) {
+        console.log('🔶 Mock mode fallback: Logging in with mock user');
+        await loginWithMockUser();
+        return { isNewUser: false };
+      }
+      
       throw error;
     }
   };
@@ -139,6 +200,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } catch (error: any) {
       console.error("Complete registration error:", error);
+      
+      // In mock mode, update user locally
+      if (USE_MOCK_DATA || apiService.isUsingMockData()) {
+        const updatedUser: User = {
+          id: mockUser._id,
+          phoneNumber: user?.phoneNumber || mockUser.phoneNumber,
+          firstName,
+          lastName,
+          name: `${firstName} ${lastName}`,
+          email,
+        };
+        setUser(updatedUser);
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+        console.log('🔶 Mock mode: Registration completed locally');
+        return;
+      }
+      
       throw error;
     }
   };
@@ -168,6 +246,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } catch (error) {
       console.error("Refresh user error:", error);
+      
+      // In mock mode, use mock user
+      if (USE_MOCK_DATA || apiService.isUsingMockData()) {
+        const mockUserData: User = {
+          id: mockUser._id,
+          phoneNumber: mockUser.phoneNumber,
+          firstName: mockUser.firstName,
+          lastName: mockUser.lastName,
+          name: mockUser.name,
+          email: mockUser.email,
+        };
+        setUser(mockUserData);
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(mockUserData));
+      }
     }
   };
 
@@ -181,6 +273,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     completeRegistration,
     logout,
     refreshUser,
+    isMockMode,
+    loginWithMockUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

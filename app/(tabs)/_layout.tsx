@@ -69,6 +69,12 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="restaurant"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

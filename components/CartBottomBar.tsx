@@ -63,15 +63,13 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#2E7D32", // Dark green color
+    bottom: 70, // Above the tab bar
+    left: 16,
+    right: 16,
+    backgroundColor: "#2E7D32",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: 20, // Extra padding for safe area
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,

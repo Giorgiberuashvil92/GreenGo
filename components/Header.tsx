@@ -1,10 +1,17 @@
+import { useRouter } from "expo-router";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function Header() {
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
-      <View style={styles.locationContainer}>
+      <TouchableOpacity
+        style={styles.locationContainer}
+        onPress={() => router.push("/screens/selectLocation")}
+        activeOpacity={0.7}
+      >
         <Image
           source={require("../assets/images/icons/pin.png")}
           width={36}
@@ -14,7 +21,7 @@ export default function Header() {
           <Text style={styles.streetText}>4 შანიძის ქუჩა</Text>
           <Text style={styles.cityText}>წყალტუბო</Text>
         </View>
-      </View>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.cartButton}>
         <Image
           source={require("../assets/images/icons/cart.png")}

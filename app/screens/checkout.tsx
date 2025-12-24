@@ -1,5 +1,5 @@
 import { getDistance } from "@/utils/restaurantUtils";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
@@ -12,7 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
@@ -26,12 +26,10 @@ export default function CheckoutScreen() {
   const { cartItems, updateQuantity, removeFromCart } = useCart();
   const { user } = useAuth();
   const { restaurant } = useRestaurant(restaurantId || "");
-  const [selectedTip, setSelectedTip] = useState<number>(3);
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
     "delivery"
   );
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'greengo_balance'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState<{
     street: string;
@@ -42,16 +40,22 @@ export default function CheckoutScreen() {
     instructions?: string;
   } | null>(null);
 
-  // Listen for address selection from selectAddress screen
+  // Payment card info (mock)
+  const [savedCard] = useState({
+    type: "AMEX",
+    lastFour: "7729",
+  });
+
   useFocusEffect(
     useCallback(() => {
       const loadSelectedAddress = async () => {
         try {
-          const addressJson = await AsyncStorage.getItem("@greengo:selected_address");
+          const addressJson = await AsyncStorage.getItem(
+            "@greengo:selected_address"
+          );
           if (addressJson) {
             const address = JSON.parse(addressJson);
             setDeliveryAddress(address);
-            // Clear stored address after loading
             await AsyncStorage.removeItem("@greengo:selected_address");
           }
         } catch (error) {
@@ -71,15 +75,21 @@ export default function CheckoutScreen() {
     0
   );
 
+  // Service fee
+  const serviceFee = 1.2;
+
   // Calculate delivery fee based on distance
   const deliveryFee = useMemo(() => {
-    if (deliveryType !== "delivery" || !deliveryAddress || !restaurant?.location) {
+    if (
+      deliveryType !== "delivery" ||
+      !deliveryAddress ||
+      !restaurant?.location
+    ) {
       return 0;
     }
 
-    const baseFee = restaurant.deliveryFee || 4.99;
-    
-    // Calculate distance between restaurant and delivery address
+    const baseFee = restaurant.deliveryFee || 2.7;
+
     const distanceKm = getDistance(
       restaurant.location.latitude,
       restaurant.location.longitude,
@@ -87,21 +97,23 @@ export default function CheckoutScreen() {
       deliveryAddress.coordinates.lng
     );
 
-    // If distance > 10 km, add 1.20 GEL per additional kilometer
     if (distanceKm <= 10) {
       return baseFee;
     }
 
     const additionalKm = distanceKm - 10;
-    const additionalFee = additionalKm * 1.20;
+    const additionalFee = additionalKm * 1.2;
     return baseFee + additionalFee;
-  }, [deliveryType, deliveryAddress, restaurant?.location, restaurant?.deliveryFee]);
+  }, [
+    deliveryType,
+    deliveryAddress,
+    restaurant?.location,
+    restaurant?.deliveryFee,
+  ]);
 
   const total = useMemo(() => {
-    return subtotal + deliveryFee + selectedTip;
-  }, [subtotal, deliveryFee, selectedTip]);
-
-  const tipOptions = [0, 1, 3, 5];
+    return subtotal + serviceFee + deliveryFee;
+  }, [subtotal, serviceFee, deliveryFee]);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -112,28 +124,19 @@ export default function CheckoutScreen() {
   };
 
   const handleConfirmOrder = async () => {
-    console.log("🔵 handleConfirmOrder called");
-    console.log("User:", user?.id);
-    console.log("Restaurant:", restaurant?._id);
-    console.log("Cart items:", restaurantCartItems.length);
-
     if (!user?.id || !restaurant?._id) {
-      console.log("❌ Missing user or restaurant");
       Alert.alert("შეცდომა", "გთხოვთ დალოგინდეთ და სცადეთ თავიდან");
       return;
     }
 
     if (restaurantCartItems.length === 0) {
-      console.log("❌ Cart is empty");
       Alert.alert("შეცდომა", "კალათა ცარიელია");
       return;
     }
 
     try {
-      console.log("🟢 Starting order creation...");
       setIsSubmitting(true);
 
-      // Prepare order items
       const orderItems = restaurantCartItems.map((item) => ({
         menuItemId: item.id,
         name: item.name,
@@ -142,66 +145,46 @@ export default function CheckoutScreen() {
         specialInstructions: comment || undefined,
       }));
 
-      // Calculate estimated delivery time based on distance
-      let estimatedMinutes = 20; // Base preparation time
-      
-      if (deliveryType === "delivery" && deliveryAddress && restaurant?.location) {
-        // Calculate distance between restaurant and delivery address
+      let estimatedMinutes = 20;
+
+      if (
+        deliveryType === "delivery" &&
+        deliveryAddress &&
+        restaurant?.location
+      ) {
         const distanceKm = getDistance(
           restaurant.location.latitude,
           restaurant.location.longitude,
           deliveryAddress.coordinates.lat,
           deliveryAddress.coordinates.lng
         );
-        
-        // Calculate delivery time:
-        // - Preparation time: 15-20 minutes
-        // - Travel time: distance / average speed (30 km/h in city = 0.5 km/min)
-        // - Add buffer: 5-10 minutes
-        const travelTimeMinutes = Math.ceil(distanceKm / 0.5); // ~30 km/h average speed
-        estimatedMinutes = 20 + travelTimeMinutes + 5; // Base + travel + buffer
-        
-        // Minimum 25 minutes, maximum 60 minutes
+
+        const travelTimeMinutes = Math.ceil(distanceKm / 0.5);
+        estimatedMinutes = 20 + travelTimeMinutes + 5;
         estimatedMinutes = Math.max(25, Math.min(60, estimatedMinutes));
-        
-        console.log(`📍 Distance: ${distanceKm.toFixed(2)} km, Estimated time: ${estimatedMinutes} minutes`);
       } else if (deliveryType === "pickup") {
-        // Pickup orders are faster - just preparation time
         estimatedMinutes = 15;
       }
-      
-      const estimatedDelivery = new Date();
-      estimatedDelivery.setMinutes(estimatedDelivery.getMinutes() + estimatedMinutes);
 
-      // Prepare delivery address - only include required fields for backend
+      const estimatedDelivery = new Date();
+      estimatedDelivery.setMinutes(
+        estimatedDelivery.getMinutes() + estimatedMinutes
+      );
+
       let finalDeliveryAddress: {
         street: string;
         city: string;
         coordinates: { lat: number; lng: number };
         instructions?: string;
       };
-      
+
       if (deliveryType === "delivery") {
         if (!deliveryAddress) {
-          console.log("❌ Delivery address is required for delivery orders");
-          Alert.alert(
-            "შეცდომა",
-            "გთხოვთ აირჩიოთ მიტანის მისამართი"
-          );
+          Alert.alert("შეცდომა", "გთხოვთ აირჩიოთ მიტანის მისამართი");
           setIsSubmitting(false);
           return;
         }
-        
-        if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.coordinates) {
-          console.log("❌ Delivery address data is incomplete");
-          Alert.alert(
-            "შეცდომა",
-            "მისამართის მონაცემები არასრულია. გთხოვთ აირჩიოთ მისამართი თავიდან"
-          );
-          setIsSubmitting(false);
-          return;
-        }
-        
+
         finalDeliveryAddress = {
           street: deliveryAddress.street,
           city: deliveryAddress.city,
@@ -211,11 +194,10 @@ export default function CheckoutScreen() {
           },
           instructions: deliveryAddress.instructions || comment || undefined,
         };
-        console.log("✅ Delivery address prepared:", finalDeliveryAddress);
       } else {
-        // For pickup, use restaurant address
         finalDeliveryAddress = {
-          street: restaurant.location?.address || restaurant.name || "რესტორანი",
+          street:
+            restaurant.location?.address || restaurant.name || "რესტორანი",
           city: restaurant.location?.city || "თბილისი",
           coordinates: {
             lat: Number(restaurant.location?.latitude || 41.7151),
@@ -225,171 +207,160 @@ export default function CheckoutScreen() {
         };
       }
 
-      // Create order
       const orderData = {
         userId: user.id,
         restaurantId: restaurant._id || restaurant.id || restaurantId,
         items: orderItems,
-        totalAmount: Number(total.toFixed(2)), // Include subtotal + deliveryFee + tip
+        totalAmount: Number(total.toFixed(2)),
         deliveryFee: Number(deliveryFee.toFixed(2)),
-        paymentMethod: paymentMethod,
+        paymentMethod: "card",
         deliveryAddress: finalDeliveryAddress,
         estimatedDelivery: estimatedDelivery.toISOString(),
         notes: comment || undefined,
-        tip: selectedTip,
+        tip: 0,
         deliveryType: deliveryType,
       };
 
-      console.log("📦 Creating order with data:", JSON.stringify(orderData, null, 2));
-
       const response = await apiService.createOrder(orderData);
-      
-      console.log("📥 Order response:", JSON.stringify(response, null, 2));
 
       if (response.success) {
-        console.log("✅ Order created successfully!");
-        // Clear cart for this restaurant
         restaurantCartItems.forEach((item) => {
           removeFromCart(item.id);
         });
 
-        // Navigate to order success page
-        console.log("🔄 Navigating to order success page...");
         router.push({
           pathname: "/screens/orderSuccess",
-          params: { 
+          params: {
             restaurantId,
-            orderId: (response.data as any)?._id || (response.data as any)?.id || "",
+            orderId:
+              (response.data as any)?._id || (response.data as any)?.id || "",
           },
         });
       } else {
-        console.error("❌ Order creation failed:", response.error);
         Alert.alert(
           "შეცდომა",
           response.error?.details || "შეკვეთის შექმნა ვერ მოხერხდა"
         );
       }
     } catch (error: unknown) {
-      console.error("❌ Exception in handleConfirmOrder:", error);
-      const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
-      console.error("Error message:", errorMessage);
-      Alert.alert(
-        "შეცდომა",
-        errorMessage
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "უცნობი შეცდომა";
+      Alert.alert("შეცდომა", errorMessage);
     } finally {
-      console.log("🏁 handleConfirmOrder finished");
       setIsSubmitting(false);
     }
   };
 
+  const getImageSource = (image: any) => {
+    if (typeof image === "string") {
+      return { uri: image };
+    }
+    return image;
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{restaurant?.name || "შეკვეთა"}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Location Section */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.locationCard}
-            onPress={() => {
-              router.push({
-                pathname: "/screens/selectAddress",
-                params: {},
-              });
-            }}
-          >
-            <View style={styles.locationLeft}>
+        {/* Address Section */}
+        <TouchableOpacity
+          style={styles.addressCard}
+          onPress={() => {
+            router.push({
+              pathname: "/screens/selectAddress",
+              params: {},
+            });
+          }}
+        >
+          <View style={styles.addressLeft}>
+            <View style={styles.addressIconContainer}>
               <Ionicons name="location" size={20} color="#2E7D32" />
-              <View style={styles.locationText}>
-                <Text style={styles.addressText}>
-                  {deliveryAddress?.street || "აირჩიეთ მისამართი"}
-                </Text>
-                <Text style={styles.detailsText}>
-                  {deliveryAddress?.city || "დააჭირეთ მისამართის ასარჩევად"}
-                </Text>
-              </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#666666" />
-          </TouchableOpacity>
-        </View>
+            <View style={styles.addressTextContainer}>
+              <Text style={styles.addressTitle}>
+                {deliveryAddress?.street || "4 ტაბიძის ქუჩა"}
+              </Text>
+              <Text style={styles.addressSubtitle}>დამატებითი დეტალები</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#666666" />
+        </TouchableOpacity>
 
         {/* Delivery/Pickup Options */}
-        <View style={styles.section}>
-          <View style={styles.deliveryOptions}>
-            <TouchableOpacity
+        <View style={styles.deliveryOptions}>
+          <TouchableOpacity
+            style={[
+              styles.deliveryOption,
+              deliveryType === "delivery" && styles.deliveryOptionSelected,
+            ]}
+            onPress={() => setDeliveryType("delivery")}
+          >
+            <MaterialCommunityIcons
+              name="moped"
+              size={20}
+              color={deliveryType === "delivery" ? "#FFFFFF" : "#1A1A1A"}
+            />
+            <Text
               style={[
-                styles.deliveryOption,
-                deliveryType === "delivery" && styles.deliveryOptionSelected,
+                styles.deliveryOptionTitle,
+                deliveryType === "delivery" &&
+                  styles.deliveryOptionTitleSelected,
               ]}
-              onPress={() => setDeliveryType("delivery")}
             >
-              <Ionicons
-                name="car"
-                size={24}
-                color={deliveryType === "delivery" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.deliveryOptionText,
-                  deliveryType === "delivery" &&
-                    styles.deliveryOptionTextSelected,
-                ]}
-              >
-                მიწოდება
-              </Text>
-              <Text
-                style={[
-                  styles.deliveryOptionSubtext,
-                  deliveryType === "delivery" &&
-                    styles.deliveryOptionSubtextSelected,
-                ]}
-              >
-                კურიერი მოიტანს თქვენს მისამართზე
-              </Text>
-            </TouchableOpacity>
+              მიწოდება
+            </Text>
+            <Text
+              style={[
+                styles.deliveryOptionSubtitle,
+                deliveryType === "delivery" &&
+                  styles.deliveryOptionSubtitleSelected,
+              ]}
+            >
+              კურიერი მოიტანს თქვენს მისამართზე
+            </Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
+          <TouchableOpacity
+            style={[
+              styles.deliveryOption,
+              deliveryType === "pickup" && styles.deliveryOptionSelected,
+            ]}
+            onPress={() => setDeliveryType("pickup")}
+          >
+            <Ionicons
+              name="walk"
+              size={20}
+              color={deliveryType === "pickup" ? "#FFFFFF" : "#1A1A1A"}
+            />
+            <Text
               style={[
-                styles.deliveryOption,
-                deliveryType === "pickup" && styles.deliveryOptionSelected,
+                styles.deliveryOptionTitle,
+                deliveryType === "pickup" && styles.deliveryOptionTitleSelected,
               ]}
-              onPress={() => setDeliveryType("pickup")}
             >
-              <Ionicons
-                name="walk"
-                size={24}
-                color={deliveryType === "pickup" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.deliveryOptionText,
-                  deliveryType === "pickup" &&
-                    styles.deliveryOptionTextSelected,
-                ]}
-              >
-                გატანა
-              </Text>
-              <Text
-                style={[
-                  styles.deliveryOptionSubtext,
-                  deliveryType === "pickup" &&
-                    styles.deliveryOptionSubtextSelected,
-                ]}
-              >
-                კურიერი მოიტანს თქვენს მისამართზე
-              </Text>
-            </TouchableOpacity>
-          </View>
+              გატანა
+            </Text>
+            <Text
+              style={[
+                styles.deliveryOptionSubtitle,
+                deliveryType === "pickup" &&
+                  styles.deliveryOptionSubtitleSelected,
+              ]}
+            >
+              კურიერი მოიტანს თქვენს მისამართზე
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Products Section */}
@@ -403,12 +374,15 @@ export default function CheckoutScreen() {
 
           {restaurantCartItems.map((item) => (
             <View key={item.id} style={styles.productItem}>
-              <Image source={item.image} style={styles.productImage} />
+              <Image
+                source={getImageSource(item.image)}
+                style={styles.productImage}
+              />
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productModification}>ხახვის გარეშე</Text>
+                <Text style={styles.productModification}>ხახვის გარეშე 🌶️</Text>
                 <Text style={styles.productPrice}>
-                  {item.price.toFixed(2)}₾
+                  {item.price.toFixed(2).replace(".", ",")} ₾
                 </Text>
               </View>
               <View style={styles.quantitySelector}>
@@ -418,7 +392,7 @@ export default function CheckoutScreen() {
                     handleQuantityChange(item.id, item.quantity - 1)
                   }
                 >
-                  <Text style={styles.quantityButtonText}>-</Text>
+                  <Ionicons name="remove" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
                 <Text style={styles.quantityText}>{item.quantity}</Text>
                 <TouchableOpacity
@@ -427,7 +401,7 @@ export default function CheckoutScreen() {
                     handleQuantityChange(item.id, item.quantity + 1)
                   }
                 >
-                  <Text style={styles.quantityButtonText}>+</Text>
+                  <Ionicons name="add" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -435,10 +409,11 @@ export default function CheckoutScreen() {
         </View>
 
         {/* Comment Section */}
-        <View style={styles.section}>
+        <View style={styles.commentContainer}>
           <TextInput
             style={styles.commentInput}
             placeholder="დატოვეთ კომენტარი.."
+            placeholderTextColor="#999999"
             value={comment}
             onChangeText={setComment}
             multiline
@@ -446,170 +421,52 @@ export default function CheckoutScreen() {
         </View>
 
         {/* Voucher Section */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.voucherCard}>
-            <View style={styles.voucherLeft}>
-              <View style={styles.voucherIcon}>
-                <Ionicons name="pricetag" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.voucherText}>დაამატეთ ვაუჩერი</Text>
+        <TouchableOpacity style={styles.voucherCard}>
+          <View style={styles.voucherLeft}>
+            <View style={styles.voucherIcon}>
+              <MaterialCommunityIcons
+                name="ticket-percent"
+                size={18}
+                color="#E53935"
+              />
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#666666" />
-          </TouchableOpacity>
-        </View>
+            <Text style={styles.voucherText}>დაამატეთ ვაუჩერი</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#666666" />
+        </TouchableOpacity>
 
         {/* Tip Section */}
-        <View style={styles.section}>
-          <View style={styles.tipCard}>
-            <View style={styles.tipHeader}>
-              <View style={styles.tipIcon}>
-                <Ionicons name="card" size={20} color="#2E7D32" />
-              </View>
-              <View style={styles.tipText}>
-                <Text style={styles.tipTitle}>
-                  დატოვებთ კურიერს დამატებით თიფს?
-                </Text>
-                <Text style={styles.tipSubtitle}>
-                  კურიერი იღებს თიფის 100%-ს.
-                </Text>
-              </View>
-            </View>
-            <View style={styles.tipOptions}>
-              {tipOptions.map((tip) => (
-                <TouchableOpacity
-                  key={tip}
-                  style={[
-                    styles.tipButton,
-                    selectedTip === tip && styles.tipButtonSelected,
-                  ]}
-                  onPress={() => setSelectedTip(tip)}
-                >
-                  <Text
-                    style={[
-                      styles.tipButtonText,
-                      selectedTip === tip && styles.tipButtonTextSelected,
-                    ]}
-                  >
-                    {tip}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        <View style={styles.tipCard}>
+          <View style={styles.tipIconContainer}>
+            <MaterialCommunityIcons name="moped" size={24} color="#2E7D32" />
           </View>
+          <Text style={styles.tipTitle}>დატოვეთ კურიერს</Text>
         </View>
 
-        {/* Payment Method */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>გადახდის მეთოდი</Text>
-          <View style={styles.paymentMethods}>
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === "card" && styles.paymentMethodCardSelected,
-              ]}
-              onPress={() => setPaymentMethod("card")}
-            >
-              <Ionicons
-                name="card"
-                size={24}
-                color={paymentMethod === "card" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.paymentMethodText,
-                  paymentMethod === "card" && styles.paymentMethodTextSelected,
-                ]}
-              >
-                ბარათი
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === "cash" && styles.paymentMethodCardSelected,
-              ]}
-              onPress={() => setPaymentMethod("cash")}
-            >
-              <Ionicons
-                name="cash"
-                size={24}
-                color={paymentMethod === "cash" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.paymentMethodText,
-                  paymentMethod === "cash" && styles.paymentMethodTextSelected,
-                ]}
-              >
-                ნაღდი
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === "greengo_balance" && styles.paymentMethodCardSelected,
-              ]}
-              onPress={() => setPaymentMethod("greengo_balance")}
-            >
-              <Ionicons
-                name="wallet"
-                size={24}
-                color={paymentMethod === "greengo_balance" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.paymentMethodText,
-                  paymentMethod === "greengo_balance" && styles.paymentMethodTextSelected,
-                ]}
-              >
-                GreenGo ბალანსი
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Order Summary Section */}
-        <View style={styles.section}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.sectionTitle}>შეკვეთის დეტალები</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>პროდუქტების ჯამი</Text>
-              <Text style={styles.summaryValue}>{subtotal.toFixed(2)}₾</Text>
+        {/* Payment Card Section */}
+        <TouchableOpacity style={styles.paymentCard}>
+          <View style={styles.paymentLeft}>
+            <View style={styles.cardBadge}>
+              <Text style={styles.cardBadgeText}>{savedCard.type}</Text>
             </View>
-            {deliveryType === "delivery" && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>მიტანის საფასური</Text>
-                <Text style={styles.summaryValue}>{deliveryFee.toFixed(2)}₾</Text>
-              </View>
-            )}
-            {selectedTip > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>თიფი</Text>
-                <Text style={styles.summaryValue}>{selectedTip.toFixed(2)}₾</Text>
-              </View>
-            )}
-            <View style={[styles.summaryRow, styles.summaryTotalRow]}>
-              <Text style={styles.summaryTotalLabel}>სულ</Text>
-              <Text style={styles.summaryTotalValue}>{total.toFixed(2)}₾</Text>
+            <View style={styles.paymentInfo}>
+              <Text style={styles.cardNumber}>**** {savedCard.lastFour}</Text>
+              <Text style={styles.cardAmount}>
+                {total.toFixed(2).replace(".", ",")} ₾
+              </Text>
             </View>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={20} color="#666666" />
+        </TouchableOpacity>
 
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-      {/* Confirm Order Button */}
-      <View style={styles.confirmButtonContainer}>
+        {/* Confirm Order Button */}
         <TouchableOpacity
-          style={[styles.confirmButton, isSubmitting && styles.confirmButtonDisabled]}
-          onPress={() => {
-            console.log("🔘 Confirm button pressed");
-            console.log("isSubmitting:", isSubmitting);
-            handleConfirmOrder();
-          }}
+          style={[
+            styles.confirmButton,
+            isSubmitting && styles.confirmButtonDisabled,
+          ]}
+          onPress={handleConfirmOrder}
           disabled={isSubmitting}
-          activeOpacity={0.7}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -617,11 +474,39 @@ export default function CheckoutScreen() {
             <Text style={styles.confirmButtonText}>დაადასტურე შეკვეთა</Text>
           )}
         </TouchableOpacity>
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>სულ</Text>
-          <Text style={styles.totalAmount}>{total.toFixed(2)}</Text>
+
+        {/* Price Summary */}
+        <View style={styles.summarySection}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>ჯამი</Text>
+            <Text style={styles.summaryValue}>
+              {subtotal.toFixed(2).replace(".", ",")}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>მომსახურების საფასური</Text>
+            <Text style={styles.summaryValue}>
+              {serviceFee.toFixed(2).replace(".", ",")}
+            </Text>
+          </View>
+          {deliveryType === "delivery" && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>მიტანის საფასური (500მ)</Text>
+              <Text style={styles.summaryValue}>
+                {deliveryFee.toFixed(2).replace(".", ",")}
+              </Text>
+            </View>
+          )}
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryTotalLabel}>სულ</Text>
+            <Text style={styles.summaryTotalValue}>
+              {total.toFixed(2).replace(".", ",")}
+            </Text>
+          </View>
         </View>
-      </View>
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -629,92 +514,112 @@ export default function CheckoutScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#2E7D32",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
+    fontWeight: "600",
+    color: "#1A1A1A",
+  },
+  headerSpacer: {
+    width: 40,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
-  section: {
-    marginTop: 20,
-  },
-  locationCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+  addressCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
-  locationLeft: {
+  addressLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
-  locationText: {
-    marginLeft: 12,
+  addressIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F5E9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
-  addressText: {
+  addressTextContainer: {
+    flex: 1,
+  },
+  addressTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#000000",
+    color: "#1A1A1A",
   },
-  detailsText: {
-    fontSize: 14,
-    color: "#666666",
+  addressSubtitle: {
+    fontSize: 13,
+    color: "#999999",
     marginTop: 2,
   },
   deliveryOptions: {
     flexDirection: "row",
     gap: 12,
+    marginTop: 16,
   },
   deliveryOption: {
     flex: 1,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   deliveryOptionSelected: {
     backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
   },
-  deliveryOptionText: {
-    fontSize: 16,
+  deliveryOptionTitle: {
+    fontSize: 15,
     fontWeight: "600",
-    color: "#000000",
+    color: "#1A1A1A",
     marginTop: 8,
   },
-  deliveryOptionTextSelected: {
+  deliveryOptionTitleSelected: {
     color: "#FFFFFF",
   },
-  deliveryOptionSubtext: {
-    fontSize: 12,
-    color: "#666666",
+  deliveryOptionSubtitle: {
+    fontSize: 11,
+    color: "#999999",
     textAlign: "center",
     marginTop: 4,
+    lineHeight: 14,
   },
-  deliveryOptionSubtextSelected: {
-    color: "#FFFFFF",
+  deliveryOptionSubtitleSelected: {
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  section: {
+    marginTop: 24,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -724,90 +629,95 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#000000",
+    fontWeight: "700",
+    color: "#1A1A1A",
   },
   addMoreText: {
     fontSize: 14,
     color: "#2E7D32",
-    fontWeight: "600",
+    fontWeight: "500",
   },
   productItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   productImage: {
     width: 60,
     height: 60,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   productInfo: {
     flex: 1,
     marginLeft: 12,
   },
   productName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#000000",
+    color: "#1A1A1A",
   },
   productModification: {
-    fontSize: 14,
-    color: "#666666",
+    fontSize: 13,
+    color: "#999999",
     marginTop: 2,
   },
   productPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#2E7D32",
     marginTop: 4,
   },
   quantitySelector: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E8",
+    backgroundColor: "#E8F5E9",
     borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    padding: 4,
   },
   quantityButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "#2E7D32",
     justifyContent: "center",
     alignItems: "center",
   },
-  quantityButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
   quantityText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#2E7D32",
     marginHorizontal: 12,
+    minWidth: 16,
+    textAlign: "center",
+  },
+  commentContainer: {
+    marginTop: 16,
   },
   commentInput: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: "#000000",
-    minHeight: 60,
-    textAlignVertical: "top",
+    padding: 14,
+    fontSize: 15,
+    color: "#1A1A1A",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    minHeight: 50,
   },
   voucherCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   voucherLeft: {
     flexDirection: "row",
@@ -816,171 +726,130 @@ const styles = StyleSheet.create({
   voucherIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: "#FF4444",
+    borderRadius: 8,
+    backgroundColor: "#FFEBEE",
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 12,
   },
   voucherText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-    marginLeft: 12,
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1A1A1A",
   },
   tipCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-  },
-  tipHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
-  tipIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E8F5E8",
+  tipIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E8F5E9",
     justifyContent: "center",
     alignItems: "center",
-  },
-  tipText: {
-    marginLeft: 12,
-    flex: 1,
+    marginRight: 12,
   },
   tipTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1A1A1A",
   },
-  tipSubtitle: {
-    fontSize: 14,
-    color: "#666666",
-    marginTop: 2,
-  },
-  tipOptions: {
+  paymentCard: {
     flexDirection: "row",
-    gap: 12,
-  },
-  tipButton: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    paddingVertical: 12,
     alignItems: "center",
-  },
-  tipButtonSelected: {
-    backgroundColor: "#2E7D32",
-  },
-  tipButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  tipButtonTextSelected: {
-    color: "#FFFFFF",
-  },
-  paymentMethods: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  paymentMethodCard: {
-    flex: 1,
+    justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  paymentLeft: {
+    flexDirection: "row",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#E0E0E0",
   },
-  paymentMethodCardSelected: {
-    backgroundColor: "#2E7D32",
-    borderColor: "#2E7D32",
+  cardBadge: {
+    backgroundColor: "#1565C0",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 12,
   },
-  paymentMethodText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666666",
-    marginTop: 8,
-  },
-  paymentMethodTextSelected: {
+  cardBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
     color: "#FFFFFF",
   },
-  bottomSpacing: {
-    height: 100,
+  paymentInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  confirmButtonContainer: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
+  cardNumber: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1A1A1A",
+  },
+  cardAmount: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#2E7D32",
   },
   confirmButton: {
     backgroundColor: "#2E7D32",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
-    marginBottom: 12,
+    marginTop: 24,
   },
   confirmButtonText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
     color: "#FFFFFF",
   },
   confirmButtonDisabled: {
     opacity: 0.6,
   },
-  totalContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  totalAmount: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2E7D32",
-  },
-  summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+  summarySection: {
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 12,
+    marginBottom: 12,
   },
   summaryLabel: {
-    fontSize: 14,
-    color: "#666666",
+    fontSize: 15,
+    color: "#1A1A1A",
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#000000",
-  },
-  summaryTotalRow: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
+    color: "#2E7D32",
   },
   summaryTotalLabel: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000000",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
   },
   summaryTotalValue: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#2E7D32",
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });

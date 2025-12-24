@@ -25,7 +25,7 @@ export default function SearchScreen() {
 
   const handleRestaurantPress = (restaurantId: string) => {
     router.push({
-      pathname: "/screens/restaurant",
+      pathname: "/(tabs)/restaurant",
       params: { restaurantId },
     });
   };
