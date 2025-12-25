@@ -14,7 +14,6 @@ import {
   getRecentOrders,
   getTotalOrderCount,
 } from "../../assets/data/ordersData";
-import RecentOrders from "../../components/RecentOrders";
 import { useAuth } from "../../contexts/AuthContext";
 import { USE_MOCK_DATA } from "../../utils/mockData";
 
@@ -169,75 +168,108 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>პროფილი</Text>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/editName")}
-          >
-            <Ionicons name="person-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>{getUserDisplayName()}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/editName")}
+            >
+              <Ionicons name="person-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>{getUserDisplayName()}</Text>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/editPhone")}
-          >
-            <Ionicons name="call-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>{getUserPhone()}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+            <View style={styles.cardDivider} />
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/editEmail")}
-          >
-            <Ionicons name="mail-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>{getUserEmail()}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/editPhone")}
+            >
+              <Ionicons name="call-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>{getUserPhone()}</Text>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/selectCountry")}
-          >
-            <Ionicons name="globe-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>საქართველო</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+            <View style={styles.cardDivider} />
+
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/editEmail")}
+            >
+              <Ionicons name="mail-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>{getUserEmail()}</Text>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
+
+            <View style={styles.cardDivider} />
+
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/selectCountry")}
+            >
+              <Ionicons name="globe-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>საქართველო</Text>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Additional Options Section */}
         <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/promoCodes")}
-          >
-            <Ionicons name="pricetag-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>პრომო კოდები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.singleCard}>
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/promoCodes")}
+            >
+              <Ionicons name="pricetag-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>პრომო კოდები</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/settings")}
-          >
-            <Ionicons name="settings-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>პარამეტრები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.singleCard}>
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/settings")}
+            >
+              <Ionicons name="settings-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>პარამეტრები</Text>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/support")}
-          >
-            <Ionicons name="help-circle-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>მხარდაჭერა</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.singleCard}>
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/screens/support")}
+            >
+              <Ionicons name="help-circle-outline" size={22} color="#2E7D32" />
+              <Text style={styles.cardItemText}>მხარდაჭერა</Text>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Orders Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>შეკვეთები</Text>
+
+          <View style={styles.singleCard}>
+            <TouchableOpacity
+              style={styles.cardItem}
+              onPress={() => router.push("/orders")}
+            >
+              <View style={styles.orderHistoryContent}>
+                <Text style={styles.orderHistoryTitle}>შეკვეთების ისტორია</Text>
+                <Text style={styles.orderHistorySubtitle}>
+                  {totalOrders}+ შეკვეთა
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Recent Orders Section */}
-        <RecentOrders orders={recentOrders} totalCount={totalOrders} />
+        {/* <RecentOrders orders={recentOrders} totalCount={totalOrders} /> */}
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -349,28 +381,61 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 24,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#000",
+    color: "#181B1A",
     marginBottom: 16,
-    paddingHorizontal: 20,
   },
-  infoItem: {
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#F5F5F5",
+    overflow: "hidden",
+  },
+  singleCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#F5F5F5",
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  cardItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    paddingHorizontal: 16,
   },
-  infoText: {
+  cardItemText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
-    marginLeft: 12,
+    color: "#181B1A",
+    marginLeft: 14,
+    fontWeight: "500",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#F5F5F5",
+    marginHorizontal: 16,
+  },
+  orderHistoryContent: {
+    flex: 1,
+    marginLeft: 0,
+  },
+  orderHistoryTitle: {
+    fontSize: 16,
+    color: "#181B1A",
+    fontWeight: "500",
+  },
+  orderHistorySubtitle: {
+    fontSize: 13,
+    color: "#888",
+    marginTop: 2,
   },
   logoutButton: {
     flexDirection: "row",
@@ -378,16 +443,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 16,
     marginHorizontal: 20,
-    marginTop: 20,
+    marginTop: 10,
     borderWidth: 1,
-    borderColor: "#FF4444",
-    borderRadius: 12,
-    backgroundColor: "#FFF5F5",
+    borderColor: "#F5F5F5",
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
   },
   logoutText: {
     fontSize: 16,
     color: "#FF4444",
-    fontWeight: "600",
+    fontWeight: "500",
     marginLeft: 8,
   },
   bottomSpacing: {
@@ -402,19 +467,19 @@ const styles = StyleSheet.create({
   unauthMenuItem: {
     flexDirection: "row",
     alignItems: "center",
-    // backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
-    paddingVertical: 8,
+    borderColor: "#F5F5F5",
+    paddingVertical: 16,
     paddingHorizontal: 16,
     marginBottom: 12,
-    gap: 8,
   },
   unauthMenuItemText: {
     flex: 1,
     fontSize: 16,
-    color: "#333333",
-    fontWeight: "400",
+    color: "#181B1A",
+    fontWeight: "500",
+    marginLeft: 14,
   },
 });

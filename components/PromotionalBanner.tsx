@@ -1,6 +1,9 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  Dimensions,
   Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -8,42 +11,95 @@ import {
 } from "react-native";
 import { promotionalBanners } from "../assets/data/promotionalBanners";
 
+const { width: screenWidth } = Dimensions.get("window");
+const BANNER_WIDTH = screenWidth * 0.85;
+const BANNER_SPACING = 12;
+const SNAP_INTERVAL = BANNER_WIDTH + BANNER_SPACING;
+
 export default function PromotionalBanner() {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleBannerScroll = (event: any) => {
+  const handleBannerScroll = (
+    event: NativeSyntheticEvent<NativeScrollEvent>
+  ) => {
     const scrollX = event.nativeEvent.contentOffset.x;
-    const bannerWidth = 320;
-    const index = Math.round(scrollX / bannerWidth);
-    setCurrentBannerIndex(index);
+    const index = Math.round(scrollX / SNAP_INTERVAL);
+    setCurrentBannerIndex(
+      Math.max(0, Math.min(index, promotionalBanners.length - 1))
+    );
+  };
+
+  // Calculate dot size based on distance from active index
+  const getDotStyle = (index: number) => {
+    const distance = Math.abs(currentBannerIndex - index);
+
+    if (distance === 0) {
+      // Active dot - largest and darkest
+      return {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: "#2D2D2D",
+      };
+    } else if (distance === 1) {
+      // Adjacent dots - medium size
+      return {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#6B6B6B",
+      };
+    } else if (distance === 2) {
+      // Two away - smaller
+      return {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "#9B9B9B",
+      };
+    } else {
+      // Far dots - smallest and lightest
+      return {
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
+        backgroundColor: "#C4C4C4",
+      };
+    }
   };
 
   return (
     <View style={styles.bannerWrapper}>
       <ScrollView
+        ref={scrollViewRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.bannerScrollContent}
         onScroll={handleBannerScroll}
         scrollEventThrottle={16}
+        snapToInterval={SNAP_INTERVAL}
+        snapToAlignment="start"
+        decelerationRate="fast"
       >
-        {promotionalBanners.map((banner) => (
-          <TouchableOpacity key={banner.id} style={styles.bannerContainer}>
+        {promotionalBanners.map((banner, index) => (
+          <TouchableOpacity
+            key={banner.id}
+            style={[
+              styles.bannerContainer,
+              index === promotionalBanners.length - 1 && { marginRight: 0 },
+            ]}
+            activeOpacity={0.95}
+          >
             <Image source={banner.image} style={styles.bannerImage} />
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Dots outside the scroll view */}
+      {/* Scaled dots indicator */}
       <View style={styles.dotsContainer}>
         {promotionalBanners.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              currentBannerIndex === index && styles.activeDot,
-            ]}
-          />
+          <View key={index} style={[styles.dotBase, getDotStyle(index)]} />
         ))}
       </View>
     </View>
@@ -55,75 +111,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   bannerScrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: (screenWidth - BANNER_WIDTH) / 2,
   },
   bannerContainer: {
-    marginRight: 20,
-    borderRadius: 12,
+    width: BANNER_WIDTH,
+    height: 200,
+    marginRight: BANNER_SPACING,
+    borderRadius: 16,
     overflow: "hidden",
-    position: "relative",
-    height: 180,
-    width: 300,
+    backgroundColor: "#1a1a1a",
   },
   bannerImage: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
   },
-  bannerContent: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 20,
-  },
-  bannerTextContainer: {
-    flex: 1,
-    justifyContent: "flex-start",
-  },
-  bannerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  priceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  oldPrice: {
-    fontSize: 16,
-    color: "#FFFFFF",
-    textDecorationLine: "line-through",
-    marginRight: 8,
-  },
-  newPrice: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFD700",
-  },
-  bannerDescription: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    fontStyle: "italic",
-  },
   dotsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 12,
-    paddingHorizontal: 20,
+    marginTop: 16,
+    height: 12,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#9B9B9B",
+  dotBase: {
     marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: "#181B1A",
   },
 });

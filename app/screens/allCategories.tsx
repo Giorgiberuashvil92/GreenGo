@@ -3,7 +3,6 @@ import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Platform,
@@ -14,19 +13,21 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { flowersData } from "../../assets/data/flowersData";
+import { handmadeData } from "../../assets/data/handmadeData";
 import { useRestaurants } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 import { USE_MOCK_DATA, mockRestaurants } from "../../utils/mockData";
 
-const FoodCategoryScreen = () => {
+const AllCategoriesScreen = () => {
   const router = useRouter();
-  const { restaurants, loading, refetch } = useRestaurants();
+  const { restaurants } = useRestaurants();
   const [refreshing, setRefreshing] = useState(false);
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     setRefreshing(false);
   };
 
@@ -42,7 +43,7 @@ const FoodCategoryScreen = () => {
     });
   };
 
-  // Use mock data if no restaurants from API
+  // Combine all data
   const restaurantsToUse =
     restaurants.length > 0
       ? restaurants
@@ -50,53 +51,69 @@ const FoodCategoryScreen = () => {
       ? mockRestaurants
       : [];
 
-  const activeRestaurants = restaurantsToUse.filter((r) => r.isActive !== false);
+  const allItems = [
+    ...restaurantsToUse
+      .filter((r) => r.isActive !== false)
+      .map((r) => ({
+        id: r._id || r.id,
+        name: r.name,
+        category: r.cuisine?.[0] || "რესტორანი",
+        rating: r.rating,
+        reviewCount: r.reviewCount,
+        deliveryFee: r.deliveryFee,
+        deliveryTime: `${r.deliveryTime} წუთი`,
+        image: r.image,
+        type: "food",
+      })),
+    ...flowersData
+      .filter((f) => f.isActive)
+      .map((f) => ({
+        id: f.id,
+        name: f.name,
+        category: f.category,
+        rating: f.rating,
+        reviewCount: f.reviewCount,
+        deliveryFee: f.deliveryFee,
+        deliveryTime: `${f.deliveryTime} წუთი`,
+        image: f.image,
+        type: "flowers",
+      })),
+    ...handmadeData
+      .filter((h) => h.isActive)
+      .map((h) => ({
+        id: h.id,
+        name: h.name,
+        category: h.category,
+        rating: h.rating,
+        reviewCount: h.reviewCount,
+        deliveryFee: h.deliveryFee,
+        deliveryTime: h.deliveryTime,
+        image: h.image,
+        type: "handmade",
+      })),
+  ];
 
-  if (loading && activeRestaurants.length === 0) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#181B1A" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerAddress}>4 შანიძის ქუჩა</Text>
-            <Text style={styles.headerCity}>წყალტუბო</Text>
-          </View>
-          <View style={styles.headerRight} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const renderRestaurantCard = ({ item }: { item: any }) => {
-    const isLiked = likedItems.has(item._id || item.id || "");
-    const restaurantId = item._id || item.id || "";
+  const renderCard = ({ item }: { item: any }) => {
+    const isLiked = likedItems.has(item.id);
 
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.9}
-        onPress={() =>
-          router.push({
-            pathname: "/(tabs)/restaurant",
-            params: { restaurantId },
-          })
-        }
+        onPress={() => {
+          if (item.type === "food") {
+            router.push({
+              pathname: "/(tabs)/restaurant",
+              params: { restaurantId: item.id },
+            });
+          }
+        }}
       >
         {/* Image Section */}
         <View style={styles.imageContainer}>
           <Image
             source={
-              typeof item.image === "string"
-                ? { uri: item.image }
-                : item.image || require("../../assets/images/magnolia.png")
+              typeof item.image === "string" ? { uri: item.image } : item.image
             }
             style={styles.cardImage}
             resizeMode="cover"
@@ -111,16 +128,12 @@ const FoodCategoryScreen = () => {
                 style={styles.deliveryTimeBadge}
               >
                 <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.deliveryTimeText}>
-                  {item.deliveryTime} წუთი
-                </Text>
+                <Text style={styles.deliveryTimeText}>{item.deliveryTime}</Text>
               </BlurView>
             ) : (
               <View style={styles.deliveryTimeBadgeAndroid}>
                 <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.deliveryTimeText}>
-                  {item.deliveryTime} წუთი
-                </Text>
+                <Text style={styles.deliveryTimeText}>{item.deliveryTime}</Text>
               </View>
             )}
           </View>
@@ -128,7 +141,7 @@ const FoodCategoryScreen = () => {
           {/* Heart Button */}
           <TouchableOpacity
             style={[styles.likeButton, isLiked && styles.likeButtonActive]}
-            onPress={() => toggleLike(restaurantId)}
+            onPress={() => toggleLike(item.id)}
             activeOpacity={0.8}
           >
             {isLiked ? (
@@ -141,13 +154,11 @@ const FoodCategoryScreen = () => {
 
         {/* Bottom Section */}
         <View style={styles.cardBottomSection}>
-          <Text style={styles.restaurantName} numberOfLines={1}>
+          <Text style={styles.shopName} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={styles.restaurantCategory} numberOfLines={1}>
-            {item.cuisine && item.cuisine.length > 0
-              ? item.cuisine[0]
-              : "რესტორანი"}
+          <Text style={styles.shopCategory} numberOfLines={1}>
+            {item.category}
           </Text>
 
           {/* Dashed Line */}
@@ -158,7 +169,13 @@ const FoodCategoryScreen = () => {
           {/* Delivery and Rating Info */}
           <View style={styles.bottomInfo}>
             <View style={styles.deliveryInfo}>
-              <Ionicons name="bicycle-outline" size={14} color="#9B9B9B" />
+              <Ionicons
+                name={
+                  item.type === "handmade" ? "cube-outline" : "bicycle-outline"
+                }
+                size={14}
+                color="#9B9B9B"
+              />
               <Text style={styles.deliveryFeeText}>
                 {item.deliveryFee?.toFixed(2)}₾
               </Text>
@@ -193,13 +210,13 @@ const FoodCategoryScreen = () => {
       </View>
 
       {/* Section Title */}
-        <Text style={styles.sectionTitle}>კვება</Text>
+      <Text style={styles.sectionTitle}>ყველა</Text>
 
-      {/* Restaurant List */}
+      {/* List */}
       <FlatList
-        data={activeRestaurants}
-        keyExtractor={(item) => item._id || item.id}
-        renderItem={renderRestaurantCard}
+        data={allItems}
+        keyExtractor={(item) => item.id}
+        renderItem={renderCard}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -219,7 +236,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -253,7 +269,6 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  // Section Title
   sectionTitle: {
     fontSize: 20,
     fontWeight: "bold",
@@ -262,22 +277,17 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
-  // List
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  // Card
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     marginBottom: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
@@ -292,17 +302,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  // Delivery Time Badge
   deliveryTimeBadgeWrapper: {
     position: "absolute",
     top: 0,
     left: 0,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 4,
@@ -331,7 +337,6 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: "600",
   },
-  // Like Button
   likeButton: {
     position: "absolute",
     top: 10,
@@ -343,10 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 4,
@@ -354,23 +356,21 @@ const styles = StyleSheet.create({
   likeButtonActive: {
     backgroundColor: "#FFF0F0",
   },
-  // Bottom Section
   cardBottomSection: {
     padding: 14,
     backgroundColor: "#FFFFFF",
   },
-  restaurantName: {
+  shopName: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#1A1A1A",
     marginBottom: 2,
   },
-  restaurantCategory: {
+  shopCategory: {
     fontSize: 14,
     color: "#8A8A8A",
     marginBottom: 12,
   },
-  // Dashed Line
   dashedLineContainer: {
     marginBottom: 12,
   },
@@ -381,7 +381,6 @@ const styles = StyleSheet.create({
     borderColor: "#E5E5E5",
     borderRadius: 1,
   },
-  // Bottom Info
   bottomInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -407,12 +406,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: "500",
   },
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
 });
 
-export default FoodCategoryScreen;
+export default AllCategoriesScreen;
+

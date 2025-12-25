@@ -96,52 +96,52 @@ export default function PopularObjects() {
           const showDiscount = hasDiscount(restaurant);
 
           return (
-            <TouchableOpacity
-              key={restaurant._id || restaurant.id}
-              style={styles.popularCard}
+          <TouchableOpacity
+            key={restaurant._id || restaurant.id}
+            style={styles.popularCard}
               activeOpacity={0.9}
               onPress={() =>
                 navigateToRestaurant(restaurant._id || restaurant.id || "")
               }
-            >
-              {/* Image Section */}
-              <View style={styles.imageContainer}>
-                <Image
-                  source={
-                    typeof restaurant.image === "string"
-                      ? { uri: restaurant.image }
+          >
+            {/* Image Section */}
+            <View style={styles.imageContainer}>
+              <Image
+                source={
+                  typeof restaurant.image === "string"
+                    ? { uri: restaurant.image }
                       : restaurant.image ||
                         require("../assets/images/magnolia.png")
-                  }
-                  style={styles.cardImage}
+                }
+                style={styles.cardImage}
                   resizeMode="cover"
-                />
+              />
 
                 {/* Delivery Time Badge with Blur */}
                 <View style={styles.deliveryTimeBadgeWrapper}>
                   {Platform.OS === "ios" ? (
                     <BlurView
-                      intensity={100}
-                      tint="light"
+                      intensity={50}
+                      tint="dark"
                       style={styles.deliveryTimeBadge}
                     >
-                      <Ionicons name="time-outline" size={14} color="#333333" />
+                      <Ionicons name="time-outline" size={16} color="#FFFFFF" />
                       <Text style={styles.deliveryTimeText}>
                         {restaurant.deliveryTime} წუთი
                       </Text>
                     </BlurView>
                   ) : (
                     <View style={styles.deliveryTimeBadgeAndroid}>
-                      <Ionicons name="time-outline" size={14} color="#333333" />
-                      <Text style={styles.deliveryTimeText}>
+                      <Ionicons name="time-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.deliveryTimeText}>
                         {restaurant.deliveryTime} წუთი
-                      </Text>
+                </Text>
                     </View>
                   )}
-                </View>
+              </View>
 
                 {/* Heart Button */}
-                <TouchableOpacity
+              <TouchableOpacity
                   style={[
                     styles.likeButton,
                     isLiked && styles.likeButtonActive,
@@ -153,31 +153,31 @@ export default function PopularObjects() {
                 >
                   {isLiked ? (
                     <Ionicons name="heart" size={20} color="#FF3B30" />
-                  ) : (
+                ) : (
                     <Ionicons name="heart-outline" size={20} color="#666666" />
-                  )}
-                </TouchableOpacity>
-              </View>
+                )}
+              </TouchableOpacity>
+            </View>
 
-              {/* Bottom Section */}
-              <View style={styles.cardBottomSection}>
+            {/* Bottom Section */}
+            <View style={styles.cardBottomSection}>
                 <Text style={styles.restaurantName} numberOfLines={1}>
                   {restaurant.name}
                 </Text>
                 <Text style={styles.restaurantCategory} numberOfLines={1}>
-                  {restaurant.cuisine && restaurant.cuisine.length > 0
-                    ? restaurant.cuisine[0]
-                    : "რესტორანი"}
-                </Text>
+                {restaurant.cuisine && restaurant.cuisine.length > 0
+                  ? restaurant.cuisine[0]
+                  : "რესტორანი"}
+              </Text>
 
-                {/* Dashed Line */}
+              {/* Dashed Line */}
                 <View style={styles.dashedLineContainer}>
-                  <View style={styles.dashedLine} />
+              <View style={styles.dashedLine} />
                 </View>
 
-                {/* Delivery and Rating Info */}
-                <View style={styles.bottomInfo}>
-                  <View style={styles.deliveryInfo}>
+              {/* Delivery and Rating Info */}
+              <View style={styles.bottomInfo}>
+                <View style={styles.deliveryInfo}>
                     <Ionicons
                       name="bicycle-outline"
                       size={14}
@@ -195,20 +195,20 @@ export default function PopularObjects() {
                         </Text>
                       </View>
                     ) : (
-                      <Text style={styles.deliveryText}>
-                        {restaurant.deliveryFee.toFixed(2)}₾
-                      </Text>
+                  <Text style={styles.deliveryText}>
+                    {restaurant.deliveryFee.toFixed(2)}₾
+                  </Text>
                     )}
-                  </View>
-                  <View style={styles.ratingInfo}>
+                </View>
+                <View style={styles.ratingInfo}>
                     <Ionicons name="star" size={14} color="#FFD700" />
-                    <Text style={styles.ratingText}>
-                      {restaurant.rating.toFixed(1)} ({restaurant.reviewCount})
-                    </Text>
-                  </View>
+                  <Text style={styles.ratingText}>
+                    {restaurant.rating.toFixed(1)} ({restaurant.reviewCount})
+                  </Text>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
           );
         })}
       </ScrollView>
@@ -294,9 +294,8 @@ const styles = StyleSheet.create({
   deliveryTimeBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    // borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderTopLeftRadius: 16,
     borderBottomRightRadius: 16,
     overflow: "hidden",
@@ -304,15 +303,16 @@ const styles = StyleSheet.create({
   deliveryTimeBadgeAndroid: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   deliveryTimeText: {
-    fontSize: 12,
-    color: "#333333",
-    marginLeft: 4,
+    fontSize: 14,
+    color: "#FFFFFF",
+    marginLeft: 6,
     fontWeight: "600",
   },
   // Like Button

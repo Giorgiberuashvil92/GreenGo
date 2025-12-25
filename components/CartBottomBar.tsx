@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -41,19 +40,23 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
     <View style={styles.container}>
       <TouchableOpacity style={styles.cartButton} onPress={handleCheckout}>
         <View style={styles.cartContent}>
-          {/* Quantity Badge */}
-          <View style={styles.quantityBadge}>
-            <Text style={styles.quantityText}>{totalItems}</Text>
+          <View style={styles.cartContentLeft}>
+            {/* Quantity Badge */}
+            <View style={styles.quantityBadge}>
+              <Text style={styles.quantityText}>{totalItems}</Text>
+            </View>
+
+            {/* Checkout Text - Two lines */}
+            <View style={styles.textContainer}>
+              <Text style={styles.checkoutTextTop}>გადახდის გვერდზე</Text>
+              <Text style={styles.checkoutTextBottom}>გადასვლა</Text>
+            </View>
           </View>
 
-          {/* Checkout Text */}
-          <Text style={styles.checkoutText}>გადახდის გვერდზე გადასვლა</Text>
-
-          {/* Total Price and Arrow */}
-          <View style={styles.priceContainer}>
-            <Text style={styles.totalPrice}>{totalPrice.toFixed(2)}₾</Text>
-            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-          </View>
+          {/* Total Price */}
+          <Text style={styles.totalPrice}>
+            {totalPrice.toFixed(2).replace(".", ",")}₾
+          </Text>
         </View>
       </TouchableOpacity>
     </View>
@@ -63,7 +66,7 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 70, // Above the tab bar
+    bottom: 10, // Above the tab bar
     left: 16,
     right: 16,
     backgroundColor: "#2E7D32",
@@ -92,32 +95,38 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#2E7D32",
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 12,
   },
   quantityText: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#2E7D32",
+    color: "#181B1A",
   },
-  checkoutText: {
+  cartContentLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  checkoutTextTop: {
+    fontSize: 16,
+    fontWeight: "400",
+    color: "#FFFFFF",
+    lineHeight: 20,
+  },
+  checkoutTextBottom: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
-    textAlign: "center",
-    marginHorizontal: 16,
-  },
-  priceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    lineHeight: 22,
   },
   totalPrice: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#FFFFFF",
-    marginRight: 4,
   },
 });

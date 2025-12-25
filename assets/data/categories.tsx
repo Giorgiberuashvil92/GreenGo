@@ -4,6 +4,7 @@ export const categories = [
     name: "ყველა",
     bgColor: "#EDF4FD",
     icon: require("@/assets/images/categories/all.png"),
+    link: "/screens/allCategories",
   },
   {
     id: "2",
@@ -17,11 +18,13 @@ export const categories = [
     name: "ყვავილები",
     bgColor: "#FDECED",
     icon: require("@/assets/images/categories/flowers.png"),
+    link: "/screens/flowers",
   },
   {
     id: "4",
     name: "ხელნაკეთი ნივთები",
     bgColor: "#EDF4FD",
     icon: require("@/assets/images/categories/all.png"),
+    link: "/screens/handmade",
   },
 ];

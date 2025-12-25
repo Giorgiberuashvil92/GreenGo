@@ -102,7 +102,7 @@ export default function SearchTabScreen() {
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyTitle}>რეზულტატი არ მოიძებნა</Text>
                 <Text style={styles.emptyText}>
-                  სცადე სხვა ключური სიტყვა ან შეამოკლე ძიების ტექსტი.
+                  სცადე სხვა სიტყვა ან შეამოკლე ძიების ტექსტი.
                 </Text>
               </View>
             }
@@ -237,7 +237,12 @@ export default function SearchTabScreen() {
           {/* Categories Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="grid-outline" size={20} color="#181B1A" />
+              <Image
+                source={require("../../assets/images/icons/category.png")}
+                width={22}
+                height={22}
+                style={{ width: 22, height: 22 }}
+              />
               <Text style={styles.sectionTitle}>კატეგორიები</Text>
             </View>
             <View style={styles.categoriesList}>
@@ -334,11 +339,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    marginBottom: 16,
     fontWeight: "700",
     color: "#181B1A",
   },
   recentlyOrderedList: {
+    marginTop: 20,
     gap: 12,
     flexDirection: "column",
   },

@@ -1,19 +1,18 @@
 import Feather from "@expo/vector-icons/build/Feather";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { FilterModal } from "../app/components";
 import { useAuth } from "../contexts/AuthContext";
-import { IconSymbol } from "./ui/icon-symbol";
 
 export default function GreetingSection() {
   const router = useRouter();
   const { user } = useAuth();
   const [showFilterModal, setShowFilterModal] = useState(false);
-  
+
   const getUserName = () => {
     if (user?.name) {
-      const nameParts = user.name.split(' ');
+      const nameParts = user.name.split(" ");
       return nameParts[0];
     }
     if (user?.firstName) {
@@ -64,10 +63,11 @@ export default function GreetingSection() {
             style={styles.filterButton}
             onPress={handleFilterPress}
           >
-            <IconSymbol
-              name="line.3.horizontal.decrease"
-              size={22}
-              color="#4A8F70"
+            <Image
+              source={require("../assets/images/icons/filter.png")}
+              width={22}
+              height={22}
+              style={{ width: 22, height: 22 }}
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666666",
     marginBottom: 12,
+    maxWidth: 228,
     lineHeight: 20,
   },
   searchContainer: {

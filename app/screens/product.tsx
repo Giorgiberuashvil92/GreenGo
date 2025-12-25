@@ -73,7 +73,7 @@ export default function ProductScreen() {
     try {
       setLoading(true);
       setError(null);
-
+      
       const response = await apiService.getMenuItem(productId || "");
 
       if (response.success && response.data) {
@@ -237,7 +237,7 @@ export default function ProductScreen() {
             {product.price.toFixed(2).replace(".", ",")}₾
           </Text>
           {product.description && (
-            <Text style={styles.productDescription}>{product.description}</Text>
+          <Text style={styles.productDescription}>{product.description}</Text>
           )}
         </View>
 
@@ -319,15 +319,15 @@ export default function ProductScreen() {
                 }
               >
                 <View style={styles.checkboxContainer}>
-                  <View
-                    style={[
+                <View
+                  style={[
                       styles.checkbox,
                       selectedDrink === drink.id && styles.checkboxChecked,
-                    ]}
-                  >
-                    {selectedDrink === drink.id && (
+                  ]}
+                >
+                  {selectedDrink === drink.id && (
                       <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                    )}
+                  )}
                   </View>
                 </View>
                 <Text style={styles.drinkName}>{drink.name}</Text>
@@ -342,34 +342,34 @@ export default function ProductScreen() {
 
       {/* Bottom Bar */}
       <View style={styles.bottomBar}>
-        <View style={styles.quantitySelector}>
+          <View style={styles.quantitySelector}>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={decrementQuantity}
+            >
+              <Ionicons name="remove" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.quantityText}>{quantity}</Text>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={incrementQuantity}
+            >
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={styles.quantityButton}
-            onPress={decrementQuantity}
+            style={styles.addToCartButton}
+            onPress={handleAddToCart}
           >
-            <Ionicons name="remove" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.quantityText}>{quantity}</Text>
-          <TouchableOpacity
-            style={styles.quantityButton}
-            onPress={incrementQuantity}
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.addToCartText}>დამატება</Text>
+            <Text style={styles.addToCartPrice}>
+            {(totalPrice * quantity).toFixed(2).replace(".", ",")} ₾
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.addToCartButton}
-          onPress={handleAddToCart}
-        >
-          <Text style={styles.addToCartText}>დამატება</Text>
-          <Text style={styles.addToCartPrice}>
-            {(totalPrice * quantity).toFixed(2).replace(".", ",")} ₾
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.footerText}>დაამატეთ კიდევ სხვა შემადგენლობით</Text>
+        <Text style={styles.footerText}>დაამატეთ კიდევ სხვა შემადგენლობით</Text>
     </SafeAreaView>
   );
 }

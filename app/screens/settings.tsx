@@ -24,7 +24,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.header}>

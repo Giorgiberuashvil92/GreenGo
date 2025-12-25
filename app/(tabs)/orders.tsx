@@ -2,9 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActionSheetIOS,
   ActivityIndicator,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -48,7 +50,7 @@ export default function OrdersScreen() {
 
   useEffect(() => {
     const userId = user?.id || (user as any)?._id;
-
+    
     if (userId || USE_MOCK_DATA || apiService.isUsingMockData()) {
       fetchOrders();
     } else {
@@ -61,18 +63,18 @@ export default function OrdersScreen() {
     try {
       setLoading(true);
       setError(null);
-
+      
       const userId =
         user?.id ||
         (user as any)?._id ||
         (USE_MOCK_DATA || apiService.isUsingMockData() ? "mock-user-001" : "");
-
+      
       if (!userId && !(USE_MOCK_DATA || apiService.isUsingMockData())) {
         setError("მომხმარებლის ID არ არის მითითებული");
         setLoading(false);
         return;
       }
-
+      
       const response = await apiService.getOrders({
         userId: userId,
         limit: 50,
@@ -81,7 +83,7 @@ export default function OrdersScreen() {
       if (response.success && response.data) {
         let orders: Order[] = [];
         const backendResponse = response.data as any;
-
+        
         if (Array.isArray(backendResponse)) {
           orders = backendResponse;
         } else if (backendResponse && typeof backendResponse === "object") {
@@ -123,22 +125,40 @@ export default function OrdersScreen() {
     // TODO: Implement repeat order functionality
   };
 
-  const handleInfoPress = (order: Order, e: any) => {
-    e.stopPropagation();
-    setSelectedOrder(order);
-    setActionSheetVisible(true);
+  const handleInfoPress = (order: Order) => {
+    if (Platform.OS === "ios") {
+      // iOS - use native ActionSheetIOS
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["კერძის დამატება", "შეკვეთის გაუქმება", "გაუქმება"],
+          destructiveButtonIndex: 1,
+          cancelButtonIndex: 2,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            console.log("Add dish to order:", order._id);
+          } else if (buttonIndex === 1) {
+            console.log("Cancel order:", order._id);
+          }
+        }
+      );
+    } else {
+      // Android - show custom bottom sheet modal
+      setSelectedOrder(order);
+      setActionSheetVisible(true);
+    }
   };
 
   const handleAddDish = () => {
     if (selectedOrder) {
+      console.log("Add dish to order:", selectedOrder._id);
       setActionSheetVisible(false);
-      // TODO: Navigate to restaurant to add more items
-    }
+        }
   };
 
   const handleCancelOrder = () => {
     if (selectedOrder) {
-      // TODO: Implement cancel order
+      console.log("Cancel order:", selectedOrder._id);
       setActionSheetVisible(false);
     }
   };
@@ -146,7 +166,7 @@ export default function OrdersScreen() {
   const renderOrderCard = (order: Order) => {
     const firstItem = order.items[0];
     const total = order.totalAmount + order.deliveryFee;
-
+    
     return (
       <View key={order._id} style={styles.orderCard}>
         <View style={styles.orderContent}>
@@ -168,22 +188,22 @@ export default function OrdersScreen() {
             <View style={styles.orderInfoContainer}>
               <View style={styles.orderNameAndRestaurant}>
                 <Text style={styles.orderName} numberOfLines={1}>
-                  {firstItem?.name || "შეკვეთა"}
-                </Text>
+              {firstItem?.name || "შეკვეთა"}
+            </Text>
                 <Text style={styles.restaurantName} numberOfLines={1}>
-                  {order.restaurantId.name}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.infoButton}
-                onPress={(e) => handleInfoPress(order, e)}
-              >
-                <Ionicons
-                  name="information-circle-outline"
-                  size={24}
+              {order.restaurantId.name}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.infoButton}
+                onPress={() => handleInfoPress(order)}
+          >
+            <Ionicons
+                  name="ellipsis-vertical"
+              size={20}
                   color="#666666"
-                />
-              </TouchableOpacity>
+            />
+          </TouchableOpacity>
             </View>
 
             {/* Price */}
@@ -203,7 +223,7 @@ export default function OrdersScreen() {
             <Text style={styles.repeatButtonText}>შეკვეთის განმეორება</Text>
           </TouchableOpacity>
         )}
-      </View>
+            </View>
     );
   };
 
@@ -211,7 +231,14 @@ export default function OrdersScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#181B1A" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>შეკვეთები</Text>
+        <View style={styles.headerRight} />
       </View>
 
       {/* Segmented Control */}
@@ -272,23 +299,23 @@ export default function OrdersScreen() {
             currentOrders.length > 0 ? (
               currentOrders.map(renderOrderCard)
             ) : (
-              <View style={styles.emptyContainer}>
+                  <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
                   მიმდინარე შეკვეთები არ არის
                 </Text>
-              </View>
-            )
+                  </View>
+                )
           ) : previousOrders.length > 0 ? (
             previousOrders.map(renderOrderCard)
           ) : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>წინა შეკვეთები არ არის</Text>
-            </View>
-          )}
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>წინა შეკვეთები არ არის</Text>
+                </View>
+              )}
         </ScrollView>
       )}
 
-      {/* Action Sheet Modal */}
+      {/* Android Bottom Sheet Modal */}
       <Modal
         visible={actionSheetVisible}
         transparent={true}
@@ -300,29 +327,37 @@ export default function OrdersScreen() {
           activeOpacity={1}
           onPress={() => setActionSheetVisible(false)}
         >
-          <View style={styles.actionSheet}>
+          <View style={styles.bottomSheet}>
+            {/* Action Buttons */}
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleAddDish}
+      >
+                <Text style={styles.actionButtonText}>კერძის დამატება</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.separator} />
+              
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleCancelOrder}
+              >
+                <Text style={styles.actionButtonTextDestructive}>
+                  შეკვეთის გაუქმება
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Cancel Button */}
             <TouchableOpacity
-              style={[styles.actionSheetButton, styles.actionSheetButtonFirst]}
-              onPress={handleAddDish}
-            >
-              <Text style={styles.actionSheetButtonText}>კერძის დამატება</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionSheetButton, styles.actionSheetButtonMiddle]}
-              onPress={handleCancelOrder}
-            >
-              <Text style={styles.actionSheetCancelOrderText}>
-                შეკვეთის გაუქმება
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionSheetButton, styles.actionSheetButtonLast]}
+              style={styles.cancelButton}
               onPress={() => setActionSheetVisible(false)}
             >
-              <Text style={styles.actionSheetCancelText}>გაუქმება</Text>
+              <Text style={styles.cancelButtonText}>გაუქმება</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+                </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -331,25 +366,37 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F5F5F5",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: "#F5F5F5",
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#000000",
   },
+  headerRight: {
+    width: 44,
+  },
   segmentedControl: {
     flexDirection: "row",
     marginHorizontal: 20,
     marginVertical: 16,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#E8E8E8",
     borderRadius: 32,
     padding: 4,
   },
@@ -386,9 +433,7 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#F5F5F5",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 16,
   },
@@ -422,7 +467,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#181B1A",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   restaurantName: {
     fontSize: 14,
@@ -432,7 +477,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#00592D",
-    marginTop: 16,
+    marginTop: 12,
   },
   infoButton: {
     padding: 4,
@@ -440,14 +485,12 @@ const styles = StyleSheet.create({
   },
   repeatButton: {
     backgroundColor: "#EFFBF5",
-    color: "#2E7354",
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     marginTop: 12,
     alignItems: "center",
     justifyContent: "center",
-    // alignSelf: "center",
   },
   repeatButtonText: {
     fontSize: 14,
@@ -499,49 +542,47 @@ const styles = StyleSheet.create({
     color: "#999",
     textAlign: "center",
   },
-  // Action Sheet Styles
+  // Bottom Sheet Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     justifyContent: "flex-end",
   },
-  actionSheet: {
-    backgroundColor: "#F5F5F5",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-    paddingTop: 8,
+  bottomSheet: {
+    paddingHorizontal: 8,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
-  actionSheetButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginHorizontal: 8,
-    marginVertical: 4,
-    borderRadius: 8,
+  actionButtonsContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 8,
   },
-  actionSheetButtonFirst: {
-    backgroundColor: "#E8E8E8",
-    marginTop: 8,
+  actionButton: {
+    paddingVertical: 18,
+    alignItems: "center",
   },
-  actionSheetButtonMiddle: {
-    backgroundColor: "#F5F5F5",
+  actionButtonText: {
+    fontSize: 18,
+    color: "#333333",
   },
-  actionSheetButtonLast: {
-    backgroundColor: "#F5F5F5",
+  actionButtonTextDestructive: {
+    fontSize: 18,
+    color: "#FF3B30",
   },
-  actionSheetButtonText: {
-    fontSize: 16,
-    color: "#666666",
-    textAlign: "center",
+  separator: {
+    height: 1,
+    backgroundColor: "#E5E5E5",
   },
-  actionSheetCancelOrderText: {
-    fontSize: 16,
-    color: "#FF4444",
-    textAlign: "center",
+  cancelButton: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: "center",
   },
-  actionSheetCancelText: {
-    fontSize: 16,
-    color: "#2196F3",
-    textAlign: "center",
+  cancelButtonText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#007AFF",
   },
 });
