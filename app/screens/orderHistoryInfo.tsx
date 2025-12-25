@@ -2,12 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  ScrollView,
 } from "react-native";
 
 export default function OrderHistoryInfoScreen() {
@@ -42,11 +42,13 @@ export default function OrderHistoryInfoScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>სად ვნახო შეკვეთების ისტორია</Text>
         <Text style={styles.description}>
-          თქვენი შეკვეთების ისტორიის სანახავად გადადით პროფილის გვერდზე და აირჩიეთ "შეკვეთების ისტორია" განყოფილება.
+          თქვენი შეკვეთების ისტორიის სანახავად გადადით პროფილის გვერდზე და
+          აირჩიეთ "შეკვეთების ისტორია" განყოფილება.
         </Text>
 
         <Text style={styles.description}>
-          იქ ნახავთ ყველა თქვენს მიერ განხორციელებულ შეკვეთას, მათ სტატუსს და დეტალურ ინფორმაციას.
+          იქ ნახავთ ყველა თქვენს მიერ განხორციელებულ შეკვეთას, მათ სტატუსს და
+          დეტალურ ინფორმაციას.
         </Text>
 
         {/* Question Section */}
@@ -57,15 +59,27 @@ export default function OrderHistoryInfoScreen() {
             {/* Action Buttons */}
             <View style={styles.buttonsContainer}>
               <TouchableOpacity
-                style={[styles.actionButton, isHelpful === true && styles.selectedButton]}
+                style={[
+                  styles.actionButton,
+                  isHelpful === true && styles.selectedButton,
+                ]}
                 onPress={handleYesPress}
               >
-                <Ionicons 
-                  name={isHelpful === true ? "checkmark-circle" : "person-outline"} 
-                  size={20} 
-                  color={isHelpful === true ? "#00C851" : "#333"} 
+                <Ionicons
+                  name={
+                    isHelpful === true ? "checkmark-circle" : "person-outline"
+                  }
+                  size={20}
+                  color={isHelpful === true ? "#00C851" : "#333"}
                 />
-                <Text style={[styles.buttonText, isHelpful === true && styles.selectedButtonText]}>დიახ</Text>
+                <Text
+                  style={[
+                    styles.buttonText,
+                    isHelpful === true && styles.selectedButtonText,
+                  ]}
+                >
+                  დიახ
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -92,7 +106,9 @@ export default function OrderHistoryInfoScreen() {
                 style={styles.primaryButton}
                 onPress={() => router.push("/screens/helpContact")}
               >
-                <Text style={styles.primaryButtonText}>ჩათი მხარდაჭერ გუნდთან</Text>
+                <Text style={styles.primaryButtonText}>
+                  ჩათი მხარდაჭერ გუნდთან
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -108,7 +124,7 @@ export default function OrderHistoryInfoScreen() {
 
       {/* Bottom Button */}
       <View style={styles.bottomContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.contactButton}
           onPress={() => router.push("/screens/helpContact")}
         >
@@ -255,4 +271,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
