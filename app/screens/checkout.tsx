@@ -118,7 +118,7 @@ export default function CheckoutScreen() {
     }
 
     const baseFee = restaurant.deliveryFee || 2.7;
-
+    
     const distanceKm = getDistance(
       restaurant.location.latitude,
       restaurant.location.longitude,
@@ -175,7 +175,7 @@ export default function CheckoutScreen() {
       }));
 
       let estimatedMinutes = 20;
-
+      
       if (
         deliveryType === "delivery" &&
         deliveryAddress &&
@@ -187,14 +187,14 @@ export default function CheckoutScreen() {
           deliveryAddress.coordinates.lat,
           deliveryAddress.coordinates.lng
         );
-
+        
         const travelTimeMinutes = Math.ceil(distanceKm / 0.5);
         estimatedMinutes = 20 + travelTimeMinutes + 5;
         estimatedMinutes = Math.max(25, Math.min(60, estimatedMinutes));
       } else if (deliveryType === "pickup") {
         estimatedMinutes = 15;
       }
-
+      
       const estimatedDelivery = new Date();
       estimatedDelivery.setMinutes(
         estimatedDelivery.getMinutes() + estimatedMinutes
@@ -206,14 +206,14 @@ export default function CheckoutScreen() {
         coordinates: { lat: number; lng: number };
         instructions?: string;
       };
-
+      
       if (deliveryType === "delivery") {
         if (!deliveryAddress) {
           Alert.alert("შეცდომა", "გთხოვთ აირჩიოთ მიტანის მისამართი");
           setIsSubmitting(false);
           return;
         }
-
+        
         finalDeliveryAddress = {
           street: deliveryAddress.street,
           city: deliveryAddress.city,
@@ -259,7 +259,7 @@ export default function CheckoutScreen() {
 
         router.push({
           pathname: "/screens/orderSuccess",
-          params: {
+          params: { 
             restaurantId,
             orderId:
               (response.data as any)?._id || (response.data as any)?.id || "",
@@ -303,70 +303,70 @@ export default function CheckoutScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Delivery/Pickup Options */}
-        <View style={styles.deliveryOptions}>
-          <TouchableOpacity
-            style={[
-              styles.deliveryOption,
-              deliveryType === "delivery" && styles.deliveryOptionSelected,
-            ]}
+          <View style={styles.deliveryOptions}>
+            <TouchableOpacity
+              style={[
+                styles.deliveryOption,
+                deliveryType === "delivery" && styles.deliveryOptionSelected,
+              ]}
             onPress={() => handleDeliveryTypeChange("delivery")}
-          >
+            >
             <MaterialCommunityIcons
               name="moped"
               size={20}
               color={deliveryType === "delivery" ? "#FFFFFF" : "#1A1A1A"}
-            />
-            <Text
-              style={[
+              />
+              <Text
+                style={[
                 styles.deliveryOptionTitle,
-                deliveryType === "delivery" &&
+                  deliveryType === "delivery" &&
                   styles.deliveryOptionTitleSelected,
-              ]}
-            >
-              მიწოდება
-            </Text>
-            <Text
-              style={[
+                ]}
+              >
+                მიწოდება
+              </Text>
+              <Text
+                style={[
                 styles.deliveryOptionSubtitle,
-                deliveryType === "delivery" &&
+                  deliveryType === "delivery" &&
                   styles.deliveryOptionSubtitleSelected,
-              ]}
-            >
-              კურიერი მოიტანს თქვენს მისამართზე
-            </Text>
-          </TouchableOpacity>
+                ]}
+              >
+                კურიერი მოიტანს თქვენს მისამართზე
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.deliveryOption,
-              deliveryType === "pickup" && styles.deliveryOptionSelected,
-            ]}
+            <TouchableOpacity
+              style={[
+                styles.deliveryOption,
+                deliveryType === "pickup" && styles.deliveryOptionSelected,
+              ]}
             onPress={() => handleDeliveryTypeChange("pickup")}
-          >
-            <Ionicons
-              name="walk"
+            >
+              <Ionicons
+                name="walk"
               size={20}
               color={deliveryType === "pickup" ? "#FFFFFF" : "#1A1A1A"}
-            />
-            <Text
-              style={[
+              />
+              <Text
+                style={[
                 styles.deliveryOptionTitle,
                 deliveryType === "pickup" && styles.deliveryOptionTitleSelected,
-              ]}
-            >
-              გატანა
-            </Text>
-            <Text
-              style={[
+                ]}
+              >
+                გატანა
+              </Text>
+              <Text
+                style={[
                 styles.deliveryOptionSubtitle,
-                deliveryType === "pickup" &&
+                  deliveryType === "pickup" &&
                   styles.deliveryOptionSubtitleSelected,
-              ]}
-            >
-              კურიერი მოიტანს თქვენს მისამართზე
-            </Text>
-          </TouchableOpacity>
-        </View>
+                ]}
+              >
+                კურიერი მოიტანს თქვენს მისამართზე
+              </Text>
+            </TouchableOpacity>
+          </View>
 
         {/* Delivery-specific: Address Section */}
         {deliveryType === "delivery" && (
@@ -382,7 +382,7 @@ export default function CheckoutScreen() {
             <View style={styles.addressLeft}>
               <View style={styles.addressIconContainer}>
                 <Ionicons name="location" size={20} color="#2E7D32" />
-              </View>
+        </View>
               <View style={styles.addressTextContainer}>
                 <Text style={styles.addressTitle}>
                   {deliveryAddress?.street || "4 ტაბიძის ქუჩა"}
@@ -455,80 +455,80 @@ export default function CheckoutScreen() {
         {/* Products Section - Only for delivery */}
         {deliveryType === "delivery" && (
           <>
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>პროდუქტები</Text>
-                <TouchableOpacity onPress={() => router.back()}>
-                  <Text style={styles.addMoreText}>დაამატე მეტი</Text>
-                </TouchableOpacity>
-              </View>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>პროდუქტები</Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.addMoreText}>დაამატე მეტი</Text>
+            </TouchableOpacity>
+          </View>
 
-              {restaurantCartItems.map((item) => (
-                <View key={item.id} style={styles.productItem}>
+          {restaurantCartItems.map((item) => (
+            <View key={item.id} style={styles.productItem}>
                   <Image
                     source={getImageSource(item.image)}
                     style={styles.productImage}
                   />
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName}>{item.name}</Text>
+              <View style={styles.productInfo}>
+                <Text style={styles.productName}>{item.name}</Text>
                     <Text style={styles.productModification}>
                       ხახვის გარეშე 🌶️
                     </Text>
-                    <Text style={styles.productPrice}>
+                <Text style={styles.productPrice}>
                       {item.price.toFixed(2).replace(".", ",")} ₾
-                    </Text>
-                  </View>
-                  <View style={styles.quantitySelector}>
-                    <TouchableOpacity
-                      style={styles.quantityButton}
-                      onPress={() =>
-                        handleQuantityChange(item.id, item.quantity - 1)
-                      }
-                    >
+                </Text>
+              </View>
+              <View style={styles.quantitySelector}>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() =>
+                    handleQuantityChange(item.id, item.quantity - 1)
+                  }
+                >
                       <Ionicons name="remove" size={16} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.quantityText}>{item.quantity}</Text>
-                    <TouchableOpacity
-                      style={styles.quantityButton}
-                      onPress={() =>
-                        handleQuantityChange(item.id, item.quantity + 1)
-                      }
-                    >
+                </TouchableOpacity>
+                <Text style={styles.quantityText}>{item.quantity}</Text>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() =>
+                    handleQuantityChange(item.id, item.quantity + 1)
+                  }
+                >
                       <Ionicons name="add" size={16} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+                </TouchableOpacity>
+              </View>
             </View>
+          ))}
+        </View>
 
-            {/* Comment Section */}
+        {/* Comment Section */}
             <View style={styles.commentContainer}>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="დატოვეთ კომენტარი.."
+          <TextInput
+            style={styles.commentInput}
+            placeholder="დატოვეთ კომენტარი.."
                 placeholderTextColor="#999999"
-                value={comment}
-                onChangeText={setComment}
-                multiline
-              />
-            </View>
+            value={comment}
+            onChangeText={setComment}
+            multiline
+          />
+        </View>
           </>
         )}
 
         {/* Voucher Section */}
-        <TouchableOpacity style={styles.voucherCard}>
-          <View style={styles.voucherLeft}>
-            <View style={styles.voucherIcon}>
+          <TouchableOpacity style={styles.voucherCard}>
+            <View style={styles.voucherLeft}>
+              <View style={styles.voucherIcon}>
               <MaterialCommunityIcons
                 name="ticket-percent"
                 size={18}
                 color="#E53935"
               />
+              </View>
+              <Text style={styles.voucherText}>დაამატეთ ვაუჩერი</Text>
             </View>
-            <Text style={styles.voucherText}>დაამატეთ ვაუჩერი</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#666666" />
-        </TouchableOpacity>
+            <Ionicons name="chevron-forward" size={20} color="#666666" />
+          </TouchableOpacity>
 
         {/* Tip Section - Only for delivery */}
         {deliveryType === "delivery" && (
@@ -540,39 +540,39 @@ export default function CheckoutScreen() {
                 style={styles.tipImage}
                 resizeMode="contain"
               />
-            </View>
+              </View>
 
             {/* Right: Text + Buttons */}
             <View style={styles.tipContent}>
-              <Text style={styles.tipTitle}>
+                <Text style={styles.tipTitle}>
                 დატოვებთ კურიერს{"\n"}დამატებით თიფს?
-              </Text>
+                </Text>
               <Text style={styles.tipDescription}>
                 კურიერი იღებს თიფის 100% - ს.
-              </Text>
-              <View style={styles.tipOptions}>
+                </Text>
+            <View style={styles.tipOptions}>
                 {[0, 1, 3, 5].map((tipAmount) => (
-                  <TouchableOpacity
+                <TouchableOpacity
                     key={tipAmount}
-                    style={[
-                      styles.tipButton,
+                  style={[
+                    styles.tipButton,
                       tip === tipAmount && styles.tipButtonSelected,
-                    ]}
+                  ]}
                     onPress={() => setTip(tipAmount)}
-                  >
-                    <Text
-                      style={[
-                        styles.tipButtonText,
+                >
+                  <Text
+                    style={[
+                      styles.tipButtonText,
                         tip === tipAmount && styles.tipButtonTextSelected,
-                      ]}
-                    >
+                    ]}
+                  >
                       {tipAmount}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
+        </View>
         )}
 
         {/* Payment Card Section */}
@@ -589,14 +589,14 @@ export default function CheckoutScreen() {
             </View>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#666666" />
-        </TouchableOpacity>
+            </TouchableOpacity>
 
         {/* Confirm Order Button */}
-        <TouchableOpacity
-          style={[
+            <TouchableOpacity
+              style={[
             styles.confirmButton,
             isSubmitting && styles.confirmButtonDisabled,
-          ]}
+              ]}
           onPress={handleConfirmOrder}
           disabled={isSubmitting}
         >
@@ -605,20 +605,20 @@ export default function CheckoutScreen() {
           ) : (
             <Text style={styles.confirmButtonText}>დაადასტურე შეკვეთა</Text>
           )}
-        </TouchableOpacity>
+            </TouchableOpacity>
 
         {/* Price Summary */}
         <View style={styles.summarySection}>
           {deliveryType === "pickup" && (
             <Text style={styles.summarySectionTitle}>შეჯამება</Text>
           )}
-          <View style={styles.summaryRow}>
+            <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>ჯამი</Text>
             <Text style={styles.summaryValue}>
               {subtotal.toFixed(2).replace(".", ",")}
             </Text>
-          </View>
-          {deliveryType === "delivery" && (
+            </View>
+            {deliveryType === "delivery" && (
             <>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>მომსახურების საფასური</Text>
@@ -633,17 +633,17 @@ export default function CheckoutScreen() {
                 </Text>
               </View>
               {tip > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>თიფი</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>თიფი</Text>
                   <Text style={styles.summaryValue}>
                     {tip.toFixed(2).replace(".", ",")}
                   </Text>
-                </View>
-              )}
+              </View>
+            )}
             </>
           )}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryTotalLabel}>სულ</Text>
+              <Text style={styles.summaryTotalLabel}>სულ</Text>
             <Text style={styles.summaryTotalValue}>
               {deliveryType === "pickup"
                 ? subtotal.toFixed(2).replace(".", ",")

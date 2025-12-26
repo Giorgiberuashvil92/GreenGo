@@ -251,7 +251,7 @@ export default function OrderTrackingScreen() {
       };
     });
   };
-
+  
   const getCurrentStageIndex = useCallback((status: string): number => {
     if (status === "pending" || status === "confirmed") return 0;
     if (status === "preparing") return 1;
@@ -293,14 +293,14 @@ export default function OrderTrackingScreen() {
       setLoading(true);
       setError(null);
       const response = await apiService.getOrderTracking(orderId);
-
+      
       if (response.success && response.data) {
         const trackingData = response.data as OrderTracking;
         setTracking(trackingData);
-
+        
         // Update map region to show all relevant locations
         const locations: { lat: number; lng: number }[] = [];
-
+        
         // Restaurant location
         if (trackingData.restaurant?.location) {
           locations.push({
@@ -308,7 +308,7 @@ export default function OrderTrackingScreen() {
             lng: trackingData.restaurant.location.longitude,
           });
         }
-
+        
         // Delivery address
         if (trackingData.order?.deliveryAddress?.coordinates) {
           locations.push({
@@ -316,25 +316,25 @@ export default function OrderTrackingScreen() {
             lng: trackingData.order.deliveryAddress.coordinates.lng,
           });
         }
-
+        
         // Courier location
         if (trackingData.courier?.currentLocation?.coordinates) {
           const [lng, lat] = trackingData.courier.currentLocation.coordinates;
           locations.push({ lat, lng });
         }
-
+        
         if (locations.length > 0) {
           const minLat = Math.min(...locations.map((l) => l.lat));
           const maxLat = Math.max(...locations.map((l) => l.lat));
           const minLng = Math.min(...locations.map((l) => l.lng));
           const maxLng = Math.max(...locations.map((l) => l.lng));
 
-          setMapRegion({
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLng + maxLng) / 2,
+            setMapRegion({
+              latitude: (minLat + maxLat) / 2,
+              longitude: (minLng + maxLng) / 2,
             latitudeDelta: Math.max((maxLat - minLat) * 1.8, 0.015),
             longitudeDelta: Math.max((maxLng - minLng) * 1.8, 0.015),
-          });
+            });
         }
       } else {
         setError(
@@ -399,7 +399,7 @@ export default function OrderTrackingScreen() {
   const getEstimatedDeliveryTime = () => {
     if (!tracking?.order.estimatedDelivery) return null;
     const estimated = new Date(tracking.order.estimatedDelivery);
-
+    
     const startTime = estimated.toLocaleTimeString("ka-GE", {
       hour: "2-digit",
       minute: "2-digit",
@@ -407,7 +407,7 @@ export default function OrderTrackingScreen() {
     const endTime = new Date(
       estimated.getTime() + 10 * 60000
     ).toLocaleTimeString("ka-GE", { hour: "2-digit", minute: "2-digit" });
-
+    
     return `${startTime} - ${endTime}`;
   };
 
@@ -489,7 +489,7 @@ export default function OrderTrackingScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity 
           onPress={() => router.back()}
           style={styles.backButton}
         >
@@ -584,7 +584,7 @@ export default function OrderTrackingScreen() {
             const isActive = index <= currentStageIndex;
             const isLast = index === ORDER_STAGES.length - 1;
             const lineActive = index < currentStageIndex;
-
+            
             return (
               <React.Fragment key={stage.key}>
                 <View style={styles.stageItem}>
@@ -606,13 +606,13 @@ export default function OrderTrackingScreen() {
                     {[...Array(8)].map((_, i) => (
                       <View
                         key={i}
-                        style={[
+                      style={[
                           styles.stageDot,
                           lineActive && styles.stageDotActive,
-                        ]}
-                      />
+                      ]}
+                    />
                     ))}
-                  </View>
+                </View>
                 )}
               </React.Fragment>
             );
@@ -620,9 +620,9 @@ export default function OrderTrackingScreen() {
         </View>
 
         {/* Status Message */}
-        <Text style={styles.statusMessage}>
+          <Text style={styles.statusMessage}>
           {getStatusMessage(tracking.order.status, tracking.restaurant?.name)}
-        </Text>
+          </Text>
 
         {/* Simulation Button - for testing */}
         <TouchableOpacity
@@ -631,7 +631,7 @@ export default function OrderTrackingScreen() {
         >
           <Text style={styles.simulateButtonSmallText}>
             🧪 შემდეგი სტატუსი ({SIMULATION_STATUSES[(simulationIndex + 1) % SIMULATION_STATUSES.length]})
-          </Text>
+                  </Text>
         </TouchableOpacity>
       </View>
 

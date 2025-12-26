@@ -285,6 +285,23 @@ class ApiService {
     return result;
   }
 
+  async getMenuItemsByRestaurant(restaurantId: string) {
+    if (useMockData || USE_MOCK_DATA) {
+      console.log('🔶 Using mock menu items by restaurant data');
+      return mockApiService.getMenuItems({ restaurantId });
+    }
+
+    const result = await this.request(`/menu-items/restaurant/${restaurantId}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed, falling back to mock data');
+      useMockData = true;
+      return mockApiService.getMenuItems({ restaurantId });
+    }
+    
+    return result;
+  }
+
   // Orders API
   async createOrder(orderData: {
     userId: string;
@@ -555,6 +572,212 @@ class ApiService {
       console.log('🔶 API request failed, falling back to mock data');
       useMockData = true;
       return mockApiService.completeRegistration(firstName, lastName, email);
+    }
+    
+    return result;
+  }
+
+  // Categories API
+  async getCategories() {
+    const result = await this.request('/categories');
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for categories');
+    }
+    
+    return result;
+  }
+
+  async getActiveCategories() {
+    const result = await this.request('/categories/active');
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for active categories');
+    }
+    
+    return result;
+  }
+
+  async getCategory(id: string) {
+    const result = await this.request(`/categories/${id}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for category');
+    }
+    
+    return result;
+  }
+
+  // Users API
+  async getUsers() {
+    const result = await this.request('/users');
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for users');
+    }
+    
+    return result;
+  }
+
+  async getUser(id: string) {
+    const result = await this.request(`/users/${id}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for user');
+    }
+    
+    return result;
+  }
+
+  async updateUser(id: string, userData: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    email?: string;
+    phoneNumber?: string;
+  }) {
+    const result = await this.request(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(userData),
+    });
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for user update');
+    }
+    
+    return result;
+  }
+
+  // Couriers API
+  async getCouriers(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    isAvailable?: boolean;
+    phoneNumber?: string;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.isAvailable !== undefined) queryParams.append('isAvailable', params.isAvailable.toString());
+    if (params?.phoneNumber) queryParams.append('phoneNumber', params.phoneNumber);
+
+    const query = queryParams.toString();
+    const result = await this.request(`/couriers${query ? `?${query}` : ''}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for couriers');
+    }
+    
+    return result;
+  }
+
+  async getCourier(id: string) {
+    const result = await this.request(`/couriers/${id}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for courier');
+    }
+    
+    return result;
+  }
+
+  async getAvailableCouriers(latitude: number, longitude: number, maxDistance?: number) {
+    const queryParams = new URLSearchParams();
+    queryParams.append('latitude', latitude.toString());
+    queryParams.append('longitude', longitude.toString());
+    if (maxDistance) queryParams.append('maxDistance', maxDistance.toString());
+
+    const result = await this.request(`/couriers/available?${queryParams.toString()}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for available couriers');
+    }
+    
+    return result;
+  }
+
+  async registerCourier(courierData: {
+    phoneNumber: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    vehicleType: 'bicycle' | 'motorcycle' | 'car';
+    vehicleNumber?: string;
+    otpCode: string;
+  }) {
+    const result = await this.request('/couriers/register', {
+      method: 'POST',
+      body: JSON.stringify(courierData),
+    });
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for courier registration');
+    }
+    
+    return result;
+  }
+
+  async updateCourierLocation(id: string, location: {
+    latitude: number;
+    longitude: number;
+  }) {
+    const result = await this.request(`/couriers/${id}/location`, {
+      method: 'PATCH',
+      body: JSON.stringify(location),
+    });
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for courier location update');
+    }
+    
+    return result;
+  }
+
+  async updateCourierStatus(id: string, status: 'available' | 'busy' | 'offline') {
+    const result = await this.request(`/couriers/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for courier status update');
+    }
+    
+    return result;
+  }
+
+  async getCourierStatistics(id: string, period: 'today' | 'week' | 'month' = 'today') {
+    const result = await this.request(`/couriers/${id}/statistics?period=${period}`);
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for courier statistics');
+    }
+    
+    return result;
+  }
+
+  async completeCourierOrder(id: string) {
+    const result = await this.request(`/couriers/${id}/complete-order`, {
+      method: 'PATCH',
+    });
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for completing courier order');
+    }
+    
+    return result;
+  }
+
+  // Delete Order
+  async deleteOrder(id: string) {
+    const result = await this.request(`/orders/${id}`, {
+      method: 'DELETE',
+    });
+    
+    if (!result.success) {
+      console.log('🔶 API request failed for order deletion');
     }
     
     return result;

@@ -167,7 +167,7 @@ export class OrdersService {
       this.orderModel
         .find(filter)
         .populate('userId', 'name phoneNumber')
-        .populate('restaurantId', 'name location coordinates')
+        .populate('restaurantId', 'name image location')
         .populate('courierId', 'name phoneNumber currentLocation status')
         .skip(skip)
         .limit(limit)
@@ -188,7 +188,7 @@ export class OrdersService {
     const order = await this.orderModel
       .findById(id)
       .populate('userId', 'name phoneNumber')
-      .populate('restaurantId', 'name location')
+      .populate('restaurantId', 'name image location')
       .populate('courierId', 'name phoneNumber currentLocation status')
       .exec();
     if (!order) {

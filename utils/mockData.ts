@@ -9,7 +9,7 @@ import { orderHistory, currentOrders as localCurrentOrders, previousOrders as lo
 
 // ===== CONFIGURATION =====
 // შეცვალეთ false-ზე როცა backend მზად იქნება
-export const USE_MOCK_DATA = true;
+export const USE_MOCK_DATA = false;
 
 // ===== MOCK USER DATA =====
 export interface MockUser {

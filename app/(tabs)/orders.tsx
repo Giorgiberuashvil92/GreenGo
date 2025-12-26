@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import MapView, { Marker } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiService } from "../../utils/api";
@@ -21,18 +22,39 @@ import { USE_MOCK_DATA } from "../../utils/mockData";
 interface Order {
   _id: string;
   restaurantId: {
+    _id?: string;
     name: string;
     image?: string;
+    location?: {
+      latitude: number;
+      longitude: number;
+      address?: string;
+      city?: string;
+      district?: string;
+      postalCode?: string;
+    };
   };
   items: {
+    menuItemId?: string;
     name: string;
     quantity: number;
     price: number;
+    specialInstructions?: string;
   }[];
   totalAmount: number;
   deliveryFee: number;
   status: string;
   createdAt: string;
+  deliveryAddress?: {
+    street: string;
+    city: string;
+    coordinates: {
+      lat: number;
+      lng: number;
+    };
+    instructions?: string;
+  };
+  deliveryType?: "delivery" | "pickup";
 }
 
 export default function OrdersScreen() {
@@ -47,6 +69,11 @@ export default function OrdersScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<{
+    item: { name: string; quantity: number; price: number };
+    order: Order;
+  } | null>(null);
 
   useEffect(() => {
     const userId = user?.id || (user as any)?._id;
@@ -163,6 +190,36 @@ export default function OrdersScreen() {
     }
   };
 
+  const handleMapPress = (item: { name: string; quantity: number; price: number }, order: Order) => {
+    setSelectedItem({ item, order });
+    setMapModalVisible(true);
+  };
+
+  const getMapCoordinates = (order: Order) => {
+    // If delivery, use delivery address, otherwise use restaurant location
+    if (order.deliveryType === "delivery" && order.deliveryAddress) {
+      return {
+        latitude: order.deliveryAddress.coordinates.lat,
+        longitude: order.deliveryAddress.coordinates.lng,
+        address: `${order.deliveryAddress.street}, ${order.deliveryAddress.city}`,
+      };
+    } else if (order.restaurantId?.location) {
+      // Backend returns location as populated object
+      const location = order.restaurantId.location;
+      return {
+        latitude: location.latitude || 41.7151,
+        longitude: location.longitude || 44.8271,
+        address: location.address || order.restaurantId.name || "თბილისი",
+      };
+    }
+    // Default to Tbilisi center if no location available
+    return {
+      latitude: 41.7151,
+      longitude: 44.8271,
+      address: order.restaurantId?.name || "თბილისი",
+    };
+  };
+
   const renderOrderCard = (order: Order) => {
     const firstItem = order.items[0];
     const total = order.totalAmount + order.deliveryFee;
@@ -188,22 +245,30 @@ export default function OrdersScreen() {
             <View style={styles.orderInfoContainer}>
               <View style={styles.orderNameAndRestaurant}>
                 <Text style={styles.orderName} numberOfLines={1}>
-              {firstItem?.name || "შეკვეთა"}
-            </Text>
+                  {firstItem?.name || "შეკვეთა"}
+                </Text>
                 <Text style={styles.restaurantName} numberOfLines={1}>
-              {order.restaurantId.name}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.infoButton}
-                onPress={() => handleInfoPress(order)}
-          >
-            <Ionicons
-                  name="ellipsis-vertical"
-              size={20}
-                  color="#666666"
-            />
-          </TouchableOpacity>
+                  {order.restaurantId.name}
+                </Text>
+              </View>
+              <View style={styles.actionsContainer}>
+                <TouchableOpacity
+                  style={styles.mapButton}
+                  onPress={() => handleMapPress(firstItem, order)}
+                >
+                  <Ionicons name="map-outline" size={20} color="#4CAF50" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={() => handleInfoPress(order)}
+                >
+                  <Ionicons
+                    name="ellipsis-vertical"
+                    size={20}
+                    color="#666666"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Price */}
@@ -223,7 +288,7 @@ export default function OrdersScreen() {
             <Text style={styles.repeatButtonText}>შეკვეთის განმეორება</Text>
           </TouchableOpacity>
         )}
-            </View>
+      </View>
     );
   };
 
@@ -359,6 +424,89 @@ export default function OrdersScreen() {
           </View>
                 </TouchableOpacity>
       </Modal>
+
+      {/* Map Modal */}
+      <Modal
+        visible={mapModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setMapModalVisible(false)}
+      >
+        <View style={styles.mapModalContainer}>
+          <View style={styles.mapModalContent}>
+            {/* Header */}
+            <View style={styles.mapModalHeader}>
+              <Text style={styles.mapModalTitle}>ინფორმაცია</Text>
+              <TouchableOpacity
+                style={styles.mapModalCloseButton}
+                onPress={() => setMapModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#181B1A" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Item Info */}
+            {selectedItem && (
+              <>
+                <View style={styles.mapItemInfo}>
+                  <Text style={styles.mapItemName}>
+                    {selectedItem.item.quantity}x {selectedItem.item.name}
+                  </Text>
+                  <Text style={styles.mapItemPrice}>
+                    {(selectedItem.item.price * selectedItem.item.quantity).toFixed(2)}₾
+                  </Text>
+                  <Text style={styles.mapRestaurantName}>
+                    {selectedItem.order.restaurantId.name}
+                  </Text>
+                  {selectedItem.order.deliveryAddress && (
+                    <Text style={styles.mapAddress}>
+                      {selectedItem.order.deliveryAddress.street}, {selectedItem.order.deliveryAddress.city}
+                    </Text>
+                  )}
+                  {selectedItem.order.restaurantId.location?.address && !selectedItem.order.deliveryAddress && (
+                    <Text style={styles.mapAddress}>
+                      {selectedItem.order.restaurantId.location.address}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Map */}
+                {selectedItem.order && (
+                  <View style={styles.mapContainer}>
+                    <MapView
+                      style={styles.map}
+                      region={{
+                        latitude: getMapCoordinates(selectedItem.order).latitude,
+                        longitude: getMapCoordinates(selectedItem.order).longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      scrollEnabled={true}
+                      zoomEnabled={true}
+                      showsUserLocation={true}
+                    >
+                      <Marker
+                        coordinate={{
+                          latitude: getMapCoordinates(selectedItem.order).latitude,
+                          longitude: getMapCoordinates(selectedItem.order).longitude,
+                        }}
+                        title={selectedItem.order.restaurantId.name}
+                        description={getMapCoordinates(selectedItem.order).address}
+                      >
+                        <View style={styles.markerContainer}>
+                          <View style={styles.marker}>
+                            <Ionicons name="location" size={20} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      </Marker>
+                    </MapView>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -473,6 +621,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#B3B3B3",
   },
+  actionsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   price: {
     fontSize: 16,
     fontWeight: "600",
@@ -584,5 +737,83 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#007AFF",
+  },
+  mapButton: {
+    padding: 4,
+  },
+  // Map Modal Styles
+  mapModalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  mapModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    width: "90%",
+    maxHeight: "80%",
+    padding: 20,
+  },
+  mapModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  mapModalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#181B1A",
+  },
+  mapModalCloseButton: {
+    padding: 4,
+  },
+  mapItemInfo: {
+    marginBottom: 16,
+  },
+  mapItemName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#181B1A",
+    marginBottom: 4,
+  },
+  mapItemPrice: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#00592D",
+    marginBottom: 8,
+  },
+  mapRestaurantName: {
+    fontSize: 14,
+    color: "#666666",
+    marginBottom: 4,
+  },
+  mapAddress: {
+    fontSize: 14,
+    color: "#999999",
+  },
+  mapContainer: {
+    height: 300,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  map: {
+    flex: 1,
+  },
+  markerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  marker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
   },
 });
