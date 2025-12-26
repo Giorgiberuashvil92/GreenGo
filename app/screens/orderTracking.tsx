@@ -353,6 +353,50 @@ export default function OrderTrackingScreen() {
     fetchTracking();
   }, [fetchTracking]);
 
+  // Poll for courier location updates when order is "delivering"
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout | null = null;
+
+    if (tracking?.order.status === "delivering" && !isSimulating) {
+      // Poll backend every 5 seconds for courier location updates
+      pollingInterval = setInterval(async () => {
+        try {
+          const response = await apiService.getOrderTracking(orderId);
+          if (response.success && response.data) {
+            const updatedData = response.data as OrderTracking;
+            
+            // Update courier location from backend
+            if (updatedData.courier?.currentLocation?.coordinates) {
+              const [lng, lat] = updatedData.courier.currentLocation.coordinates;
+              setCourierPosition({ lat, lng });
+            }
+            
+            // Update order status
+            setTracking(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                order: {
+                  ...prev.order,
+                  status: updatedData.order.status,
+                },
+                courier: updatedData.courier,
+              };
+            });
+          }
+        } catch (err) {
+          console.log("Polling error:", err);
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [tracking?.order.status, orderId, isSimulating]);
+
   // Show delivered modal when order status changes to delivered
   useEffect(() => {
     if (tracking?.order.status === "delivered" && !showDeliveredModal) {
