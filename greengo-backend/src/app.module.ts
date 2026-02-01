@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { BannersModule } from './banners/banners.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CouriersModule } from './couriers/couriers.module';
 import { MenuItemsModule } from './menu-items/menu-items.module';
@@ -27,6 +28,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     CategoriesModule,
     CouriersModule,
+    BannersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

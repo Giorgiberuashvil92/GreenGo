@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useCategories } from "../../hooks/useCategories";
 
 interface FilterModalProps {
   visible: boolean;
@@ -36,6 +38,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
     categories: [],
   });
 
+  // Fetch categories from API
+  const { categories, loading: categoriesLoading } = useCategories(true);
+
   const sortOptions = [
     { id: "closest", label: "უახლოესი" },
     { id: "rating", label: "საუკეთესო რეიტინგი" },
@@ -61,22 +66,11 @@ const FilterModal: React.FC<FilterModalProps> = ({
     { id: "35", label: "35 წუთი ან ნაკლები" },
   ];
 
-  const categoryOptions = [
-    { id: "stores", label: "🛒 მაღაზიები" },
-    { id: "georgian", label: "🇬🇪 ქართული" },
-    { id: "fastfood", label: "🍟 სწრაფი კვება" },
-    { id: "shawarma", label: "🥙 შაურმა" },
-    { id: "pizza", label: "🍕 პიცა" },
-    { id: "burger", label: "🍔 ბურგერი" },
-    { id: "chicken", label: "🍗 ქათამი" },
-    { id: "dessert", label: "🍰 დესერტი" },
-    { id: "soup", label: "🥣 წვნიანი" },
-    { id: "pastries", label: "🥖 ცომეული" },
-    { id: "breakfast", label: "🍳 საუზმე" },
-    { id: "vegetarian", label: "🥑 ვეგეტარიანული" },
-    { id: "healthy", label: "🥗 ჯანსაღი" },
-    { id: "flowers", label: "💐 ყვავილები" },
-  ];
+  // Transform categories from API to filter options
+  const categoryOptions = categories.map((category: { _id?: string; id?: string; name: string; icon?: string }) => ({
+    id: category._id || category.id || "",
+    label: category.icon ? `${category.icon} ${category.name}` : category.name,
+  }));
 
   const handleSortSelect = (sortId: string) => {
     setFilters({ ...filters, sortBy: sortId });
@@ -256,20 +250,29 @@ const FilterModal: React.FC<FilterModalProps> = ({
               <Ionicons name="grid" size={20} color="#4CAF50" />
               <Text style={styles.sectionTitle}>კატეგორიები</Text>
             </View>
-            {categoryOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={styles.checkboxOption}
-                onPress={() => handleCategoryToggle(option.id)}
-              >
-                <Text style={styles.optionText}>{option.label}</Text>
-                <View style={styles.checkbox}>
-                  {filters.categories.includes(option.id) && (
-                    <Ionicons name="checkmark" size={16} color="#4CAF50" />
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
+            {categoriesLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#4CAF50" />
+                <Text style={styles.loadingText}>იტვირთება...</Text>
+              </View>
+            ) : categoryOptions.length > 0 ? (
+              categoryOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={styles.checkboxOption}
+                  onPress={() => handleCategoryToggle(option.id)}
+                >
+                  <Text style={styles.optionText}>{option.label}</Text>
+                  <View style={styles.checkbox}>
+                    {filters.categories.includes(option.id) && (
+                      <Ionicons name="checkmark" size={16} color="#4CAF50" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>კატეგორიები ვერ მოიძებნა</Text>
+            )}
           </View>
         </ScrollView>
 
@@ -452,6 +455,24 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+    paddingVertical: 20,
+    fontStyle: "italic",
   },
 });
 

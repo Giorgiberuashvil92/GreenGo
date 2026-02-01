@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   StatusBar,
   StyleSheet,
   Text,
@@ -9,16 +11,65 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../../contexts/AuthContext";
+import { apiService } from "../../utils/api";
 
 export default function EditNameScreen() {
-  const [firstName, setFirstName] = useState("Dato");
-  const [lastName, setLastName] = useState("Avaliani");
+  const { user, refreshUser } = useAuth();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [activeField, setActiveField] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const handleSave = () => {
-    // Here you would typically save the data to your state management or API
-    console.log("Saving:", { firstName, lastName });
-    router.back();
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || "");
+      setLastName(user.lastName || "");
+      setInitialLoading(false);
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user?.id && !(user as any)?._id) {
+      Alert.alert("შეცდომა", "მომხმარებლის ინფორმაცია ვერ მოიძებნა");
+      return;
+    }
+
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert("შეცდომა", "გთხოვთ შეიყვანოთ როგორც სახელი, ასევე გვარი");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const userId = user?.id || (user as any)?._id;
+      const response = await apiService.updateUserProfile(userId, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        name: `${firstName.trim()} ${lastName.trim()}`,
+      });
+
+      if (response.success && response.data) {
+        await refreshUser();
+        Alert.alert("წარმატება", "სახელი წარმატებით განახლდა", [
+          {
+            text: "კარგი",
+            onPress: () => router.back(),
+          },
+        ]);
+      } else {
+        throw new Error(response.error?.details || "განახლება ვერ მოხერხდა");
+      }
+    } catch (error: any) {
+      console.error("Error updating name:", error);
+      Alert.alert(
+        "შეცდომა",
+        error.message || "სახელის განახლება ვერ მოხერხდა. გთხოვთ სცადოთ მოგვიანებით"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFieldFocus = (field: string) => {
@@ -29,15 +80,27 @@ export default function EditNameScreen() {
     setActiveField(null);
   };
 
+  if (initialLoading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#00C851" />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
+          disabled={loading}
         >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
@@ -60,6 +123,7 @@ export default function EditNameScreen() {
             onBlur={handleFieldBlur}
             placeholder="შეიყვანეთ სახელი"
             placeholderTextColor="#999"
+            editable={!loading}
           />
         </View>
 
@@ -77,14 +141,23 @@ export default function EditNameScreen() {
             onBlur={handleFieldBlur}
             placeholder="შეიყვანეთ გვარი"
             placeholderTextColor="#999"
+            editable={!loading}
           />
         </View>
       </View>
 
       {/* Save Button */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>დადასტურება</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveButtonText}>დადასტურება</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -157,5 +230,13 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

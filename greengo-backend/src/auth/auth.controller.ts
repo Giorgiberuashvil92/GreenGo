@@ -23,19 +23,40 @@ export class AuthController {
 
   @Post('verify-code')
   async verifyCode(@Body() body: { phoneNumber: string; verificationCode: string }) {
+    console.log('📱 VerifyCode request:', { phoneNumber: body.phoneNumber, code: body.verificationCode });
     const result = await this.authService.verifyCode(
       body.phoneNumber,
       body.verificationCode,
     );
-    return {
+    const response = {
       success: true,
       ...result,
     };
+    console.log('📤 VerifyCode response:', JSON.stringify(response, null, 2));
+    return response;
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   async getProfile(@Request() req) {
+    const user = await this.usersService.findOne(req.user.userId);
+    return {
+      success: true,
+      data: {
+        id: (user as any)._id?.toString(),
+        phoneNumber: user.phoneNumber,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        isVerified: user.isVerified,
+      },
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getMe(@Request() req) {
     const user = await this.usersService.findOne(req.user.userId);
     return {
       success: true,

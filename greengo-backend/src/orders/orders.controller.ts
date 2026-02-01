@@ -72,6 +72,16 @@ export class OrdersController {
     return this.ordersService.assignCourier(id, courierId);
   }
 
+  @Get(':id/delivery-info')
+  getDeliveryInfo(@Param('id') id: string) {
+    return this.ordersService.getDeliveryInfo(id);
+  }
+
+  @Get('analytics/recent')
+  getRecentAnalytics() {
+    return this.ordersService.getRecentOrdersAnalytics();
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.ordersService.remove(id);

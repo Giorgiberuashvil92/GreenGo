@@ -1,8 +1,8 @@
-// import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,9 +11,76 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { foodItems } from "../../assets/data/foodItems";
+import { apiService } from "../../utils/api";
+import { useRestaurants } from "../../hooks/useRestaurants";
+
+interface MenuItem {
+  _id: string;
+  id?: string;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  category: string;
+  restaurantId: string | { _id: string; name: string };
+  restaurant?: { _id: string; name: string };
+}
 
 const FoodScreen = () => {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { restaurants } = useRestaurants({ limit: 100 });
+
+  useEffect(() => {
+    fetchMenuItems();
+  }, []);
+
+  const fetchMenuItems = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getMenuItems({
+        limit: 100,
+      });
+
+      if (response.success && response.data) {
+        const items = Array.isArray(response.data)
+          ? response.data
+          : (response.data as any)?.data || [];
+        
+        // Transform items to include restaurant info
+        const transformedItems = items.map((item: MenuItem) => {
+          const restaurantId = typeof item.restaurantId === 'string' 
+            ? item.restaurantId 
+            : item.restaurantId?._id || item.restaurant?._id;
+          
+          const restaurant = restaurants.find(
+            (r) => (r._id || r.id) === restaurantId
+          );
+
+          return {
+            ...item,
+            id: item._id || item.id,
+            restaurant: restaurant?.name || 'რესტორანი',
+            restaurantId: restaurantId,
+          };
+        });
+
+        setMenuItems(transformedItems);
+      }
+    } catch (error) {
+      console.error("Error fetching menu items:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getMenuItemImage = (item: MenuItem) => {
+    if (item.image) {
+      return { uri: item.image };
+    }
+    return require("../../assets/images/eskizi.png");
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -41,50 +108,64 @@ const FoodScreen = () => {
       </View>
 
       {/* Food Items List */}
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {foodItems.map((item) => (
-          <View key={item.id} style={styles.foodCard}>
-            <Image source={item.image} style={styles.foodImage} />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>იტვირთება...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {menuItems.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>საკვები ვერ მოიძებნა</Text>
+            </View>
+          ) : (
+            menuItems.map((item) => (
+              <View key={item.id || item._id} style={styles.foodCard}>
+                <Image 
+                  source={getMenuItemImage(item)} 
+                  style={styles.foodImage} 
+                />
 
-            {/* Favorite Button */}
-            <TouchableOpacity style={styles.favoriteButton}>
-              <Text style={styles.favoriteButtonText}>♡</Text>
-            </TouchableOpacity>
+                {/* Favorite Button */}
+                <TouchableOpacity style={styles.favoriteButton}>
+                  <Text style={styles.favoriteButtonText}>♡</Text>
+                </TouchableOpacity>
 
-            <BlurView intensity={40} tint="dark" style={styles.infoOverlay}>
-              <View style={styles.overlayDark} />
-              <View style={styles.infoRow}>
-                {/* სახელი */}
-                <Text style={styles.restaurantName}>{item.restaurant}</Text>
+                <BlurView intensity={40} tint="dark" style={styles.infoOverlay}>
+                  <View style={styles.overlayDark} />
+                  <View style={styles.infoRow}>
+                    {/* სახელი */}
+                    <Text style={styles.restaurantName}>
+                      {typeof item.restaurant === 'string' 
+                        ? item.restaurant 
+                        : item.restaurant?.name || 'რესტორანი'}
+                    </Text>
 
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  {/* ფასი */}
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoIcon}>💰</Text>
-                    <Text style={styles.infoText}>{item.price}₾</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      {/* ფასი */}
+                      <View style={styles.infoItem}>
+                        <Text style={styles.infoIcon}>💰</Text>
+                        <Text style={styles.infoText}>{item.price.toFixed(2)}₾</Text>
+                      </View>
+
+                      {/* კატეგორია */}
+                      <View style={styles.infoItem}>
+                        <Text style={styles.infoIcon}>📋</Text>
+                        <Text style={styles.infoText}>{item.category || 'საკვები'}</Text>
+                      </View>
+                    </View>
                   </View>
-
-                  {/* დრო */}
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoIcon}>⏰</Text>
-                    <Text style={styles.infoText}>{item.deliveryTime}</Text>
-                  </View>
-
-                  {/* რეიტინგი */}
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoIcon}>⭐</Text>
-                    <Text style={styles.infoText}>{item.rating}</Text>
-                  </View>
-                </View>
+                </BlurView>
               </View>
-            </BlurView>
-          </View>
-        ))}
-      </ScrollView>
+            ))
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -217,6 +298,27 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "500",
     marginLeft: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#666",
   },
 });
 

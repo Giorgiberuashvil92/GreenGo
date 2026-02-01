@@ -1,5 +1,6 @@
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -11,12 +12,40 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { FilterModal } from "../../app/components";
 import { useRestaurants } from "../../hooks/useRestaurants";
+
+interface FilterState {
+  sortBy: string;
+  priceRange: string;
+  rating: string;
+  deliveryTime: string;
+  categories: string[];
+}
 
 const RestaurantsScreen = () => {
   const router = useRouter();
-  const { restaurants, loading, error, refetch } = useRestaurants();
+  const { category } = useLocalSearchParams<{ category?: string }>();
   const [refreshing, setRefreshing] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    sortBy: "",
+    priceRange: "",
+    rating: "",
+    deliveryTime: "",
+    categories: [],
+  });
+  
+  // Pass filters to useRestaurants hook for backend filtering
+  const { restaurants, loading, error, refetch } = useRestaurants({
+    category: category,
+    limit: 100, // Get more restaurants when filtering by category
+    categories: filters.categories.length > 0 ? filters.categories : undefined,
+    priceRange: filters.priceRange || undefined,
+    rating: filters.rating || undefined,
+    deliveryTime: filters.deliveryTime || undefined,
+    sortBy: filters.sortBy || undefined,
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -24,15 +53,133 @@ const RestaurantsScreen = () => {
     setRefreshing(false);
   };
 
-  const handleImageError = (item: any) => {
-    // Fallback to default image if API image fails
-    return { uri: item.image || "https://via.placeholder.com/400x300" };
+  const handleApplyFilters = (appliedFilters: FilterState) => {
+    setFilters(appliedFilters);
+    setShowFilterModal(false);
   };
+
+  // Apply filters to restaurants
+  const filteredRestaurants = useMemo(() => {
+    console.log("🔍 Applying filters:", filters);
+    console.log("📊 Total restaurants:", restaurants.length);
+    
+    let result = restaurants.filter((r) => r.isActive);
+    console.log("✅ Active restaurants:", result.length);
+
+    // Filter by price range
+    if (filters.priceRange) {
+      const before = result.length;
+      result = result.filter((r) => r.priceRange === filters.priceRange);
+      console.log(`💰 Price filter (${filters.priceRange}): ${before} -> ${result.length}`);
+    }
+
+    // Filter by rating
+    if (filters.rating) {
+      const before = result.length;
+      const minRating = parseFloat(filters.rating);
+      result = result.filter((r) => r.rating >= minRating);
+      console.log(`⭐ Rating filter (>=${minRating}): ${before} -> ${result.length}`);
+    }
+
+    // Filter by delivery time
+    if (filters.deliveryTime) {
+      const before = result.length;
+      const maxTime = parseInt(filters.deliveryTime);
+      result = result.filter((r) => {
+        // Handle different formats: "20-30", "20-30 წუთი", "20"
+        const timeStr = r.deliveryTime.replace(/[^0-9-]/g, ""); // Remove non-numeric except dash
+        const timeRange = timeStr.split("-");
+        if (timeRange.length > 1) {
+          const maxDeliveryTime = parseInt(timeRange[timeRange.length - 1]);
+          return maxDeliveryTime <= maxTime;
+        } else {
+          const singleTime = parseInt(timeRange[0]);
+          return singleTime <= maxTime;
+        }
+      });
+      console.log(`⏱️ Delivery time filter (<=${maxTime}min): ${before} -> ${result.length}`);
+    }
+
+    // Filter by categories (multiple selection)
+    if (filters.categories.length > 0) {
+      const before = result.length;
+      result = result.filter((r) => {
+        return filters.categories.some((filterCat) => {
+          // Map filter category IDs to actual category names
+          const categoryMap: { [key: string]: string[] } = {
+            georgian: ["ქართული"],
+            fastfood: ["სწრაფი კვება", "Fast Food"],
+            shawarma: ["შაურმა", "Shawarma"],
+            pizza: ["პიცა", "Pizza"],
+            burger: ["ბურგერი", "Burger"],
+            chicken: ["ქათამი", "Chicken"],
+            dessert: ["დესერტი", "Dessert"],
+            soup: ["წვნიანი", "Soup"],
+            pastries: ["ცომეული", "Pastries"],
+            breakfast: ["საუზმე", "Breakfast"],
+            vegetarian: ["ვეგეტარიანული", "Vegetarian"],
+            healthy: ["ჯანსაღი", "Healthy"],
+            flowers: ["ყვავილები", "Flowers"],
+          };
+          const mappedCategories = categoryMap[filterCat] || [filterCat];
+          return (
+            r.categories?.some((cat) =>
+              mappedCategories.some((mapped) =>
+                cat.toLowerCase().includes(mapped.toLowerCase())
+              )
+            ) ||
+            r.cuisine?.some((cuisine) =>
+              mappedCategories.some((mapped) =>
+                cuisine.toLowerCase().includes(mapped.toLowerCase())
+              )
+            )
+          );
+        });
+      });
+      console.log(`📂 Categories filter (${filters.categories.join(", ")}): ${before} -> ${result.length}`);
+    }
+
+    // Sort restaurants
+    if (filters.sortBy) {
+      switch (filters.sortBy) {
+        case "rating":
+          result = [...result].sort((a, b) => b.rating - a.rating);
+          console.log("📊 Sorted by rating");
+          break;
+        case "fastest":
+          result = [...result].sort((a, b) => {
+            const timeStrA = a.deliveryTime.replace(/[^0-9-]/g, "");
+            const timeStrB = b.deliveryTime.replace(/[^0-9-]/g, "");
+            const timeA = parseInt(timeStrA.split("-")[0]) || 999;
+            const timeB = parseInt(timeStrB.split("-")[0]) || 999;
+            return timeA - timeB;
+          });
+          console.log("📊 Sorted by fastest delivery");
+          break;
+        case "cheapest":
+          result = [...result].sort((a, b) => a.deliveryFee - b.deliveryFee);
+          console.log("📊 Sorted by cheapest");
+          break;
+        case "closest":
+          // For closest, we'd need user location - for now, sort by name
+          result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+          console.log("📊 Sorted by name (closest not available)");
+          break;
+        default:
+          break;
+      }
+    }
+
+    console.log("✅ Final filtered restaurants:", result.length);
+    return result;
+  }, [restaurants, filters]);
 
   if (loading && restaurants.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.title}>რესტორნები</Text>
+        <Text style={styles.title}>
+          {category ? `${category} - რესტორნები` : "რესტორნები"}
+        </Text>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4CAF50" />
           <Text style={styles.loadingText}>იტვირთება...</Text>
@@ -44,7 +191,9 @@ const RestaurantsScreen = () => {
   if (error && restaurants.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.title}>რესტორნები</Text>
+        <Text style={styles.title}>
+          {category ? `${category} - რესტორნები` : "რესტორნები"}
+        </Text>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
@@ -60,10 +209,20 @@ const RestaurantsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>რესტორნები</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          {category ? `${category} - რესტორნები` : "რესტორნები"}
+        </Text>
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <Ionicons name="options-outline" size={24} color="#4CAF50" />
+        </TouchableOpacity>
+      </View>
 
       <FlatList
-        data={restaurants.filter((r) => r.isActive)}
+        data={filteredRestaurants}
         keyExtractor={(item) => item.id || item._id}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -120,6 +279,22 @@ const RestaurantsScreen = () => {
             </View>
           </TouchableOpacity>
         )}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {filters.sortBy || filters.priceRange || filters.rating || filters.deliveryTime || filters.categories.length > 0
+                ? "ფილტრის შედეგები ვერ მოიძებნა"
+                : "რესტორნები ვერ მოიძებნა"}
+            </Text>
+          </View>
+        }
+      />
+
+      {/* Filter Modal */}
+      <FilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApplyFilters={handleApplyFilters}
       />
     </SafeAreaView>
   );
@@ -130,13 +305,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F5F5F5",
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 4,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
     color: "#111827",
+    flex: 1,
+  },
+  filterButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -239,6 +424,15 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
   },
 });
 

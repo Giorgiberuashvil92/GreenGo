@@ -52,15 +52,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loadStoredAuth = async () => {
     try {
-      const [storedToken, storedUser] = await Promise.all([
-        AsyncStorage.getItem(TOKEN_KEY),
-        AsyncStorage.getItem(USER_KEY),
-      ]);
-
-      if (storedToken && storedUser) {
+      const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
+      
+      if (storedToken) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
         setIsAuthenticated(true);
+        
+        // Fetch fresh user data from /auth/me endpoint
+        try {
+          const meResponse = await apiService.getMe();
+          console.log('🔍 loadStoredAuth - /auth/me response:', JSON.stringify(meResponse, null, 2));
+          if (meResponse.success && meResponse.data) {
+            // Backend returns {success: true, data: {...}}
+            // API service wraps it: {success: true, data: {success: true, data: {...}}}
+            // So we need to check if meResponse.data has nested structure
+            const userData = (meResponse.data as any).data || meResponse.data;
+            const fullUserData = userData as User;
+            console.log('✅ Setting user data:', JSON.stringify(fullUserData, null, 2));
+            await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUserData));
+            setUser(fullUserData);
+          } else {
+            // If API call fails (401, 403, etc.), token is invalid - clear auth
+            const errorCode = meResponse.error?.code;
+            const errorStatus = meResponse.error?.status;
+            const errorDetails = meResponse.error?.details || '';
+            
+            if (errorCode === 'AUTH_ERROR' || 
+                (errorCode === 'API_ERROR' && 
+                 (errorStatus === 401 || errorStatus === 403 ||
+                  errorDetails.includes('401') || 
+                  errorDetails.includes('403') ||
+                  errorDetails.includes('Unauthorized')))) {
+              console.warn('⚠️ Token validation failed (401/403), clearing auth');
+              await Promise.all([
+                AsyncStorage.removeItem(TOKEN_KEY),
+                AsyncStorage.removeItem(USER_KEY),
+                AsyncStorage.removeItem(PHONE_KEY),
+              ]);
+              setToken(null);
+              setUser(null);
+              setIsAuthenticated(false);
+            } else {
+              // For other errors, fallback to stored user data
+              console.warn('⚠️ API call failed but not auth error, using stored user data');
+              const storedUser = await AsyncStorage.getItem(USER_KEY);
+              if (storedUser) {
+                setUser(JSON.parse(storedUser));
+              }
+            }
+          }
+        } catch (meError: any) {
+          console.error("Error fetching user data on app load:", meError);
+          // If error is 401/403, token is invalid - clear auth
+          const errorCode = meError?.error?.code;
+          const errorStatus = meError?.error?.status;
+          const errorDetails = meError?.error?.details || '';
+          
+          if (errorCode === 'AUTH_ERROR' || 
+              (errorCode === 'API_ERROR' && 
+               (errorStatus === 401 || errorStatus === 403 ||
+                errorDetails.includes('401') || 
+                errorDetails.includes('403') ||
+                errorDetails.includes('Unauthorized')))) {
+            console.warn('⚠️ Token expired or invalid, clearing auth');
+            await Promise.all([
+              AsyncStorage.removeItem(TOKEN_KEY),
+              AsyncStorage.removeItem(USER_KEY),
+              AsyncStorage.removeItem(PHONE_KEY),
+            ]);
+            setToken(null);
+            setUser(null);
+            setIsAuthenticated(false);
+          } else {
+            // For other errors, fallback to stored user data
+            const storedUser = await AsyncStorage.getItem(USER_KEY);
+            if (storedUser) {
+              setUser(JSON.parse(storedUser));
+            }
+          }
+        }
       }
     } catch (error) {
       console.error("Error loading stored auth:", error);
@@ -103,18 +173,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         verificationCode
       );
 
-      if (response.success && response.access_token && response.user) {
-        const { access_token, user: userData, isNewUser = false } = response;
+      if (response.success && response.access_token) {
+        const { access_token, isNewUser = false } = response;
 
-        // Store token and user
-        await Promise.all([
-          AsyncStorage.setItem(TOKEN_KEY, access_token),
-          AsyncStorage.setItem(USER_KEY, JSON.stringify(userData)),
-        ]);
-
+        // Store token first
+        await AsyncStorage.setItem(TOKEN_KEY, access_token);
         setToken(access_token);
-        setUser(userData);
         setIsAuthenticated(true);
+
+        // Fetch full user profile from /auth/me endpoint
+        try {
+          const meResponse = await apiService.getMe();
+          if (meResponse.success && meResponse.data) {
+            // Backend returns {success: true, data: {...}}
+            // API service wraps it: {success: true, data: {success: true, data: {...}}}
+            // So we need to check if meResponse.data has nested structure
+            const userData = (meResponse.data as any).data || meResponse.data;
+            const fullUserData = userData as User;
+            await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUserData));
+            setUser(fullUserData);
+          } else {
+            // Fallback to user data from login response if available
+            if (response.user) {
+              const userData = response.user as User;
+              await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+              setUser(userData);
+            }
+          }
+        } catch (meError: any) {
+          console.error("Error fetching user data:", meError);
+          // Fallback to user data from login response
+          if (response.user) {
+            const userData = response.user as User;
+            await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+            setUser(userData);
+          }
+        }
 
         return { isNewUser };
       } else {
@@ -162,9 +256,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshUser = async () => {
     try {
       const response = await apiService.getProfile();
+      console.log('🔄 refreshUser - API response:', JSON.stringify(response, null, 2));
       if (response.success && response.data) {
-        setUser(response.data as User);
-        await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.data));
+        // Backend returns {success: true, data: {...}}
+        // API service wraps it: {success: true, data: {success: true, data: {...}}}
+        // So we need to check if response.data has nested structure
+        const userData = (response.data as any).data || response.data;
+        const finalUserData = userData as User;
+        console.log('✅ refreshUser - Setting user:', JSON.stringify(finalUserData, null, 2));
+        setUser(finalUserData);
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(finalUserData));
       }
     } catch (error) {
       console.error("Refresh user error:", error);

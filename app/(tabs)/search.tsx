@@ -67,7 +67,7 @@ export default function SearchTabScreen() {
               <Text style={styles.emptyTitle}>რეზულტატი არ მოიძებნა</Text>
               <Text style={styles.emptyText}>
                 {query.length > 0
-                  ? "სცადე სხვა ключური სიტყვა ან შეამოკლე ძიების ტექსტი."
+                  ? "სცადე სხვა სიტყვა ან შეამოკლე ძიების ტექსტი."
                   : "დაიწყე ძიება რესტორნის სახელით, მისამართით ან სამზარეულოთი."}
               </Text>
             </View>

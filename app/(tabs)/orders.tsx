@@ -18,9 +18,12 @@ import { apiService } from "../../utils/api";
 
 interface Order {
   _id: string;
-  restaurantId: {
+  restaurantId: string | {
+    _id?: string;
     name: string;
     image?: string;
+    heroImage?: string;
+    location?: any;
   };
   items: {
     name: string;
@@ -231,6 +234,10 @@ export default function OrdersScreen() {
     const total = order.totalAmount + order.deliveryFee;
     const canTrack = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
     
+    // Handle restaurant data - could be populated object or just ID
+    const restaurant = typeof order.restaurantId === 'object' ? order.restaurantId : null;
+    const restaurantImage = restaurant?.image || restaurant?.heroImage || null;
+    
     return (
       <TouchableOpacity
         key={order._id}
@@ -239,9 +246,9 @@ export default function OrdersScreen() {
         activeOpacity={0.7}
       >
         <View style={styles.orderContent}>
-          {order.restaurantId.image ? (
+          {restaurantImage ? (
             <Image
-              source={{ uri: order.restaurantId.image }}
+              source={{ uri: restaurantImage }}
               style={styles.orderImage}
             />
           ) : (
@@ -254,7 +261,7 @@ export default function OrdersScreen() {
               {firstItem?.name || "შეკვეთა"}
             </Text>
             <Text style={styles.restaurantName}>
-              {order.restaurantId.name}
+              {restaurant?.name || "რესტორანი"}
             </Text>
             <Text style={styles.price}>{total.toFixed(2)}₾</Text>
             <View style={styles.statusRow}>

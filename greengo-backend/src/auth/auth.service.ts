@@ -27,15 +27,21 @@ export class AuthService {
       sub: userId,
       id: userId,
     };
-    return {
+    const loginResult = {
       access_token: this.jwtService.sign(payload),
       user: {
         id: userId,
         phoneNumber: user.phoneNumber,
         name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
+        isVerified: user.isVerified,
       },
     };
+    console.log('🔐 Login result:', JSON.stringify(loginResult, null, 2));
+    console.log('👤 User object from DB:', JSON.stringify(user, null, 2));
+    return loginResult;
   }
 
   async verifyToken(token: string) {
@@ -100,9 +106,11 @@ export class AuthService {
     }
 
     const loginResult = await this.login(user as any);
-    return {
+    const verifyCodeResult = {
       ...loginResult,
       isNewUser, // Flag to indicate if user needs to complete registration
     };
+    console.log('✅ VerifyCode result:', JSON.stringify(verifyCodeResult, null, 2));
+    return verifyCodeResult;
   }
 }

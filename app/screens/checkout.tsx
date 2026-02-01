@@ -884,6 +884,7 @@ const styles = StyleSheet.create({
   paymentMethods: {
     flexDirection: "row",
     gap: 12,
+    paddingTop: 20,
   },
   paymentMethodCard: {
     flex: 1,

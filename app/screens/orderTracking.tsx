@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Modal,
   ScrollView,
@@ -21,7 +23,7 @@ interface Courier {
   phoneNumber: string;
   currentLocation?: {
     type: 'Point';
-    coordinates: [number, number]; // [longitude, latitude]
+    coordinates: [number, number];
     lastUpdated: Date;
   };
   status: string;
@@ -65,7 +67,6 @@ interface OrderTracking {
   courier?: Courier;
 }
 
-// Order status stages
 const ORDER_STAGES = [
   { key: 'pending', label: 'შეკვეთა მიღებულია', icon: 'document-text' },
   { key: 'preparing', label: 'მზადდება', icon: 'restaurant' },
@@ -88,6 +89,8 @@ export default function OrderTrackingScreen() {
   });
   const mapRef = useRef<MapView | null>(null);
   const previousStatusRef = useRef<string | null>(null);
+  const isInitialLoadRef = useRef(true);
+  const userHasMovedMapRef = useRef(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const stageAnimations = useRef(
     ORDER_STAGES.map(() => new Animated.Value(0))
@@ -105,7 +108,7 @@ export default function OrderTrackingScreen() {
     return 0;
   }, []);
 
-  const fetchTracking = useCallback(async () => {
+  const fetchTracking = useCallback(async (showLoading: boolean = true) => {
     if (!orderId) {
       setError("შეკვეთის ID არ არის მითითებული");
       setLoading(false);
@@ -113,20 +116,20 @@ export default function OrderTrackingScreen() {
     }
 
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       setError(null);
       const response = await apiService.getOrderTracking(orderId);
       
       if (response.success && response.data) {
         const trackingData = response.data as OrderTracking;
         
-        // Check if status changed using ref to avoid dependency
         const currentStatus = previousStatusRef.current;
         const newStatus = trackingData.order.status;
         const statusChanged = currentStatus !== newStatus;
         
         if (statusChanged && currentStatus !== null) {
-          // Animate status change
           const newStageIndex = getCurrentStageIndex(trackingData.order.status);
           if (newStageIndex < ORDER_STAGES.length) {
             Animated.spring(stageAnimations[newStageIndex], {
@@ -137,7 +140,6 @@ export default function OrderTrackingScreen() {
             }).start();
           }
           
-          // Pulse animation for status change
           Animated.sequence([
             Animated.timing(pulseAnim, {
               toValue: 1.2,
@@ -154,17 +156,29 @@ export default function OrderTrackingScreen() {
           previousStatusRef.current = newStatus;
         }
         
-        setTracking(trackingData);
+        // Only update tracking if there's a meaningful change (status or significant location change)
+        // This prevents unnecessary re-renders and marker flickering
+        const shouldUpdate = statusChanged || 
+          !tracking || 
+          (tracking.courier?._id !== trackingData.courier?._id) ||
+          (trackingData.courier?.currentLocation?.coordinates && 
+           tracking.courier?.currentLocation?.coordinates &&
+           (Math.abs(trackingData.courier.currentLocation.coordinates[0] - tracking.courier.currentLocation.coordinates[0]) > 0.0001 ||
+            Math.abs(trackingData.courier.currentLocation.coordinates[1] - tracking.courier.currentLocation.coordinates[1]) > 0.0001));
         
-        // Update previous status ref
+        if (shouldUpdate) {
+          setTracking(trackingData);
+        } else {
+          // Still update previousStatusRef even if we don't update tracking
+          previousStatusRef.current = newStatus;
+        }
+        
         if (!statusChanged) {
           previousStatusRef.current = newStatus;
         }
         
-        // Update map region to show all relevant locations
         const locations: { lat: number; lng: number }[] = [];
         
-        // Restaurant location
         if (trackingData.restaurant?.location) {
           locations.push({
             lat: trackingData.restaurant.location.latitude,
@@ -172,7 +186,6 @@ export default function OrderTrackingScreen() {
           });
         }
         
-        // Delivery address
         if (trackingData.order?.deliveryAddress?.coordinates) {
           locations.push({
             lat: trackingData.order.deliveryAddress.coordinates.lat,
@@ -180,13 +193,13 @@ export default function OrderTrackingScreen() {
           });
         }
         
-        // Courier location
         if (trackingData.courier?.currentLocation?.coordinates) {
           const [lng, lat] = trackingData.courier.currentLocation.coordinates;
           locations.push({ lat, lng });
         }
         
-        if (locations.length > 0) {
+        // Only update map region on initial load or if user hasn't moved the map
+        if (locations.length > 0 && (isInitialLoadRef.current || !userHasMovedMapRef.current)) {
           const minLat = Math.min(...locations.map(l => l.lat));
           const maxLat = Math.max(...locations.map(l => l.lat));
           const minLng = Math.min(...locations.map(l => l.lng));
@@ -195,7 +208,6 @@ export default function OrderTrackingScreen() {
           const latDiff = Math.abs(maxLat - minLat);
           const lngDiff = Math.abs(maxLng - minLng);
           
-          // If locations are too far apart, focus on delivery address
           if (latDiff > 1 || lngDiff > 1) {
             if (trackingData.order?.deliveryAddress?.coordinates) {
               setMapRegion({
@@ -220,6 +232,10 @@ export default function OrderTrackingScreen() {
               longitudeDelta: Math.max((maxLng - minLng) * 1.5, 0.01),
             });
           }
+          
+          if (isInitialLoadRef.current) {
+            isInitialLoadRef.current = false;
+          }
         }
       } else {
         setError(response.error?.details || "შეკვეთის მონაცემები ვერ მოიძებნა");
@@ -227,16 +243,29 @@ export default function OrderTrackingScreen() {
     } catch (err: any) {
       setError(err.message || "შეცდომა მონაცემების მიღებისას");
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, getCurrentStageIndex, pulseAnim, stageAnimations]);
 
   useEffect(() => {
-    // Initial fetch only - no automatic polling
-    fetchTracking();
-  }, [fetchTracking]);
+    fetchTracking(true); // Initial load with loading indicator
+    
+    // Polling for real-time updates (without loading indicator)
+    const pollingInterval = setInterval(() => {
+      if (orderId) {
+        fetchTracking(false); // Silent update
+      }
+    }, 5000); // Update every 5 seconds
+    
+    return () => {
+      clearInterval(pollingInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
 
-  // Initialize animations when component mounts or status changes
   useEffect(() => {
     if (tracking) {
       const currentStageIndex = getCurrentStageIndex(tracking.order.status);
@@ -252,11 +281,9 @@ export default function OrderTrackingScreen() {
     }
   }, [tracking, getCurrentStageIndex, stageAnimations]);
 
-  // Show delivered modal when order status changes to delivered
   useEffect(() => {
     if (tracking?.order.status === 'delivered' && !showDeliveredModal) {
       setShowDeliveredModal(true);
-      // Animate modal appearance
       Animated.parallel([
         Animated.spring(modalScaleAnim, {
           toValue: 1,
@@ -287,7 +314,6 @@ export default function OrderTrackingScreen() {
       }),
     ]).start(() => {
       setShowDeliveredModal(false);
-      // Navigate to home screen after modal closes
       router.replace("/(tabs)" as any);
     });
   };
@@ -296,19 +322,96 @@ export default function OrderTrackingScreen() {
   const getEstimatedDeliveryTime = () => {
     if (!tracking?.order.estimatedDelivery) return null;
     const estimated = new Date(tracking.order.estimatedDelivery);
-    
-    // Format as time range (e.g., "20:55 - 21:05")
     const startTime = estimated.toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' });
     const endTime = new Date(estimated.getTime() + 10 * 60000).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' });
-    
     return `${startTime} - ${endTime}`;
   };
+
+  const handleRegionChangeComplete = useCallback((region: Region) => {
+    setMapRegion(region);
+    // Mark that user has manually moved the map
+    if (!isInitialLoadRef.current) {
+      userHasMovedMapRef.current = true;
+    }
+  }, []);
+
+  const handleGoToMyLocation = useCallback(async () => {
+    try {
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'ლოკაციის ნებართვა',
+          'გთხოვთ მიუთითოთ ლოკაციის ნებართვა, რომ ვნახოთ თქვენი მდებარეობა',
+          [{ text: 'კარგი' }]
+        );
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = location.coords;
+
+      // Animate map to user location
+      if (mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 500);
+      }
+
+      // Update map region state
+      setMapRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    } catch {
+      Alert.alert(
+        'შეცდომა',
+        'ლოკაციის მიღება ვერ მოხერხდა. გთხოვთ სცადოთ თავიდან.',
+        [{ text: 'კარგი' }]
+      );
+    }
+  }, []);
+
+  // Memoize locations to prevent unnecessary re-renders (must be before early returns)
+  const courierCoordinates = tracking?.courier?.currentLocation?.coordinates;
+  const courierLat = courierCoordinates?.[1];
+  const courierLng = courierCoordinates?.[0];
+  
+  const courierLocation = useMemo(() => {
+    if (!courierCoordinates || courierLat === undefined || courierLng === undefined) return null;
+    return { latitude: courierLat, longitude: courierLng };
+  }, [courierCoordinates, courierLat, courierLng]);
+
+  const restaurantLocation = useMemo(() => {
+    if (!tracking?.restaurant?.location) return null;
+    return {
+      latitude: tracking.restaurant.location.latitude,
+      longitude: tracking.restaurant.location.longitude,
+    };
+  }, [tracking?.restaurant?.location]);
+
+  const deliveryLocation = useMemo(() => {
+    if (!tracking?.order?.deliveryAddress?.coordinates) return null;
+    return {
+      latitude: tracking.order.deliveryAddress.coordinates.lat,
+      longitude: tracking.order.deliveryAddress.coordinates.lng,
+    };
+  }, [tracking?.order?.deliveryAddress?.coordinates]);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#10B981" />
           <Text style={styles.loadingText}>იტვირთება...</Text>
         </View>
       </SafeAreaView>
@@ -319,7 +422,9 @@ export default function OrderTrackingScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color="#F44336" />
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="alert-circle" size={64} color="#EF4444" />
+          </View>
           <Text style={styles.errorText}>{error || "შეკვეთა ვერ მოიძებნა"}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -339,51 +444,30 @@ export default function OrderTrackingScreen() {
     );
   }
 
-  const courierLocation = tracking.courier?.currentLocation?.coordinates
-    ? {
-        latitude: tracking.courier.currentLocation.coordinates[1],
-        longitude: tracking.courier.currentLocation.coordinates[0],
-      }
-    : null;
-
-  const restaurantLocation = tracking.restaurant?.location
-    ? {
-        latitude: tracking.restaurant.location.latitude,
-        longitude: tracking.restaurant.location.longitude,
-      }
-    : null;
-
-  const deliveryLocation = tracking.order?.deliveryAddress?.coordinates
-    ? {
-        latitude: tracking.order.deliveryAddress.coordinates.lat,
-        longitude: tracking.order.deliveryAddress.coordinates.lng,
-      }
-    : null;
-
   const currentStageIndex = getCurrentStageIndex(tracking.order.status);
   const estimatedTime = getEstimatedDeliveryTime();
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButtonHeader}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <View style={styles.headerSpacer} />
-        <TouchableOpacity 
-          onPress={() => {
-            setLoading(true);
-            fetchTracking();
-          }} 
-          style={styles.refreshButton}
-        >
-          <Ionicons name="refresh" size={24} color="#000" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Map - Takes up most of the screen */}
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      {/* Map */}
       <View style={styles.mapContainer}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButtonHeader}>
+            <Ionicons name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <View style={styles.headerSpacer} />
+          <TouchableOpacity 
+            onPress={() => {
+              userHasMovedMapRef.current = false; // Reset flag on manual refresh
+              setLoading(true);
+              fetchTracking(true);
+            }} 
+            style={styles.refreshButton}
+          >
+            <Ionicons name="refresh" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -391,14 +475,15 @@ export default function OrderTrackingScreen() {
           showsUserLocation={false}
           showsMyLocationButton={false}
           mapType="standard"
-          onRegionChangeComplete={setMapRegion}
+          onRegionChangeComplete={handleRegionChangeComplete}
         >
-          {/* Restaurant Marker */}
           {restaurantLocation && (
             <Marker
+              key={`restaurant-${tracking.restaurant?._id || 'restaurant'}`}
               coordinate={restaurantLocation}
               title={tracking.restaurant?.name || "რესტორანი"}
               description="რესტორანი"
+              tracksViewChanges={false}
             >
               <View style={styles.restaurantMarker}>
                 <Ionicons name="restaurant" size={20} color="#FFFFFF" />
@@ -406,12 +491,13 @@ export default function OrderTrackingScreen() {
             </Marker>
           )}
 
-          {/* Delivery Address Marker */}
           {deliveryLocation && (
             <Marker
+              key={`delivery-${tracking.order.id || 'delivery'}`}
               coordinate={deliveryLocation}
               title="მიტანის მისამართი"
               description={tracking.order.deliveryAddress.street}
+              tracksViewChanges={false}
             >
               <View style={styles.deliveryMarker}>
                 <Ionicons name="location" size={20} color="#FFFFFF" />
@@ -419,12 +505,13 @@ export default function OrderTrackingScreen() {
             </Marker>
           )}
 
-          {/* Courier Marker */}
-          {courierLocation && (
+          {courierLocation && tracking.order.status === 'delivering' && (
             <Marker
+              key={`courier-${tracking.courier?._id || 'courier'}`}
               coordinate={courierLocation}
-              title={tracking.courier?.name || "კურიერი"}
-              description={`ტელეფონი: ${tracking.courier?.phoneNumber || "N/A"}`}
+              title="კურიერი"
+              description="კურიერი მოდის თქვენთან"
+              tracksViewChanges={false}
             >
               <View style={styles.courierMarker}>
                 <Ionicons name="bicycle" size={18} color="#FFFFFF" />
@@ -432,7 +519,6 @@ export default function OrderTrackingScreen() {
             </Marker>
           )}
 
-          {/* Route from restaurant to delivery - only show if not delivering */}
           {restaurantLocation && deliveryLocation && tracking.order.status !== 'delivering' && (
             <Polyline
               coordinates={[restaurantLocation, deliveryLocation]}
@@ -442,7 +528,6 @@ export default function OrderTrackingScreen() {
             />
           )}
 
-          {/* Route from courier to delivery - only show when delivering */}
           {courierLocation && deliveryLocation && tracking.order.status === 'delivering' && (
             <Polyline
               coordinates={[courierLocation, deliveryLocation]}
@@ -452,181 +537,179 @@ export default function OrderTrackingScreen() {
           )}
         </MapView>
 
-        {/* Zoom Controls */}
-        <View style={styles.zoomControls}>
+        {/* Map Controls */}
+        <View style={styles.mapControls}>
+          {/* My Location Button */}
           <TouchableOpacity
-            style={styles.zoomButton}
-            onPress={() => {
-              if (mapRef.current) {
-                mapRef.current.animateToRegion({
-                  ...mapRegion,
-                  latitudeDelta: mapRegion.latitudeDelta * 0.5,
-                  longitudeDelta: mapRegion.longitudeDelta * 0.5,
-                }, 300);
-              }
-            }}
+            style={styles.myLocationButton}
+            onPress={handleGoToMyLocation}
           >
-            <Ionicons name="add" size={24} color="#333" />
+            <Ionicons name="locate" size={20} color="#333" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.zoomButton, styles.zoomButtonBottom]}
-            onPress={() => {
-              if (mapRef.current) {
-                mapRef.current.animateToRegion({
-                  ...mapRegion,
-                  latitudeDelta: mapRegion.latitudeDelta * 2,
-                  longitudeDelta: mapRegion.longitudeDelta * 2,
-                }, 300);
-              }
-            }}
-          >
-            <Ionicons name="remove" size={24} color="#333" />
-          </TouchableOpacity>
+          
+          {/* Zoom Controls */}
+          <View style={styles.zoomControls}>
+            <TouchableOpacity
+              style={styles.zoomButton}
+              onPress={() => {
+                if (mapRef.current) {
+                  mapRef.current.animateToRegion({
+                    ...mapRegion,
+                    latitudeDelta: mapRegion.latitudeDelta * 0.5,
+                    longitudeDelta: mapRegion.longitudeDelta * 0.5,
+                  }, 300);
+                }
+              }}
+            >
+              <Ionicons name="add" size={18} color="#333" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.zoomButton, styles.zoomButtonBottom]}
+              onPress={() => {
+                if (mapRef.current) {
+                  mapRef.current.animateToRegion({
+                    ...mapRegion,
+                    latitudeDelta: mapRegion.latitudeDelta * 2,
+                    longitudeDelta: mapRegion.longitudeDelta * 2,
+                  }, 300);
+                }
+              }}
+            >
+              <Ionicons name="remove" size={18} color="#333" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      {/* Bottom Card - Slides up from bottom */}
+      {/* Bottom Card */}
       <View style={styles.bottomCard}>
-        {/* Card Handle */}
-        <View style={styles.cardHandle} />
+        <ScrollView 
+          style={styles.bottomCardScroll}
+          contentContainerStyle={styles.bottomCardContent}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+        >
+          <View style={styles.cardHandle} />
 
-        {/* Estimated Delivery Time */}
-        {estimatedTime && (
-          <View style={styles.deliveryTimeContainer}>
-            <Text style={styles.deliveryTimeLabel}>მიწოდების სავარაუდო დრო</Text>
-            <Text style={styles.deliveryTimeValue}>{estimatedTime}</Text>
-          </View>
-        )}
+          {/* Estimated Delivery Time */}
+          {estimatedTime && (
+            <View style={styles.deliveryTimeContainer}>
+              <Text style={styles.deliveryTimeLabel}>მიწოდების სავარაუდო დრო</Text>
+              <Text style={styles.deliveryTimeValue}>{estimatedTime}</Text>
+            </View>
+          )}
 
-        {/* Progress Timeline */}
-        <View style={styles.progressContainer}>
-          {ORDER_STAGES.map((stage, index) => {
-            const isActive = index <= currentStageIndex;
-            const isCompleted = index < currentStageIndex;
-            const isCurrent = index === currentStageIndex;
-            
-            const scale = stageAnimations[index].interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.8, 1],
-            });
-            
-            const opacity = stageAnimations[index];
-            
-            return (
-              <React.Fragment key={stage.key}>
-                <View style={styles.stageItem}>
-                  <Animated.View
-                    style={[
-                      styles.stageIcon,
-                      isActive && styles.stageIconActive,
-                      isCompleted && styles.stageIconCompleted,
-                      isCurrent && {
-                        transform: [{ scale: pulseAnim }],
-                      },
-                      {
-                        transform: [{ scale }],
-                        opacity,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={stage.icon as any}
-                      size={20}
-                      color={isActive ? "#FFFFFF" : "#E0E0E0"}
-                    />
-                    {isCurrent && (
-                      <View style={styles.pulseRing} />
-                    )}
-                  </Animated.View>
-                  {index < ORDER_STAGES.length - 1 && (
+          {/* Progress Timeline */}
+          <View style={styles.progressContainer}>
+            {ORDER_STAGES.map((stage, index) => {
+              const isActive = index <= currentStageIndex;
+              const isCompleted = index < currentStageIndex;
+              const isCurrent = index === currentStageIndex;
+              
+              const scale = stageAnimations[index].interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.8, 1],
+              });
+              
+              const opacity = stageAnimations[index];
+              
+              return (
+                <React.Fragment key={stage.key}>
+                  <View style={styles.stageItem}>
                     <Animated.View
                       style={[
-                        styles.stageLine,
-                        isCompleted && styles.stageLineCompleted,
+                        styles.stageIcon,
+                        isActive && styles.stageIconActive,
+                        isCompleted && styles.stageIconCompleted,
+                        isCurrent && {
+                          transform: [{ scale: pulseAnim }],
+                        },
                         {
-                          opacity: isCompleted ? 1 : opacity,
+                          transform: [{ scale }],
+                          opacity,
                         },
                       ]}
-                    />
+                    >
+                      <Ionicons
+                        name={stage.icon as any}
+                        size={20}
+                        color={isActive ? "#FFFFFF" : "#E0E0E0"}
+                      />
+                      {isCurrent && (
+                        <View style={styles.pulseRing} />
+                      )}
+                    </Animated.View>
+                    {index < ORDER_STAGES.length - 1 && (
+                      <Animated.View
+                        style={[
+                          styles.stageLine,
+                          isCompleted && styles.stageLineCompleted,
+                          {
+                            opacity: isCompleted ? 1 : opacity,
+                          },
+                        ]}
+                      />
+                    )}
+                  </View>
+                </React.Fragment>
+              );
+            })}
+          </View>
+
+          {/* Status Message */}
+          <View style={styles.statusMessageContainer}>
+            <Text style={styles.statusMessage}>
+              {tracking.order.status === 'pending' || tracking.order.status === 'confirmed'
+                ? `${tracking.restaurant?.name || 'რესტორანმა'} მიიღო თქვენი შეკვეთა`
+                : tracking.order.status === 'preparing'
+                ? `${tracking.restaurant?.name || 'რესტორანი'} ამზადებს თქვენს შეკვეთას`
+                : tracking.order.status === 'ready'
+                ? 'შეკვეთა მზადაა'
+                : tracking.order.status === 'delivering'
+                ? 'კურიერი მოდის თქვენთან'
+                : 'შეკვეთა მიტანილია'}
+            </Text>
+          </View>
+
+          {/* Restaurant Info */}
+          {tracking.restaurant && (
+            <View style={styles.restaurantInfoContainer}>
+              <View style={styles.restaurantInfoRow}>
+                <Ionicons name="restaurant" size={18} color="#666" />
+                <Text style={styles.restaurantInfoText}>{tracking.restaurant.name}</Text>
+              </View>
+              {tracking.restaurant.location?.address && (
+                <Text style={styles.restaurantAddress}>{tracking.restaurant.location.address}</Text>
+              )}
+            </View>
+          )}
+
+          {/* Delivery Address */}
+          {tracking.order.deliveryAddress && (
+            <View style={styles.deliveryAddressContainer}>
+              <View style={styles.deliveryAddressRow}>
+                <Ionicons name="location" size={18} color="#666" />
+                <View style={styles.deliveryAddressTextContainer}>
+                  <Text style={styles.deliveryAddressText}>
+                    {tracking.order.deliveryAddress.street}
+                  </Text>
+                  <Text style={styles.deliveryAddressCity}>
+                    {tracking.order.deliveryAddress.city}
+                  </Text>
+                  {tracking.order.deliveryAddress.instructions && (
+                    <Text style={styles.deliveryInstructions}>
+                      {tracking.order.deliveryAddress.instructions}
+                    </Text>
                   )}
                 </View>
-              </React.Fragment>
-            );
-          })}
-        </View>
-
-        {/* Status Message */}
-        <View style={styles.statusMessageContainer}>
-          <Text style={styles.statusMessage}>
-            {tracking.order.status === 'pending' || tracking.order.status === 'confirmed'
-              ? `${tracking.restaurant?.name || 'რესტორანმა'} მიიღო თქვენი შეკვეთა`
-              : tracking.order.status === 'preparing'
-              ? `${tracking.restaurant?.name || 'რესტორანი'} მზადებს თქვენს შეკვეთას`
-              : tracking.order.status === 'ready'
-              ? 'შეკვეთა მზადაა'
-              : tracking.order.status === 'delivering'
-              ? `${tracking.courier?.name || 'კურიერი'} მიდის თქვენთან`
-              : 'შეკვეთა მიტანილია'}
-          </Text>
-        </View>
-
-        {/* Restaurant Info */}
-        {tracking.restaurant && (
-          <View style={styles.restaurantInfoContainer}>
-            <View style={styles.restaurantInfoRow}>
-              <Ionicons name="restaurant" size={20} color="#666" />
-              <Text style={styles.restaurantInfoText}>{tracking.restaurant.name}</Text>
-            </View>
-            {tracking.restaurant.location?.address && (
-              <Text style={styles.restaurantAddress}>{tracking.restaurant.location.address}</Text>
-            )}
-          </View>
-        )}
-
-        {/* Courier Info */}
-        {tracking.courier && (
-          <View style={styles.courierInfoContainer}>
-            <View style={styles.courierInfoRow}>
-              <Ionicons name="bicycle" size={20} color="#666" />
-              <View style={styles.courierInfoTextContainer}>
-                <Text style={styles.courierInfoText}>{tracking.courier.name}</Text>
-                <Text style={styles.courierPhone}>{tracking.courier.phoneNumber}</Text>
               </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* Delivery Address */}
-        {tracking.order.deliveryAddress && (
-          <View style={styles.deliveryAddressContainer}>
-            <View style={styles.deliveryAddressRow}>
-              <Ionicons name="location" size={20} color="#666" />
-              <View style={styles.deliveryAddressTextContainer}>
-                <Text style={styles.deliveryAddressText}>
-                  {tracking.order.deliveryAddress.street}
-                </Text>
-                <Text style={styles.deliveryAddressCity}>
-                  {tracking.order.deliveryAddress.city}
-                </Text>
-                {tracking.order.deliveryAddress.instructions && (
-                  <Text style={styles.deliveryInstructions}>
-                    {tracking.order.deliveryAddress.instructions}
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Order Details */}
-        {tracking.order.items && tracking.order.items.length > 0 && (
-          <View style={styles.orderDetailsContainer}>
-            <Text style={styles.orderDetailsTitle}>შეკვეთის დეტალები</Text>
-            <ScrollView 
-              style={styles.orderItemsScroll}
-              nestedScrollEnabled={true}
-              showsVerticalScrollIndicator={false}
-            >
+          {/* Order Details */}
+          {tracking.order.items && tracking.order.items.length > 0 && (
+            <View style={styles.orderDetailsContainer}>
+              <Text style={styles.orderDetailsTitle}>შეკვეთის დეტალები</Text>
               {tracking.order.items.map((item, index) => (
                 <View key={index} style={styles.orderItemRow}>
                   <View style={styles.orderItemInfo}>
@@ -688,12 +771,12 @@ export default function OrderTrackingScreen() {
                   </Text>
                 </View>
               )}
-            </ScrollView>
-          </View>
-        )}
+            </View>
+          )}
+        </ScrollView>
       </View>
 
-      {/* Delivered Success Modal */}
+      {/* Success Modal */}
       <Modal
         visible={showDeliveredModal}
         transparent={true}
@@ -703,25 +786,23 @@ export default function OrderTrackingScreen() {
         <Animated.View
           style={[
             styles.modalOverlay,
-            {
-              opacity: modalOpacityAnim,
-            },
+            { opacity: modalOpacityAnim },
           ]}
         >
           <Animated.View
             style={[
               styles.modalContent,
-              {
-                transform: [{ scale: modalScaleAnim }],
-              },
+              { transform: [{ scale: modalScaleAnim }] },
             ]}
           >
             <View style={styles.modalIconContainer}>
-              <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+              <View style={styles.modalIconCircle}>
+                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+              </View>
             </View>
             <Text style={styles.modalTitle}>შეკვეთა მიტანილია! 🎉</Text>
             <Text style={styles.modalMessage}>
-              თქვენი შეკვეთა წარმატებით მიიტანა. მადლობთ, რომ აირჩიეთ GreenGo!
+              თქვენ შეკვეთა წარმატებით მიიღეთ. მადლობთ, რომ აირჩიეთ GreenGo!
             </Text>
             <TouchableOpacity
               style={styles.modalButton}
@@ -752,11 +833,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
+  backButtonHeader: {
+    padding: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  refreshButton: {
+    padding: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+  },
+  errorIconContainer: {
+    marginBottom: 16,
   },
   errorText: {
     marginTop: 16,
@@ -786,16 +890,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 70,
     paddingBottom: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    backgroundColor: "transparent",
     zIndex: 10,
     minHeight: 50,
   },
-  backButtonHeader: {
+  headerButton: {
     padding: 8,
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -808,19 +916,8 @@ const styles = StyleSheet.create({
   headerSpacer: {
     flex: 1,
   },
-  refreshButton: {
-    padding: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   mapContainer: {
     flex: 1,
-    width: "100%",
   },
   map: {
     flex: 1,
@@ -870,19 +967,70 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  mapControls: {
+    position: "absolute",
+    right: 12,
+    bottom: "58%",
+    gap: 8,
+    zIndex: 1000,
+  },
+  myLocationButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  zoomControls: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  zoomButton: {
+    width: 36,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  zoomButtonBottom: {
+    borderBottomWidth: 0,
+  },
   bottomCard: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 32,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
     maxHeight: "55%",
+    zIndex: 100,
+  },
+  bottomCardScroll: {
+    maxHeight: "100%",
+  },
+  bottomCardContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   cardHandle: {
     width: 40,
@@ -895,16 +1043,16 @@ const styles = StyleSheet.create({
   deliveryTimeContainer: {
     borderBottomWidth: 1,
     borderBottomColor: "#E0E0E0",
-    paddingBottom: 16,
-    marginBottom: 16,
+    paddingBottom: 12,
+    marginBottom: 12,
   },
   deliveryTimeLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#666",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   deliveryTimeValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#000",
   },
@@ -912,7 +1060,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
     paddingHorizontal: 8,
   },
   stageItem: {
@@ -959,27 +1107,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#4CAF50",
   },
   statusMessageContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
     position: "relative",
   },
   statusMessage: {
-    fontSize: 16,
+    fontSize: 13,
     color: "#333",
     textAlign: "center",
-    lineHeight: 22,
-  },
-  statusChangeIndicator: {
-    marginTop: 8,
-    alignItems: "center",
-  },
-  statusChangeText: {
-    fontSize: 12,
-    color: "#4CAF50",
-    fontWeight: "600",
+    lineHeight: 18,
   },
   restaurantInfoContainer: {
-    marginBottom: 12,
-    paddingBottom: 12,
+    marginBottom: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
   },
@@ -989,39 +1128,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   restaurantInfoText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "600",
     color: "#333",
     marginLeft: 8,
   },
   restaurantAddress: {
-    fontSize: 13,
+    fontSize: 11,
     color: "#666",
-    marginLeft: 28,
-    marginTop: 2,
-  },
-  courierInfoContainer: {
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  courierInfoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  courierInfoTextContainer: {
-    marginLeft: 8,
-    flex: 1,
-  },
-  courierInfoText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-  },
-  courierPhone: {
-    fontSize: 13,
-    color: "#666",
+    marginLeft: 26,
     marginTop: 2,
   },
   deliveryAddressContainer: {
@@ -1036,41 +1151,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   deliveryAddressText: {
-    fontSize: 15,
+    fontSize: 13,
     color: "#333",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   deliveryAddressCity: {
-    fontSize: 13,
+    fontSize: 11,
     color: "#666",
     marginTop: 2,
   },
   deliveryInstructions: {
-    fontSize: 12,
+    fontSize: 10,
     color: "#999",
     fontStyle: "italic",
     marginTop: 4,
   },
   orderDetailsContainer: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
   },
   orderDetailsTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 12,
-  },
-  orderItemsScroll: {
-    maxHeight: 200,
+    marginBottom: 10,
   },
   orderItemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   orderItemInfo: {
     flex: 1,
@@ -1078,37 +1190,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   orderItemName: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#333",
     fontWeight: "500",
-    marginRight: 8,
+    marginRight: 6,
   },
   orderItemQuantity: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
   },
   orderItemPrice: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: "#333",
   },
   orderDivider: {
     height: 1,
     backgroundColor: "#E0E0E0",
-    marginVertical: 12,
+    marginVertical: 10,
   },
   orderTotalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   orderTotalLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#666",
   },
   orderTotalValue: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: "#333",
   },
@@ -1119,27 +1231,27 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   orderFeeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
   },
   orderFeeValue: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
     fontWeight: "500",
   },
   orderFinalTotalRow: {
-    marginTop: 8,
-    paddingTop: 12,
+    marginTop: 6,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
   },
   orderFinalTotalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#333",
   },
   orderFinalTotalValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     color: "#4CAF50",
   },
@@ -1147,44 +1259,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
   },
   orderPaymentLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
   },
   orderPaymentValue: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: "#333",
-  },
-  zoomControls: {
-    position: "absolute",
-    right: 16,
-    top: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-    overflow: "hidden",
-  },
-  zoomButton: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
-  },
-  zoomButtonBottom: {
-    borderBottomWidth: 0,
   },
   modalOverlay: {
     flex: 1,
@@ -1208,6 +1295,14 @@ const styles = StyleSheet.create({
   },
   modalIconContainer: {
     marginBottom: 24,
+  },
+  modalIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#F0FDF4",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 24,

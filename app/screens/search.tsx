@@ -11,17 +11,68 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { categories } from "../../assets/data/categories";
-import { restaurantsData } from "../../assets/data/restaurantsData";
+import { useAuth } from "../../contexts/AuthContext";
+import { useCategories } from "../../hooks/useCategories";
+import { apiService } from "../../utils/api";
 import { FilterModal } from "../components";
 
 export default function SearchScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { categories, loading: categoriesLoading } = useCategories(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [recentlyOrdered, setRecentlyOrdered] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
-  // Recently ordered restaurants (mock data - in real app this would come from order history)
-  const recentlyOrdered = restaurantsData.slice(0, 2);
+  // Fetch recently ordered restaurants from orders API
+  React.useEffect(() => {
+    if (user?.id || (user as any)?._id) {
+      fetchRecentlyOrdered();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const fetchRecentlyOrdered = async () => {
+    try {
+      setLoadingOrders(true);
+      const userId = user?.id || (user as any)?._id;
+      const response = await apiService.getOrders({
+        userId: userId,
+        limit: 5,
+        page: 1,
+      });
+
+      if (response.success && response.data) {
+        const orders = (response.data as any).orders || (Array.isArray(response.data) ? response.data : []);
+        
+        // Get unique restaurants from recent orders
+        const restaurantMap = new Map();
+        orders.forEach((order: any) => {
+          if (order.restaurantId && !restaurantMap.has(order.restaurantId._id || order.restaurantId)) {
+            const restaurant = typeof order.restaurantId === 'object' 
+              ? order.restaurantId 
+              : { _id: order.restaurantId };
+            
+            restaurantMap.set(restaurant._id, {
+              id: restaurant._id,
+              name: restaurant.name || 'რესტორანი',
+              image: restaurant.image || restaurant.heroImage,
+              deliveryFee: restaurant.deliveryFee || 4.99,
+              deliveryTime: restaurant.deliveryTime || '20-30',
+              rating: restaurant.rating || 4.5,
+            });
+          }
+        });
+        
+        setRecentlyOrdered(Array.from(restaurantMap.values()).slice(0, 2));
+      }
+    } catch (error) {
+      console.error('Error fetching recently ordered:', error);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
   const handleRestaurantPress = (restaurantId: string) => {
     router.push({
@@ -31,9 +82,26 @@ export default function SearchScreen() {
   };
 
   const handleCategoryPress = (category: any) => {
-    if (category.link) {
-      router.push(category.link as any);
+    // Navigate to restaurants screen with category filter
+    router.push({
+      pathname: "/(tabs)/restaurants",
+      params: { category: category.name },
+    });
+  };
+
+  // Fallback icon mapping for categories
+  const getCategoryIcon = (categoryName: string, iconUrl?: string) => {
+    if (iconUrl) {
+      return { uri: iconUrl };
     }
+    const nameLower = categoryName.toLowerCase();
+    if (nameLower.includes('კვება') || nameLower.includes('food')) {
+      return require("../../assets/images/categories/food.png");
+    }
+    if (nameLower.includes('ყვავილ') || nameLower.includes('flower')) {
+      return require("../../assets/images/categories/flowers.png");
+    }
+    return require("../../assets/images/categories/all.png");
   };
 
   const handleFilterPress = () => {
@@ -51,11 +119,18 @@ export default function SearchScreen() {
 
   const renderRecentlyOrderedItem = (restaurant: any) => (
     <TouchableOpacity
-      key={restaurant.id}
+      key={restaurant.id || restaurant._id}
       style={styles.recentItem}
-      onPress={() => handleRestaurantPress(restaurant.id)}
+      onPress={() => handleRestaurantPress(restaurant.id || restaurant._id)}
     >
-      <Image source={restaurant.image} style={styles.recentItemImage} />
+      <Image 
+        source={
+          typeof restaurant.image === "string"
+            ? { uri: restaurant.image }
+            : restaurant.image || require("../../assets/images/magnolia.png")
+        } 
+        style={styles.recentItemImage} 
+      />
       <View style={styles.recentItemDetails}>
         <Text style={styles.recentItemName}>{restaurant.name}</Text>
         <Text style={styles.recentItemCategory}>რესტორანი</Text>
@@ -63,16 +138,16 @@ export default function SearchScreen() {
           <View style={styles.infoItem}>
             <Ionicons name="cash-outline" size={14} color="#666" />
             <Text style={styles.infoText}>
-              {restaurant.deliveryFee.toFixed(2)}₾
+              {restaurant.deliveryFee?.toFixed(2) || "4.99"}₾
             </Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="time-outline" size={14} color="#666" />
-            <Text style={styles.infoText}>{restaurant.deliveryTime} წუთი</Text>
+            <Text style={styles.infoText}>{restaurant.deliveryTime || "20-30"} წუთი</Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="star" size={14} color="#FFD700" />
-            <Text style={styles.infoText}>{restaurant.rating}</Text>
+            <Text style={styles.infoText}>{restaurant.rating?.toFixed(1) || "4.5"}</Text>
           </View>
         </View>
       </View>
@@ -81,11 +156,14 @@ export default function SearchScreen() {
 
   const renderCategoryItem = (category: any) => (
     <TouchableOpacity
-      key={category.id}
+      key={category.id || category._id}
       style={styles.categoryItem}
       onPress={() => handleCategoryPress(category)}
     >
-      <Image source={category.icon} style={styles.categoryIcon} />
+      <Image 
+        source={getCategoryIcon(category.name, category.icon)} 
+        style={styles.categoryIcon} 
+      />
       <Text style={styles.categoryText}>{category.name}</Text>
       <View style={styles.radioButton}>
         {/* Radio button placeholder - can be made interactive later */}
@@ -123,10 +201,16 @@ export default function SearchScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Recently Ordered Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ბოლოს შეკვეთილი</Text>
-          {recentlyOrdered.map(renderRecentlyOrderedItem)}
-        </View>
+        {recentlyOrdered.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ბოლოს შეკვეთილი</Text>
+            {loadingOrders ? (
+              <Text style={styles.loadingText}>იტვირთება...</Text>
+            ) : (
+              recentlyOrdered.map(renderRecentlyOrderedItem)
+            )}
+          </View>
+        )}
 
         {/* Categories Section */}
         <View style={styles.section}>
@@ -134,7 +218,11 @@ export default function SearchScreen() {
             <Ionicons name="grid-outline" size={20} color="#4CAF50" />
             <Text style={styles.sectionTitle}>კატეგორიები</Text>
           </View>
-          {categories.map(renderCategoryItem)}
+          {categoriesLoading ? (
+            <Text style={styles.loadingText}>იტვირთება...</Text>
+          ) : (
+            categories.map(renderCategoryItem)
+          )}
         </View>
       </ScrollView>
 
@@ -283,5 +371,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 2,
     borderColor: "#E0E0E0",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    paddingVertical: 20,
   },
 });

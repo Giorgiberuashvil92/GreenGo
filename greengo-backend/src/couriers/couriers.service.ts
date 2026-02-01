@@ -196,11 +196,14 @@ export class CouriersService {
     // Find available couriers within maxDistance (in meters) from the given location
     // Default: 3000km (temporary for testing - shows all available couriers regardless of location)
     // MongoDB GeoJSON format: [longitude, latitude]
-    const couriers = await this.courierModel.find({
+    
+    // First try to find couriers with location near the order
+    const couriersWithLocation = await this.courierModel.find({
       status: 'available',
       isAvailable: true,
       isActive: true,
       currentLocation: {
+        $exists: true,
         $near: {
           $geometry: {
             type: 'Point',
@@ -211,7 +214,19 @@ export class CouriersService {
       },
     }).exec();
 
-    return couriers;
+    // If found couriers with location, return them
+    if (couriersWithLocation.length > 0) {
+      return couriersWithLocation;
+    }
+
+    // Otherwise, return all available couriers (fallback for testing)
+    const allAvailableCouriers = await this.courierModel.find({
+      status: 'available',
+      isAvailable: true,
+      isActive: true,
+    }).exec();
+
+    return allAvailableCouriers;
   }
 
   async assignOrder(courierId: string, orderId: string): Promise<Courier> {

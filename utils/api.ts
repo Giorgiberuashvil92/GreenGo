@@ -12,6 +12,7 @@ interface ApiResponse<T> {
   error?: {
     code: string;
     details: string;
+    status?: number;
   };
   pagination?: {
     page: number;
@@ -39,7 +40,7 @@ class ApiService {
         throw new Error('Network request timed out. Please check if backend is running.');
       }
       throw error;
-    }
+  }
   }
 
   private async request<T>(
@@ -48,9 +49,15 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const token = await this.getToken();
+      const fullUrl = `${API_BASE_URL}${endpoint}`;
+      
+      console.log(`📤 API Request: ${options.method || 'GET'} ${fullUrl}`);
+      if (options.body) {
+        console.log(`📦 Request Body:`, JSON.parse(options.body as string));
+      }
 
       const response = await this.fetchWithTimeout(
-        `${API_BASE_URL}${endpoint}`,
+        fullUrl,
         {
           ...options,
           headers: {
@@ -65,10 +72,16 @@ class ApiService {
       let data;
       try {
         data = await response.json();
+        console.log(`📥 API Response: ${response.status} ${response.statusText}`, {
+          endpoint,
+          status: response.status,
+          success: response.ok,
+          data: data,
+        });
       } catch {
         // If response is not JSON, get text
         const text = await response.text();
-        console.error('Non-JSON response:', text);
+        console.error('❌ Non-JSON response:', text);
         return {
           success: false,
           error: {
@@ -79,11 +92,24 @@ class ApiService {
       }
 
       if (!response.ok) {
-        console.error('API Error Response:', {
+        console.error('❌ API Error Response:', {
+          endpoint,
           status: response.status,
           statusText: response.statusText,
           data: data,
         });
+        
+        // Handle authentication errors (401, 403)
+        if (response.status === 401 || response.status === 403) {
+          return {
+            success: false,
+            error: {
+              code: 'AUTH_ERROR',
+              details: data.error?.details || data.message || `HTTP ${response.status}: ${response.statusText}`,
+              status: response.status,
+            },
+          };
+        }
         
         // Handle validation errors
         if (response.status === 400 && Array.isArray(data.message)) {
@@ -104,6 +130,7 @@ class ApiService {
           error: {
             code: 'API_ERROR',
             details: data.error?.details || data.message || `HTTP ${response.status}: ${response.statusText}`,
+            status: response.status,
           },
         };
       }
@@ -145,18 +172,36 @@ class ApiService {
     }
   }
 
+  // Categories API
+  async getCategories(activeOnly: boolean = true) {
+    const endpoint = activeOnly ? '/categories/active' : '/categories';
+    return this.request(endpoint);
+  }
+
   // Restaurants API
   async getRestaurants(params?: {
     page?: number;
     limit?: number;
     search?: string;
     category?: string;
+    categories?: string[]; // Multiple categories
+    priceRange?: string;
+    rating?: string; // minRating
+    deliveryTime?: string; // maxDeliveryTime
+    sortBy?: string;
   }) {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.search) queryParams.append('search', params.search);
     if (params?.category) queryParams.append('category', params.category);
+    if (params?.categories && params.categories.length > 0) {
+      queryParams.append('categories', params.categories.join(','));
+    }
+    if (params?.priceRange) queryParams.append('priceRange', params.priceRange);
+    if (params?.rating) queryParams.append('rating', params.rating);
+    if (params?.deliveryTime) queryParams.append('deliveryTime', params.deliveryTime);
+    if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
 
     const query = queryParams.toString();
     return this.request(`/restaurants${query ? `?${query}` : ''}`);
@@ -258,6 +303,14 @@ class ApiService {
     });
   }
 
+  // Update courier location (protected)
+  async updateCourierLocation(courierId: string, location: { latitude: number; longitude: number }) {
+    return this.request(`/couriers/${courierId}/location`, {
+      method: 'PATCH',
+      body: JSON.stringify({ location }),
+    });
+  }
+
   async sendVerificationCode(phoneNumber: string, countryCode: string) {
     try {
       const response = await this.fetchWithTimeout(
@@ -319,6 +372,11 @@ class ApiService {
     return this.request('/auth/profile');
   }
 
+  // Get current user (protected) - alias for getProfile
+  async getMe() {
+    return this.request('/auth/me');
+  }
+
   // Verify token (protected)
   async verifyToken() {
     return this.request('/auth/verify-token', {
@@ -331,6 +389,19 @@ class ApiService {
     return this.request('/auth/complete-registration', {
       method: 'POST',
       body: JSON.stringify({ firstName, lastName, email }),
+    });
+  }
+
+  // Update user profile (protected)
+  async updateUserProfile(userId: string, updateData: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    name?: string;
+  }) {
+    return this.request(`/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
     });
   }
 }
