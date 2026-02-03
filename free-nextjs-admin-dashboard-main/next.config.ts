@@ -2,6 +2,23 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Proxy API requests to avoid CORS issues in development
+  async rewrites() {
+    return [
+      {
+        source: '/api-proxy/:path*',
+        // Try Railway first, fallback to local backend
+        destination: process.env.NEXT_PUBLIC_API_URL 
+          ? `${process.env.NEXT_PUBLIC_API_URL}/:path*`
+          : 'https://greengodelivery.up.railway.app/api/:path*',
+      },
+      {
+        source: '/api-local/:path*',
+        // Local backend proxy
+        destination: 'http://localhost:3001/api/:path*',
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

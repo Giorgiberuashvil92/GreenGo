@@ -5,15 +5,29 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS - allow all origins (including localhost for development)
+  // Enable CORS - explicitly allow localhost and production domains
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://greengodelivery.up.railway.app',
+    // Add your production frontend domain here when ready
+  ];
+
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, Postman, etc.)
+      // Allow requests with no origin (like mobile apps, Postman, curl, etc.)
       if (!origin) {
         return callback(null, true);
       }
-      // Allow all origins (including localhost for development)
-      callback(null, true);
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // Log for debugging
+        console.log(`⚠️ CORS blocked origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
