@@ -5,33 +5,9 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for mobile app and admin dashboard
-  const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
-    : [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'https://greengodelivery.up.railway.app',
-      ];
-
+  // Enable CORS - allow all origins
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin) {
-        return callback(null, true);
-      }
-      
-      // Check if origin is in allowed list or ends with railway.app
-      if (
-        allowedOrigins.includes(origin) ||
-        origin.endsWith('.railway.app') ||
-        origin.includes('localhost')
-      ) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true, // Allow all origins
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
@@ -46,7 +22,6 @@ async function bootstrap() {
     exposedHeaders: ['Content-Type', 'Authorization'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
-    maxAge: 86400, // 24 hours
   });
 
   // Global validation pipe
