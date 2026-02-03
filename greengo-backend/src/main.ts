@@ -5,12 +5,19 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for mobile app
+  // Enable CORS for mobile app and admin dashboard
   app.enableCors({
-    origin: true, // In production, specify exact origins
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://greengodelivery.up.railway.app',
+      /\.railway\.app$/, // Allow all Railway subdomains
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // Global validation pipe

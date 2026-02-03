@@ -2,11 +2,11 @@
 export const API_CONFIG = {
   // Development - NestJS Backend
   DEV: {
-    BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.103:3001/api',
+    BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'https://greengodelivery.up.railway.app/api',
   },
   // Production
   PROD: {
-    BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'https://greengo-production.up.railway.app/api',
+    BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'https://greengodelivery.up.railway.app/api',
   },
 };
 

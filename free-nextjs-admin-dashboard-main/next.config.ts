@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'greengo-production.up.railway.app',
+        hostname: 'greengodelivery.up.railway.app',
       },
       {
         protocol: 'https',

@@ -9,7 +9,7 @@ export const API_CONFIG = {
     // Android Emulator-ისთვის:
     ANDROID: 'http://10.0.2.2:3001/api',
     // iOS Simulator-ისთვის (კომპიუტერის IP):
-    IOS_SIMULATOR: 'http://192.168.0.103:3001/api',
+    IOS_SIMULATOR: 'https://greengodelivery.up.railway.app/api',
     // Physical Device-ისთვის (თქვენი კომპიუტერის IP):
     // შეცვალეთ ეს IP თქვენი კომპიუტერის IP-ით (იპოვეთ: ipconfig getifaddr en0 ან en1)
     IOS_DEVICE: 'http://172.20.10.2:3001/api',
@@ -17,7 +17,7 @@ export const API_CONFIG = {
 
   // Production
   PROD: {
-    BASE_URL: 'https://greengo-production.up.railway.app/api',
+    BASE_URL: 'https://greengodelivery.up.railway.app/api',
   },
 };
 

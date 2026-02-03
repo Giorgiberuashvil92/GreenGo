@@ -14,12 +14,17 @@
         "simulator": true
       }
     },
-    "production": {}
+    "production": {
+      "ios": {
+        "autoIncrement": true
+      }
+    }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "greengo.delivery25@gmail.com"
+        "appleId": "greengo.delivery25@gmail.com",
+        "appleTeamId": "6756846622"
       }
     }
   }
