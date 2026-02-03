@@ -23,6 +23,7 @@ class ApiClient {
     
     const config: RequestInit = {
       ...options,
+      credentials: 'include', // Include credentials for CORS
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
