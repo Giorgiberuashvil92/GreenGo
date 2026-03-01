@@ -368,6 +368,37 @@ export class CouriersService {
       ? ((deliveredOrders.length / confirmedOrders.length) * 100).toFixed(1)
       : '0.0';
 
+    // Calculate financial statistics
+    // კურიერი იღებს deliveryFee-ს და tip-ს (თუ არის)
+    let totalEarnings = 0;
+    let totalDeliveryFees = 0;
+    let totalTips = 0;
+    
+    deliveredOrders.forEach((order: any) => {
+      const deliveryFee = order.deliveryFee || 0;
+      const tip = order.tip || 0;
+      totalDeliveryFees += deliveryFee;
+      totalTips += tip;
+      totalEarnings += deliveryFee + tip;
+    });
+
+    const averageEarningsPerOrder = deliveredOrders.length > 0
+      ? totalEarnings / deliveredOrders.length
+      : 0;
+
+    // Calculate previous period earnings for comparison
+    const previousDeliveredOrders = previousOrders.filter((o) => o.status === 'delivered');
+    let previousEarnings = 0;
+    previousDeliveredOrders.forEach((order: any) => {
+      const deliveryFee = order.deliveryFee || 0;
+      const tip = order.tip || 0;
+      previousEarnings += deliveryFee + tip;
+    });
+
+    const earningsChange = previousEarnings > 0
+      ? ((totalEarnings - previousEarnings) / previousEarnings * 100).toFixed(1)
+      : totalEarnings > 0 ? '100.0' : '0.0';
+
     return {
       period,
       deliveredOrders: deliveredOrders.length,
@@ -378,6 +409,16 @@ export class CouriersService {
       improvementNeeded,
       previousPeriodDelivered: previousDelivered,
       date: startDate.toISOString().split('T')[0],
+      // Financial information
+      financial: {
+        totalEarnings: Math.round(totalEarnings * 100) / 100, // Round to 2 decimals
+        totalDeliveryFees: Math.round(totalDeliveryFees * 100) / 100,
+        totalTips: Math.round(totalTips * 100) / 100,
+        averageEarningsPerOrder: Math.round(averageEarningsPerOrder * 100) / 100,
+        previousPeriodEarnings: Math.round(previousEarnings * 100) / 100,
+        earningsChange: parseFloat(earningsChange),
+        earningsChangePercentage: parseFloat(earningsChange),
+      },
     };
   }
 }

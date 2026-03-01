@@ -1,11 +1,11 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { MenuItem, menuItemsApi, Order, ordersApi, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
 import Image from "next/image";
@@ -50,7 +50,8 @@ const getAvailableStatusesForRestaurant = (currentStatus: string, hasCourier: bo
       return ["confirmed"]; // pending -> confirmed (დადასტურება, ამ დროს იწყება კურიერის მოძიება)
     case "confirmed":
       // confirmed -> preparing (მხოლოდ თუ კურიერი უკვე მინიჭებულია)
-      return hasCourier ? ["preparing"] : [];
+      // confirmed -> cancelled (თუ კურიერი არ არის მინიჭებული და ბევრი ხანი გავიდა)
+      return hasCourier ? ["preparing"] : ["cancelled"];
     case "preparing":
       return ["ready"]; // preparing -> ready (მზადაა)
     case "ready":
@@ -479,8 +480,20 @@ export default function RestaurantDashboardPage() {
                                     })}
                                   </select>
                                   {order.status === "confirmed" && !order.courierId && (
-                                    <div className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
-                                      კურიერის მოძიება...
+                                    <div className="mt-2 space-y-1">
+                                      <div className="text-xs text-yellow-600 dark:text-yellow-400">
+                                        კურიერის მოძიება...
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm("დარწმუნებული ხართ რომ გსურთ შეკვეთის გაუქმება?")) {
+                                            handleStatusChange(order._id, "cancelled");
+                                          }
+                                        }}
+                                        className="w-full rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                                      >
+                                        გაუქმება
+                                      </button>
                                     </div>
                                   )}
                                   {order.status === "confirmed" && order.courierId && (

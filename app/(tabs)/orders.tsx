@@ -4,12 +4,13 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -34,6 +35,12 @@ interface Order {
   deliveryFee: number;
   status: string;
   createdAt: string;
+  estimatedDelivery?: string;
+  courierId?: string | {
+    _id?: string;
+    name: string;
+    phoneNumber: string;
+  };
 }
 
 export default function OrdersScreen() {
@@ -155,6 +162,19 @@ export default function OrdersScreen() {
     return statusMap[status] || status;
   };
 
+  const getStatusColor = (status: string) => {
+    const colorMap: Record<string, { bg: string; text: string; icon: string }> = {
+      pending: { bg: "#FFF4E6", text: "#F59E0B", icon: "time-outline" },
+      confirmed: { bg: "#E0F2FE", text: "#0284C7", icon: "checkmark-circle-outline" },
+      preparing: { bg: "#FEF3C7", text: "#D97706", icon: "restaurant-outline" },
+      ready: { bg: "#D1FAE5", text: "#059669", icon: "checkmark-done-circle-outline" },
+      delivering: { bg: "#DBEAFE", text: "#2563EB", icon: "bicycle-outline" },
+      delivered: { bg: "#D1FAE5", text: "#059669", icon: "checkmark-circle" },
+      cancelled: { bg: "#FEE2E2", text: "#DC2626", icon: "close-circle-outline" },
+    };
+    return colorMap[status] || { bg: "#F3F4F6", text: "#6B7280", icon: "help-circle-outline" };
+  };
+
   const handleRepeatOrder = (order: Order) => {
     console.log("Repeating order:", order._id);
     // TODO: Implement repeat order functionality
@@ -230,20 +250,71 @@ export default function OrdersScreen() {
 
 
   const renderOrderCard = (order: Order) => {
-    const firstItem = order.items[0];
     const total = order.totalAmount + order.deliveryFee;
     const canTrack = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
     
     // Handle restaurant data - could be populated object or just ID
     const restaurant = typeof order.restaurantId === 'object' ? order.restaurantId : null;
     const restaurantImage = restaurant?.image || restaurant?.heroImage || null;
+    const statusColor = getStatusColor(order.status);
+    const itemCount = order.items.length;
+    
+    // Handle courier data - could be populated object or just ID
+    const courier = typeof order.courierId === 'object' ? order.courierId : null;
+    const courierPhoneNumber = courier?.phoneNumber;
+    
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return "ახლახან";
+      if (diffMins < 60) return `${diffMins} წუთის წინ`;
+      if (diffHours < 24) return `${diffHours} საათის წინ`;
+      if (diffDays < 7) return `${diffDays} დღის წინ`;
+      return date.toLocaleDateString("ka-GE", { day: "numeric", month: "short" });
+    };
+    
+    const formatEstimatedDelivery = (dateString?: string) => {
+      if (!dateString) return null;
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = date.getTime() - now.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      
+      if (diffMins < 0) return "გვიანია";
+      if (diffMins < 60) return `${diffMins} წუთში`;
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      if (mins === 0) return `${hours} საათში`;
+      return `${hours} საათი ${mins} წუთში`;
+    };
+    
+    const handleCallCourier = async (phoneNumber: string) => {
+      try {
+        const phoneUrl = `tel:${phoneNumber}`;
+        const canOpen = await Linking.canOpenURL(phoneUrl);
+        if (canOpen) {
+          await Linking.openURL(phoneUrl);
+        } else {
+          console.error('Cannot open phone dialer');
+        }
+      } catch (error) {
+        console.error('Error calling courier:', error);
+      }
+    };
+    
+    const estimatedDeliveryText = formatEstimatedDelivery(order.estimatedDelivery);
     
     return (
       <TouchableOpacity
         key={order._id}
         style={styles.orderCard}
         onPress={() => handleOrderPress(order)}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
         <View style={styles.orderContent}>
           {restaurantImage ? (
@@ -253,27 +324,32 @@ export default function OrdersScreen() {
             />
           ) : (
             <View style={[styles.orderImage, styles.orderImagePlaceholder]}>
-              <Ionicons name="restaurant" size={24} color="#9E9E9E" />
+              <Ionicons name="restaurant" size={32} color="#9E9E9E" />
             </View>
           )}
           <View style={styles.orderDetails}>
-            <Text style={styles.orderName}>
-              {firstItem?.name || "შეკვეთა"}
-            </Text>
-            <Text style={styles.restaurantName}>
-              {restaurant?.name || "რესტორანი"}
-            </Text>
-            <Text style={styles.price}>{total.toFixed(2)}₾</Text>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusText}>
+            <View style={styles.orderHeader}>
+              <View style={styles.orderTitleContainer}>
+                <Text style={styles.orderName} numberOfLines={1}>
+                  {restaurant?.name || "რესტორანი"}
+                </Text>
+                <Text style={styles.orderTime}>{formatDate(order.createdAt)}</Text>
+              </View>
+              <Text style={styles.price}>{total.toFixed(2)}₾</Text>
+            </View>
+            
+            <View style={styles.orderItemsInfo}>
+              <Ionicons name="receipt-outline" size={14} color="#666666" />
+              <Text style={styles.orderItemsText}>
+                {itemCount} {itemCount === 1 ? "პროდუქტი" : "პროდუქტი"}
+              </Text>
+            </View>
+            
+            <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
+              <Ionicons name={statusColor.icon as any} size={16} color={statusColor.text} />
+              <Text style={[styles.statusText, { color: statusColor.text }]}>
                 {getStatusText(order.status)}
               </Text>
-              {canTrack && (
-                <View style={styles.trackingBadge}>
-                  <Ionicons name="location" size={14} color="#4CAF50" />
-                  <Text style={styles.trackingBadgeText}>Tracking</Text>
-                </View>
-              )}
             </View>
           </View>
           <TouchableOpacity
@@ -285,11 +361,67 @@ export default function OrdersScreen() {
           >
             <Ionicons
               name="chevron-forward"
-              size={20}
+              size={22}
               color="#9E9E9E"
             />
           </TouchableOpacity>
         </View>
+        
+        {/* Tracking Button - Small Map Preview (like Bolt) */}
+        {canTrack && selectedTab === "current" && (
+          <>
+            <TouchableOpacity
+              style={styles.trackingPreview}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleTrackOrder(order._id);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.trackingPreviewHeader}>
+                <View style={styles.trackingIconContainer}>
+                  <Ionicons name="location" size={18} color="#4CAF50" />
+                </View>
+                <Text style={styles.trackingPreviewText}>შეკვეთის ტრეკინგი</Text>
+                <Ionicons name="chevron-forward" size={18} color="#4CAF50" />
+              </View>
+              <View style={styles.trackingMapContainer}>
+                <View style={styles.trackingMapPlaceholder}>
+                  <Ionicons name="map-outline" size={40} color="#4CAF50" />
+                  <Text style={styles.trackingMapPlaceholderText}>რუკა</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+            
+            {/* Estimated Delivery Time & Call Button */}
+            {(estimatedDeliveryText || courierPhoneNumber) && (
+              <View style={styles.deliveryInfoContainer}>
+                {estimatedDeliveryText && (
+                  <View style={styles.estimatedDeliveryContainer}>
+                    <Ionicons name="time-outline" size={18} color="#0284C7" />
+                    <Text style={styles.estimatedDeliveryText}>
+                      სავარაუდო მიტანა: {estimatedDeliveryText}
+                    </Text>
+                  </View>
+                )}
+                {courierPhoneNumber && (
+                  <TouchableOpacity
+                    style={styles.callButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleCallCourier(courierPhoneNumber);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="call" size={18} color="#FFFFFF" />
+                    <Text style={styles.callButtonText}>კურიერთან დარეკვა</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </>
+        )}
+        
         {selectedTab === "previous" && (
           <TouchableOpacity
             style={styles.repeatButton}
@@ -297,30 +429,10 @@ export default function OrdersScreen() {
               e.stopPropagation();
               handleRepeatOrder(order);
             }}
+            activeOpacity={0.8}
           >
+            <Ionicons name="refresh-outline" size={18} color="#4CAF50" />
             <Text style={styles.repeatButtonText}>შეკვეთის განმეორება</Text>
-          </TouchableOpacity>
-        )}
-        
-        {/* Tracking Button - Small Map Preview (like Bolt) */}
-        {canTrack && selectedTab === "current" && (
-          <TouchableOpacity
-            style={styles.trackingPreview}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleTrackOrder(order._id);
-            }}
-          >
-            <View style={styles.trackingPreviewHeader}>
-              <Ionicons name="location" size={16} color="#4CAF50" />
-              <Text style={styles.trackingPreviewText}>შეკვეთის ტრეკინგი</Text>
-            </View>
-            <View style={styles.trackingMapContainer}>
-              <View style={styles.trackingMapPlaceholder}>
-                <Ionicons name="map" size={32} color="#4CAF50" />
-                <Text style={styles.trackingMapPlaceholderText}>რუკა</Text>
-              </View>
-            </View>
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -331,11 +443,14 @@ export default function OrdersScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        {/* <TouchableOpacity style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333333" />
-        </TouchableOpacity> */}
-        <Text style={styles.headerTitle}>შეკვეთები</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>შეკვეთები</Text>
+          <Text style={styles.headerSubtitle}>
+            {selectedTab === "current" 
+              ? `${currentOrders.length} მიმდინარე` 
+              : `${previousOrders.length} წინა`}
+          </Text>
+        </View>
       </View>
 
       {/* Segmented Control */}
@@ -346,14 +461,21 @@ export default function OrdersScreen() {
             selectedTab === "current" && styles.segmentButtonActive,
           ]}
           onPress={() => setSelectedTab("current")}
+          activeOpacity={0.7}
         >
+          <Ionicons 
+            name="time-outline" 
+            size={18} 
+            color={selectedTab === "current" ? "#4CAF50" : "#9CA3AF"} 
+            style={{ marginRight: 6 }}
+          />
           <Text
             style={[
               styles.segmentText,
               selectedTab === "current" && styles.segmentTextActive,
             ]}
           >
-            შეკვეთები
+            მიმდინარე
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -362,14 +484,21 @@ export default function OrdersScreen() {
             selectedTab === "previous" && styles.segmentButtonActive,
           ]}
           onPress={() => setSelectedTab("previous")}
+          activeOpacity={0.7}
         >
+          <Ionicons 
+            name="checkmark-done-outline" 
+            size={18} 
+            color={selectedTab === "previous" ? "#4CAF50" : "#9CA3AF"} 
+            style={{ marginRight: 6 }}
+          />
           <Text
             style={[
               styles.segmentText,
               selectedTab === "previous" && styles.segmentTextActive,
             ]}
           >
-            წინა შეკვეთბი
+            წინა
           </Text>
         </TouchableOpacity>
       </View>
@@ -382,11 +511,16 @@ export default function OrdersScreen() {
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
+          </View>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={fetchOrders}
+            activeOpacity={0.8}
           >
+            <Ionicons name="refresh" size={20} color="#FFFFFF" />
             <Text style={styles.retryButtonText}>ხელახლა ცდა</Text>
           </TouchableOpacity>
         </View>
@@ -394,20 +528,33 @@ export default function OrdersScreen() {
         <ScrollView
           style={styles.ordersList}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.ordersListContent}
         >
           {selectedTab === "current"
             ? currentOrders.length > 0
               ? currentOrders.map(renderOrderCard)
               : (
                   <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>მიმდინარე შეკვეთები არ არის</Text>
+                    <View style={styles.emptyIconContainer}>
+                      <Ionicons name="receipt-outline" size={80} color="#D1D5DB" />
+                    </View>
+                    <Text style={styles.emptyTitle}>მიმდინარე შეკვეთები არ არის</Text>
+                    <Text style={styles.emptySubtitle}>
+                      ახალი შეკვეთების შექმნისას ისინი აქ გამოჩნდება
+                    </Text>
                   </View>
                 )
             : previousOrders.length > 0
             ? previousOrders.map(renderOrderCard)
             : (
                 <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>წინა შეკვეთები არ არის</Text>
+                  <View style={styles.emptyIconContainer}>
+                    <Ionicons name="checkmark-done-circle-outline" size={80} color="#D1D5DB" />
+                  </View>
+                  <Text style={styles.emptyTitle}>წინა შეკვეთები არ არის</Text>
+                  <Text style={styles.emptySubtitle}>
+                    დასრულებული შეკვეთები აქ გამოჩნდება
+                  </Text>
                 </View>
               )}
         </ScrollView>
@@ -659,23 +806,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  headerContent: {
+    alignItems: "flex-start",
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333333",
-    textAlign: "center",
-    alignSelf: "center",
-    justifyContent: "center",
-    alignItems: "center",
-    flex: 1,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6B7280",
   },
   headerSpacer: {
     width: 32,
@@ -683,136 +836,215 @@ const styles = StyleSheet.create({
   segmentedControl: {
     flexDirection: "row",
     marginHorizontal: 20,
-    marginVertical: 16,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 32,
+    marginVertical: 20,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
     padding: 4,
+    gap: 4,
   },
   segmentButton: {
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 62,
+    borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
   },
   segmentButtonActive: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#000",
-    color: "#181B1A",
-    fontWeight: "600",
-    fontSize: 14,
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   segmentText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#9E9E9E",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#9CA3AF",
   },
   segmentTextActive: {
-    color: "#333333",
+    color: "#4CAF50",
   },
   ordersList: {
     flex: 1,
+  },
+  ordersListContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   orderCard: {
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#F3F2F2FF",
-    // borderRadius: 12,
-    borderRadius: 15,
+    borderRadius: 20,
     marginBottom: 16,
     padding: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   orderContent: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   orderImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginRight: 12,
+    width: 90,
+    height: 90,
+    borderRadius: 16,
+    marginRight: 14,
+    backgroundColor: "#F5F5F5",
   },
   orderDetails: {
     flex: 1,
+    paddingTop: 2,
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  orderTitleContainer: {
+    flex: 1,
+    marginRight: 8,
   },
   orderName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333333",
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1F2937",
     marginBottom: 4,
+    letterSpacing: -0.3,
   },
-  restaurantName: {
-    fontSize: 14,
-    color: "#666666",
-    marginBottom: 4,
+  orderTime: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
   price: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#181B1A",
+    letterSpacing: -0.3,
+  },
+  orderItemsInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 6,
+  },
+  orderItemsText: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   infoButton: {
-    padding: 4,
+    padding: 6,
+    marginTop: -4,
   },
   repeatButton: {
-    backgroundColor: "#E8F5E8",
-    borderRadius: 8,
-    paddingVertical: 12,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    marginTop: 12,
+    marginTop: 14,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
   },
   repeatButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#4CAF50",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#059669",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
+    paddingVertical: 60,
   },
   loadingText: {
     fontSize: 16,
-    color: "#666",
+    color: "#6B7280",
+    fontWeight: "500",
   },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    gap: 16,
+    padding: 40,
+    gap: 20,
+  },
+  errorIconContainer: {
+    marginBottom: 8,
   },
   errorText: {
     fontSize: 16,
     color: "#EF4444",
     textAlign: "center",
+    fontWeight: "600",
+    paddingHorizontal: 20,
   },
   retryButton: {
     backgroundColor: "#4CAF50",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    shadowColor: "#4CAF50",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   retryButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
     color: "#FFFFFF",
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
+    padding: 60,
+    paddingTop: 100,
+  },
+  emptyIconContainer: {
+    marginBottom: 24,
+    opacity: 0.5,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#374151",
+    textAlign: "center",
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: "#9CA3AF",
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: 20,
   },
   emptyText: {
     fontSize: 16,
@@ -820,14 +1052,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   orderImagePlaceholder: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#F9FAFB",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+    marginTop: 4,
   },
   statusText: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
   },
   statusRow: {
     flexDirection: "row",
@@ -850,42 +1093,99 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
   },
   trackingPreview: {
-    marginTop: 12,
-    borderRadius: 12,
+    marginTop: 14,
+    borderRadius: 16,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderWidth: 1.5,
+    borderColor: "#D1FAE5",
+    backgroundColor: "#F0FDF4",
   },
   trackingPreviewHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    backgroundColor: "#F5F5F5",
-    gap: 8,
+    padding: 14,
+    backgroundColor: "#FFFFFF",
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  trackingIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#D1FAE5",
+    justifyContent: "center",
+    alignItems: "center",
   },
   trackingPreviewText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4CAF50",
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#059669",
+    letterSpacing: -0.2,
   },
   trackingMapContainer: {
-    height: 120,
+    height: 140,
     width: "100%",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
+    backgroundColor: "#F9FAFB",
     overflow: "hidden",
   },
   trackingMapPlaceholder: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F0F0F0",
+    backgroundColor: "#F3F4F6",
   },
   trackingMapPlaceholderText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
+    marginTop: 10,
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  deliveryInfoContainer: {
+    marginTop: 12,
+    gap: 10,
+  },
+  estimatedDeliveryContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  estimatedDeliveryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0284C7",
+    flex: 1,
+  },
+  callButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4CAF50",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#4CAF50",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  callButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
   },
   modalContainer: {
     flex: 1,
