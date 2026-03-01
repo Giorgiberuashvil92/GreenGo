@@ -4,7 +4,7 @@
 import { Platform } from 'react-native';
 
 export const API_CONFIG = {
-  // Development - NestJS Backend
+  // Development - NestJS Backend (Local)
   DEV: {
     // Android Emulator-ისთვის:
     ANDROID: 'http://10.0.2.2:3001/api',
@@ -15,7 +15,7 @@ export const API_CONFIG = {
     IOS_DEVICE: 'http://172.20.10.2:3001/api',
   },
 
-  // Production
+  // Production - Railway Backend
   PROD: {
     BASE_URL: 'https://greengo.up.railway.app/api',
   },

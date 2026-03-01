@@ -24,7 +24,7 @@ export class OrdersService {
     lat2: number,
     lon2: number,
   ): number {
-    const R = 6371; // Earth's radius in km
+    const R = 6371; 
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
@@ -165,6 +165,16 @@ export class OrdersService {
             { rejectedCouriers: { $nin: [forCourier] } }
           ]
         });
+
+        // ⚠️ როტაციის ლოგიკა: მხოლოდ ერთ კურიერს აჩვენოს შეკვეთა
+        // თუ availableForCouriersAt არსებობს, შეკვეთა უნდა იყოს ხელმისაწვდომი
+        filter.$and.push({
+          $or: [
+            { availableForCouriersAt: { $exists: false } },
+            { availableForCouriersAt: null },
+            { availableForCouriersAt: { $exists: true, $ne: null } }
+          ]
+        });
       }
       
       // Show orders without courier for courier to accept
@@ -211,7 +221,7 @@ export class OrdersService {
         console.log(`🔍 Orders query - status: ${status}, forCourier: ${forCourier}, filter:`, JSON.stringify(filter, null, 2));
       }
 
-      const [data, total] = await Promise.all([
+      let [data, total] = await Promise.all([
         this.orderModel
           .find(filter)
           .populate('userId', 'name phoneNumber')
@@ -223,6 +233,95 @@ export class OrdersService {
           .exec(),
         this.orderModel.countDocuments(filter).exec(),
       ]);
+
+      // ⚠️ როტაციის ლოგიკა: თუ forCourier არის მოწოდებული, ვფილტრავთ შეკვეთებს
+      // რომ მხოლოდ ერთი კურიერი იხილოს შეკვეთას (რომელსაც ჯერ არ აჩვენებია ან 20 წამი გავიდა)
+      if (forCourier) {
+        const now = new Date();
+        const twentySecondsAgo = new Date(now.getTime() - 20 * 1000);
+        
+        const ordersToUpdate: string[] = []; // შეკვეთების ID-ები რომლებიც უნდა განვაახლოთ
+        
+        data = data.filter((order: any) => {
+          const orderId = (order._id || order.id)?.toString();
+          const offeredToCouriers = order.offeredToCouriers || [];
+          
+          // თუ offeredToCouriers array ცარიელია, ეს არის პირველი კურიერი - აჩვენოს
+          if (offeredToCouriers.length === 0) {
+            ordersToUpdate.push(orderId);
+            return true;
+          }
+          
+          // იპოვნე ბოლო entry offeredToCouriers array-ში
+          const lastOffered = offeredToCouriers[offeredToCouriers.length - 1];
+          const lastOfferedAt = new Date(lastOffered.offeredAt);
+          const lastOfferedCourierId = lastOffered.courierId?.toString();
+          
+          // თუ 20 წამზე მეტი გავიდა ბოლო offer-იდან, შემდეგ კურიერს უნდა აჩვენოს
+          if (lastOfferedAt <= twentySecondsAgo) {
+            // შევამოწმოთ, არ არის თუ არა ეს კურიერი უკვე offeredToCouriers-ში
+            const isAlreadyOffered = offeredToCouriers.some(
+              (entry: any) => entry.courierId?.toString() === forCourier
+            );
+            
+            // თუ არ არის offeredToCouriers-ში, აჩვენოს (ეს არის შემდეგი კურიერი რაუნდში)
+            if (!isAlreadyOffered) {
+              ordersToUpdate.push(orderId);
+              return true;
+            }
+            
+            // თუ არის offeredToCouriers-ში, შევამოწმოთ მისი offer-ის დრო
+            const courierOffer = offeredToCouriers.find(
+              (entry: any) => entry.courierId?.toString() === forCourier
+            );
+            if (courierOffer) {
+              const courierOfferedAt = new Date(courierOffer.offeredAt);
+              // თუ 20 წამზე მეტი გავიდა, შემდეგ კურიერს უნდა აჩვენოს (არ აჩვენოს ამ კურიერს)
+              // თუ 20 წამზე ნაკლები გავიდა, აჩვენოს (ეს არის მიმდინარე კურიერი)
+              return courierOfferedAt > twentySecondsAgo;
+            }
+          } else {
+            // თუ 20 წამზე ნაკლები გავიდა ბოლო offer-იდან, შევამოწმოთ
+            // თუ ბოლო offer იყო ამ კურიერისთვის, აჩვენოს
+            if (lastOfferedCourierId === forCourier) {
+              return true;
+            }
+          }
+          
+          // სხვა შემთხვევაში, არ აჩვენოს
+          return false;
+        });
+        
+        // განვაახლოთ total count
+        total = data.length;
+        
+        // დავამატოთ offeredToCouriers array-ში კურიერები რომლებსაც აჩვენებთ შეკვეთას
+        // ეს გავაკეთოთ async-ად, background-ში, რომ არ შევანელოთ response
+        if (ordersToUpdate.length > 0) {
+          Promise.all(
+            ordersToUpdate.map(async (orderId) => {
+              try {
+                await this.orderModel.findByIdAndUpdate(
+                  orderId,
+                  {
+                    $push: {
+                      offeredToCouriers: {
+                        courierId: forCourier,
+                        offeredAt: now,
+                      },
+                    },
+                  },
+                  { new: false }
+                ).exec();
+              } catch (error) {
+                console.error(`❌ Error updating offeredToCouriers for order ${orderId}:`, error);
+              }
+            })
+          ).catch((error) => {
+            console.error('❌ Error updating offeredToCouriers:', error);
+          });
+        }
+      }
 
       console.log(`✅ Orders query successful - found ${data.length} orders, total: ${total}`);
 
@@ -425,18 +524,27 @@ export class OrdersService {
       throw new Error('კურიერი ჯერ არ არის მინიჭებული. გთხოვთ დაელოდოთ კურიერის მინიჭებას.');
     }
 
-    // თუ სტატუსი იცვლება "confirmed"-ზე (რესტორანის დადასტურება), დავიწყოთ კურიერის მოძიება
+    // თუ სტატუსი იცვლება "confirmed"-ზე ან "ready"-ზე (რესტორანის დადასტურება), დავიწყოთ კურიერის მოძიება
     // კურიერი არ მიენიჭება ავტომატურად - კურიერმა უნდა დაადასტუროს თანხმობა
-    if (status === 'confirmed' && !order.courierId && order.deliveryType === 'delivery') {
+    // დავამატოთ availableForCouriersAt timestamp რომ 20 წამის შემდეგ სხვა კურიერს აჩვენოს
+    if ((status === 'confirmed' || status === 'ready') && !order.courierId && order.deliveryType === 'delivery') {
       console.log(`🔍 კურიერის მოძიება იწყება შეკვეთისთვის ${id}`);
       console.log(`📋 შეკვეთა ${id} გამოჩნდება კურიერებს დადასტურებისთვის`);
       // კურიერი არ მიენიჭება ავტომატურად - კურიერმა უნდა დაადასტუროს თანხმობა
-      // შეკვეთა გამოჩნდება კურიერებისთვის findAll-ში status='confirmed' და courierId=null-ით
+      // შეკვეთა გამოჩნდება კურიერებისთვის findAll-ში status='confirmed'/'ready' და courierId=null-ით
+      // 20 წამის შემდეგ სხვა კურიერს აჩვენებს
     }
 
     const updateData: any = { status };
     if (status === 'delivered') {
       updateData.actualDelivery = new Date();
+    }
+    
+    // თუ status გახდა 'confirmed' ან 'ready' და არ აქვს courierId, დავამატოთ availableForCouriersAt
+    // და გავასუფთავოთ offeredToCouriers array რომ დავიწყოთ ახალი რაუნდი
+    if ((status === 'confirmed' || status === 'ready') && !order.courierId && order.deliveryType === 'delivery') {
+      updateData.availableForCouriersAt = new Date();
+      updateData.offeredToCouriers = []; // გავასუფთავოთ რომ დავიწყოთ ახალი რაუნდი
     }
 
     // თუ კურიერი მინიჭებულია, განვაახლოთ order-ის courierId

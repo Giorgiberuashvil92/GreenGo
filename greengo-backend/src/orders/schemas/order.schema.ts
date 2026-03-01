@@ -104,7 +104,24 @@ export class Order {
   courierId?: Types.ObjectId;
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Courier' }], default: [] })
-  rejectedCouriers?: Types.ObjectId[]; 
+  rejectedCouriers?: Types.ObjectId[];
+
+  @Prop()
+  availableForCouriersAt?: Date;
+
+  @Prop({
+    type: [
+      {
+        courierId: { type: Types.ObjectId, ref: 'Courier', required: true },
+        offeredAt: { type: Date, required: true, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  offeredToCouriers?: Array<{
+    courierId: Types.ObjectId;
+    offeredAt: Date;
+  }>;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
