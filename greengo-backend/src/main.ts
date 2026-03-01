@@ -9,7 +9,7 @@ async function bootstrap() {
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
-    'https://greengodelivery.up.railway.app',
+    'https://greengo.up.railway.app',
     // Add your production frontend domain here when ready
   ];
 
@@ -22,7 +22,7 @@ async function bootstrap() {
       
       // Check if origin is in allowed list
       if (allowedOrigins.includes(origin)) {
-        callback(null, true);
+      callback(null, true);
       } else {
         // Log for debugging
         console.log(`⚠️ CORS blocked origin: ${origin}`);

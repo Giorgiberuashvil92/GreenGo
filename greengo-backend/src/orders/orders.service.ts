@@ -117,8 +117,9 @@ export class OrdersService {
     restaurantId?: string;
     courierId?: string;
     forCourier?: string; // courierId for checking if courier has active order
+    deliveryType?: string; // Filter by delivery type (delivery/pickup)
   }): Promise<{ data: Order[]; total: number; page: number; limit: number }> {
-    const { page = 1, limit = 10, status, userId, restaurantId, courierId, forCourier } = query;
+    const { page = 1, limit = 10, status, userId, restaurantId, courierId, forCourier, deliveryType } = query;
     const skip = (page - 1) * limit;
 
     const filter: any = {};
@@ -150,45 +151,100 @@ export class OrdersService {
             limit,
           };
         }
+
+        // ⚠️ მნიშვნელოვანი: გავფილტროთ შეკვეთები, რომლებიც უკვე უარყოფილია ამ კურიერის მიერ
+        // თუ კურიერმა უარყო შეკვეთა, ის აღარ უნდა გამოჩნდეს მისთვის
+        // $nin (not in) - rejectedCouriers array-ში არ უნდა იყოს forCourier
+        // ან rejectedCouriers field არ არსებობს/არის null/არის ცარიელი array
+        filter.$and = filter.$and || [];
+        filter.$and.push({
+          $or: [
+            { rejectedCouriers: { $exists: false } },
+            { rejectedCouriers: null },
+            { rejectedCouriers: { $size: 0 } },
+            { rejectedCouriers: { $nin: [forCourier] } }
+          ]
+        });
       }
       
       // Show orders without courier for courier to accept
-      filter.$or = [
-        { courierId: { $exists: false } },
-        { courierId: null },
-        { courierId: { $eq: null } },
-      ];
+      // ⚠️ მნიშვნელოვანი: კურიერებს არ უნდა ამოუვარდეს pending შეკვეთები
+      // მხოლოდ confirmed ან ready შეკვეთები გამოჩნდება კურიერებისთვის
+      // გავაერთიანოთ $or condition $and-ში, რომ სწორად მუშაობდეს
+      // თუ $and უკვე არსებობს (rejectedCouriers filter-ის გამო), უბრალოდ დავამატოთ
+      // თუ არ არსებობს, შევქმნათ
+      if (!filter.$and) {
+        filter.$and = [];
+      }
+      // დავამატოთ courierId filter $and array-ში
+      filter.$and.push({
+        $or: [
+          { courierId: { $exists: false } },
+          { courierId: null },
+          { courierId: { $eq: null } },
+        ]
+      });
 
-      // If status is 'confirmed', show only confirmed orders
-      // If status is 'ready', show orders that are not delivered or cancelled
+      // If status is 'confirmed', show only confirmed orders (რესტორანის დადასტურებული)
+      // If status is 'ready', show orders that are ready for pickup
+      // ⚠️ pending შეკვეთები არასოდეს გამოჩნდება კურიერებისთვის
       if (status === 'confirmed') {
-        filter.status = 'confirmed';
+        filter.status = 'confirmed'; // მხოლოდ რესტორანის დადასტურებული შეკვეთები
+      } else if (status === 'ready') {
+        filter.status = 'ready'; // მხოლოდ მზად შეკვეთები
       } else {
-        filter.status = { $nin: ['delivered', 'cancelled'] };
+        // Fallback: show confirmed and ready orders (not pending, not delivered, not cancelled)
+        filter.status = { $in: ['confirmed', 'ready'] };
       }
     } else if (status) {
       filter.status = status;
     }
 
-    const [data, total] = await Promise.all([
-      this.orderModel
-        .find(filter)
-        .populate('userId', 'name phoneNumber')
-        .populate('restaurantId', 'name location coordinates image heroImage')
-        .populate('courierId', 'name phoneNumber currentLocation status')
-        .skip(skip)
-        .limit(limit)
-        .sort({ createdAt: -1 })
-        .exec(),
-      this.orderModel.countDocuments(filter).exec(),
-    ]);
+    // Filter by delivery type if provided
+    if (deliveryType) {
+      filter.deliveryType = deliveryType;
+    }
 
-    return {
-      data,
-      total,
-      page,
-      limit,
-    };
+    try {
+      // Log filter for debugging
+      if (forCourier || status === 'ready' || status === 'confirmed') {
+        console.log(`🔍 Orders query - status: ${status}, forCourier: ${forCourier}, filter:`, JSON.stringify(filter, null, 2));
+      }
+
+      const [data, total] = await Promise.all([
+        this.orderModel
+          .find(filter)
+          .populate('userId', 'name phoneNumber')
+          .populate('restaurantId', 'name location coordinates image heroImage')
+          .populate('courierId', 'name phoneNumber currentLocation status')
+          .skip(skip)
+          .limit(limit)
+          .sort({ createdAt: -1 })
+          .exec(),
+        this.orderModel.countDocuments(filter).exec(),
+      ]);
+
+      console.log(`✅ Orders query successful - found ${data.length} orders, total: ${total}`);
+
+      return {
+        data,
+        total,
+        page,
+        limit,
+      };
+    } catch (error: any) {
+      console.error('❌ Error fetching orders:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Filter used:', JSON.stringify(filter, null, 2));
+      // Return empty result instead of crashing
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit,
+      };
+    }
   }
 
   async findOne(id: string): Promise<Order> {
@@ -244,10 +300,15 @@ export class OrdersService {
     }
 
     // კურიერის მინიჭება შეიძლება მხოლოდ მაშინ, როცა შეკვეთა უკვე დადასტურებულია რესტორანის მიერ
-    // კურიერის მოძიება იწყება რესტორანის დადასტურების შემდეგ, მაგრამ კურიერი არ მიენიჭება ავტომატურად
-    // კურიერმა უნდა დაადასტუროს თანხმობა, მხოლოდ ამის შემდეგ მიენიჭება რესტორანს
+    // ⚠️ მნიშვნელოვანი: კურიერს არ უნდა ამოუვარდეს შეკვეთა სანამ რესტორანი არ დაადასტურებს
+    // კურიერის მოძიება იწყება მხოლოდ რესტორანის დადასტურების შემდეგ (status='confirmed')
+    // კურიერმა უნდა დაადასტუროს თანხმობა, მხოლოდ ამის შემდეგ შეკვეთა გადადის 'preparing' სტატუსზე
+    if (order.status === 'pending') {
+      throw new Error('კურიერის მინიჭება შეუძლებელია. შეკვეთა ჯერ უნდა დაადასტუროს რესტორანმა (status უნდა იყოს "confirmed").');
+    }
+    
     if (order.status !== 'confirmed' && order.status !== 'preparing' && order.status !== 'ready') {
-      throw new Error('კურიერის მინიჭება შეიძლება მხოლოდ დადასტურებული შეკვეთებისთვის. გთხოვთ ჯერ დაადასტუროთ შეკვეთა.');
+      throw new Error('კურიერის მინიჭება შეიძლება მხოლოდ დადასტურებული შეკვეთებისთვის (confirmed, preparing, ან ready სტატუსით).');
     }
 
     // If courierId is provided, assign that courier (courier accepts the order)
@@ -287,6 +348,59 @@ export class OrdersService {
     console.log(`✅ კურიერი ${assignedCourierId} ავტომატურად მიენიჭა შეკვეთას ${orderId} - სტატუსი გადავიდა 'preparing'-ზე`);
 
     return order.save();
+  }
+
+  /**
+   * კურიერისთვის შეკვეთის უარყოფა
+   * კურიერმა შეძლოს შეკვეთის უარყოფა, რათა სხვა შეკვეთები შეუვიდეს
+   * @param orderId შეკვეთის ID
+   * @param courierId კურიერის ID (optional, validation-ისთვის)
+   * @returns შეკვეთა უცვლელი სტატუსით, მაგრამ კურიერის უარყოფით
+   */
+  async rejectOrder(orderId: string, courierId?: string): Promise<{ message: string; order: Order }> {
+    const order = await this.orderModel.findById(orderId).exec();
+    if (!order) {
+      throw new NotFoundException(`შეკვეთა ID ${orderId} ვერ მოიძებნა`);
+    }
+
+    // შეკვეთა უნდა იყოს confirmed სტატუსზე (რესტორანის დადასტურებული)
+    if (order.status !== 'confirmed') {
+      throw new Error(`შეკვეთის უარყოფა შეუძლებელია. შეკვეთა უნდა იყოს "confirmed" სტატუსზე, ახლა არის "${order.status}".`);
+    }
+
+    // კურიერი არ უნდა იყოს უკვე მინიჭებული
+    if (order.courierId) {
+      throw new Error('შეკვეთას უკვე აქვს მინიჭებული კურიერი. უარყოფა შეუძლებელია.');
+    }
+
+    // შეკვეთა უნდა იყოს delivery ტიპის
+    if (order.deliveryType !== 'delivery') {
+      throw new Error('მხოლოდ delivery შეკვეთების უარყოფა შეიძლება.');
+    }
+
+    // courierId აუცილებელია უარყოფისთვის
+    if (!courierId) {
+      throw new Error('კურიერის ID აუცილებელია შეკვეთის უარყოფისთვის.');
+    }
+
+    // შეამოწმე, არ უარყო თუ არა ეს კურიერი უკვე ამ შეკვეთას
+    const rejectedCouriers = order.rejectedCouriers || [];
+    if (rejectedCouriers.some((id: any) => id.toString() === courierId)) {
+      throw new Error('თქვენ უკვე უარყავით ეს შეკვეთა.');
+    }
+
+    // დავამატოთ courierId rejectedCouriers array-ში
+    rejectedCouriers.push(courierId as any);
+    order.rejectedCouriers = rejectedCouriers;
+    await order.save();
+
+    // შეკვეთა კვლავ ხელმისაწვდომია სხვა კურიერებისთვის, მაგრამ აღარ გამოჩნდება ამ კურიერისთვის
+    console.log(`❌ კურიერი ${courierId} უარყო შეკვეთა ${orderId}. შეკვეთა აღარ გამოჩნდება ამ კურიერისთვის, მაგრამ ხელმისაწვდომია სხვა კურიერებისთვის.`);
+    
+    return {
+      message: 'შეკვეთა წარმატებით უარყოფილია. ეს შეკვეთა აღარ გამოჩნდება თქვენთვის, მაგრამ ხელმისაწვდომია სხვა კურიერებისთვის.',
+      order: order,
+    };
   }
 
   async updateStatus(id: string, status: string): Promise<Order> {

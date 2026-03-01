@@ -9,7 +9,7 @@ export const API_CONFIG = {
     // Android Emulator-ისთვის:
     ANDROID: 'http://10.0.2.2:3001/api',
     // iOS Simulator-ისთვის (კომპიუტერის IP):
-    IOS_SIMULATOR: 'https://greengodelivery.up.railway.app/api',
+    IOS_SIMULATOR: 'http://192.168.0.100:3001/api',
     // Physical Device-ისთვის (თქვენი კომპიუტერის IP):
     // შეცვალეთ ეს IP თქვენი კომპიუტერის IP-ით (იპოვეთ: ipconfig getifaddr en0 ან en1)
     IOS_DEVICE: 'http://172.20.10.2:3001/api',
@@ -17,27 +17,34 @@ export const API_CONFIG = {
 
   // Production
   PROD: {
-    BASE_URL: 'https://greengodelivery.up.railway.app/api',
+    BASE_URL: 'https://greengo.up.railway.app/api',
   },
 };
 
 // Get current API URL based on environment and platform
 export const getApiUrl = () => {
+  let url: string;
   if (__DEV__) {
     // Auto-detect platform
     if (Platform.OS === 'android') {
-      return API_CONFIG.DEV.ANDROID;
+      // Android Emulator - 10.0.2.2 points to host machine's localhost
+      url = API_CONFIG.DEV.ANDROID;
     } else if (Platform.OS === 'ios') {
-      // For iOS: Use simulator URL for simulator, device IP for physical devices
-      // iOS Simulator-ზე გამოიყენება IOS_SIMULATOR (კომპიუტერის IP: 192.168.0.103)
-      // Physical device-ზე გამოიყენება IOS_DEVICE (კომპიუტერის IP)
-      // შენიშვნა: iOS simulator-ში უკეთესია კომპიუტერის IP-ის გამოყენება 127.0.0.1-ის ნაცვლად
-      return API_CONFIG.DEV.IOS_SIMULATOR;
+      // iOS Simulator - can use localhost directly
+      // iOS Simulator იზიარებს host machine-ის localhost-ს
+      url = API_CONFIG.DEV.IOS_SIMULATOR;
+      // Note: For physical iOS devices, you'll need to use IOS_DEVICE with your computer's IP
+      // Uncomment and update IOS_DEVICE IP if testing on physical device:
+      // url = API_CONFIG.DEV.IOS_DEVICE;
+    } else {
+      // Fallback to Android (most common)
+      url = API_CONFIG.DEV.ANDROID;
     }
-    // Fallback to Android (most common)
-    return API_CONFIG.DEV.ANDROID;
+  } else {
+    url = API_CONFIG.PROD.BASE_URL;
   }
-  return API_CONFIG.PROD.BASE_URL;
+  // Remove any leading/trailing spaces
+  return url.trim();
 };
 
 // Helper function to check if API is available

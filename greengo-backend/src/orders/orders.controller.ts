@@ -37,6 +37,7 @@ export class OrdersController {
     @Query('restaurantId') restaurantId?: string,
     @Query('courierId') courierId?: string,
     @Query('forCourier') forCourier?: string, // courierId for checking active orders
+    @Query('type') type?: string, // deliveryType alias for mobile app compatibility
   ) {
     return this.ordersService.findAll({
       page,
@@ -46,6 +47,7 @@ export class OrdersController {
       restaurantId,
       courierId,
       forCourier,
+      deliveryType: type, // Map 'type' to 'deliveryType'
     });
   }
 
@@ -70,6 +72,14 @@ export class OrdersController {
     @Body('courierId') courierId?: string,
   ) {
     return this.ordersService.assignCourier(id, courierId);
+  }
+
+  @Post(':id/reject')
+  rejectOrder(
+    @Param('id') id: string,
+    @Body('courierId') courierId?: string,
+  ) {
+    return this.ordersService.rejectOrder(id, courierId);
   }
 
   @Get(':id/delivery-info')

@@ -102,6 +102,9 @@ export class Order {
 
   @Prop({ type: Types.ObjectId, ref: 'Courier' })
   courierId?: Types.ObjectId;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Courier' }], default: [] })
+  rejectedCouriers?: Types.ObjectId[]; 
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

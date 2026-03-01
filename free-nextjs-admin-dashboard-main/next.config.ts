@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
         // Try Railway first, fallback to local backend
         destination: process.env.NEXT_PUBLIC_API_URL 
           ? `${process.env.NEXT_PUBLIC_API_URL}/:path*`
-          : 'https://greengodelivery.up.railway.app/api/:path*',
+          : 'https://greengo.up.railway.app/api/:path*',
       },
       {
         source: '/api-local/:path*',
@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'greengodelivery.up.railway.app',
+        hostname: 'greengo.up.railway.app',
       },
       {
         protocol: 'https',

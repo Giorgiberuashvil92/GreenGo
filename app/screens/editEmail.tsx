@@ -11,7 +11,7 @@ import {
 } from "react-native";
 
 export default function EditEmailScreen() {
-  const [email, setEmail] = useState("greengodelivery@gmail.com");
+  const [email, setEmail] = useState("greengo@gmail.com");
   const [activeField, setActiveField] = useState<string | null>(null);
 
   const handleContinue = () => {
