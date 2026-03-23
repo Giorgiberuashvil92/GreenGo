@@ -1,3 +1,5 @@
+import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
 import { apiService } from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -9,11 +11,15 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../contexts/CartContext";
 import { useRestaurant } from "../../hooks/useRestaurants";
+
+const HERO_HEIGHT = 320;
+const QTY_BG = "#DCFCE7";
+const ADD_BTN_BG = "#14532D";
 
 interface MenuItem {
   _id: string;
@@ -41,20 +47,40 @@ interface MenuItem {
   }[];
 }
 
+function formatPriceGel(n: number): string {
+  return `${n.toFixed(2).replace(".", ",")}₾`;
+}
+
+function ingredientEmoji(icon: string): string {
+  const k = icon?.toLowerCase?.() || "";
+  if (k.includes("ketchup") || k.includes("კეტჩ")) return "🥫";
+  if (k.includes("mayo") || k.includes("მაიო")) return "⚪";
+  if (k.includes("onion") || k.includes("ხახვ")) return "🧅";
+  if (k.includes("lettuce") || k.includes("სალათ")) return "🥬";
+  if (k.includes("chili") || k.includes("წიწაკ")) return "🌶️";
+  if (k.includes("cheese") || k.includes("ყველი")) return "🧀";
+  if (k.includes("tomato") || k.includes("პომიდ")) return "🍅";
+  if (k.includes("all") || k.includes("ყველაფერი")) return "✨";
+  if (icon && icon.length <= 4 && /[\u0080-\uFFFF]/.test(icon)) return icon;
+  return "•";
+}
+
 export default function ProductScreen() {
   const { productId, restaurantId } = useLocalSearchParams<{
     productId: string;
     restaurantId: string;
   }>();
   const router = useRouter();
-  const { addToCart } = useCart();
-  const { restaurant, loading: restaurantLoading } = useRestaurant(restaurantId || "");
+  const insets = useSafeAreaInsets();
+  const { addToCart, updateQuantity } = useCart();
+  const { restaurant, loading: restaurantLoading } = useRestaurant(
+    restaurantId || "",
+  );
   const [product, setProduct] = useState<MenuItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [selectedDrink, setSelectedDrink] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -70,15 +96,10 @@ export default function ProductScreen() {
     try {
       setLoading(true);
       setError(null);
-      
-      // Try to get single menu item by ID first
       const response = await apiService.getMenuItem(productId || "");
-
       if (response.success && response.data) {
         const menuItem = response.data as unknown as MenuItem;
         setProduct(menuItem);
-        
-        // Initialize selected ingredients with default ones
         if (menuItem.ingredients) {
           const defaultIngredientIds = menuItem.ingredients
             .filter((ing) => ing.isDefault)
@@ -95,20 +116,59 @@ export default function ProductScreen() {
     }
   };
 
+  const toggleIngredient = (ingredientId: string) => {
+    setSelectedIngredients((prev) => {
+      const next = new Set(prev);
+      if (next.has(ingredientId)) {
+        next.delete(ingredientId);
+      } else {
+        next.add(ingredientId);
+      }
+      return next;
+    });
+  };
+
+  const selectedDrinkData = selectedDrink
+    ? product?.drinks?.find((d) => d.id === selectedDrink)
+    : null;
+  const selectedDrinkPrice = selectedDrinkData ? selectedDrinkData.price : 0;
+  const baseTotal = product
+    ? product.price + selectedDrinkPrice
+    : 0;
+  const lineTotal = baseTotal * quantity;
+
+  const handleAddToCart = () => {
+    if (restaurant && product) {
+      const id = product._id || product.id || productId || "";
+      addToCart({
+        id,
+        name: product.name,
+        price: baseTotal,
+        image: product.heroImage || product.image,
+        restaurantId: restaurant._id || restaurant.id || restaurantId,
+        restaurantName: restaurant.name,
+      });
+      if (quantity > 1) {
+        updateQuantity(id, quantity);
+      }
+      router.back();
+    }
+  };
+
   if (loading || restaurantLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color={LIST_ACCENT_GREEN} />
           <Text style={styles.loadingText}>იტვირთება...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !product || !restaurant) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
             {error || "პროდუქტი ვერ მოიძებნა"}
@@ -120,237 +180,192 @@ export default function ProductScreen() {
             <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const toggleIngredient = (ingredientId: string) => {
-    setSelectedIngredients((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(ingredientId)) {
-        newSet.delete(ingredientId);
-      } else {
-        newSet.add(ingredientId);
-      }
-      return newSet;
-    });
-  };
+  const coverUri =
+    (typeof product.heroImage === "string" && product.heroImage) ||
+    (typeof product.image === "string" && product.image) ||
+    "";
 
-  const incrementQuantity = () => {
-    setQuantity(quantity + 1);
-  };
-
-  const decrementQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
-    }
-  };
-
-  // const getIngredientIcon = (iconName: string) => {
-  //   switch (iconName) {
-  //     case "ketchup":
-  //       return "🔴";
-  //     case "mayonnaise":
-  //       return "⚪";
-  //     case "onion":
-  //       return "🟤";
-  //     case "lettuce":
-  //       return "🟢";
-  //     case "chili":
-  //       return "🔴";
-  //     case "pepperoni":
-  //       return "🔴";
-  //     case "cheese":
-  //       return "🟡";
-  //     case "herbs":
-  //       return "🟢";
-  //     case "sauce":
-  //       return "🔴";
-  //     case "bacon":
-  //       return "🟤";
-  //     case "tomato":
-  //       return "🔴";
-  //     default:
-  //       return "";
-  //   }
-  // };
-
-  const selectedDrinkData = selectedDrink
-    ? product.drinks?.find((d) => d.id === selectedDrink)
-    : null;
-  const selectedDrinkPrice = selectedDrinkData ? selectedDrinkData.price : 0;
-  const totalPrice = product.price + selectedDrinkPrice;
-
-  const handleAddToCart = () => {
-    if (restaurant && product) {
-      addToCart({
-        id: product._id || product.id || productId,
-        name: product.name,
-        price: totalPrice,
-        image: product.heroImage || product.image,
-        restaurantId: restaurant._id || restaurant.id || restaurantId,
-        restaurantName: restaurant.name,
-      });
-
-      // Navigate back to restaurant screen
-      router.back();
-    }
-  };
+  const footerPad = Math.max(insets.bottom, 12);
+  const overlayTop = insets.top + 8;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Image Section */}
-        <View style={styles.heroSection}>
-          <Image
-            source={
-              product.heroImage
-                ? typeof product.heroImage === "string"
-                  ? { uri: product.heroImage }
-                  : product.heroImage
-                : { uri: product.image }
-            }
-            style={styles.heroImage}
-          />
-
-          {/* Back Button */}
+    <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 160 + footerPad },
+        ]}
+        bounces
+      >
+        <View style={[styles.heroWrap, { height: HERO_HEIGHT }]}>
+          {coverUri ? (
+            <Image
+              source={{ uri: coverUri }}
+              style={styles.heroImage}
+              defaultSource={require("../../assets/images/magnolia.png")}
+            />
+          ) : (
+            <Image
+              source={require("../../assets/images/magnolia.png")}
+              style={styles.heroImage}
+            />
+          )}
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.circleBack, { top: overlayTop }]}
             onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="უკან"
           >
-            <Ionicons name="arrow-back" size={24} color="#333333" />
+            <Ionicons name="chevron-back" size={24} color={LIST_ACCENT_GREEN} />
           </TouchableOpacity>
-
-          {/* Restaurant Info */}
-          <View style={styles.restaurantInfo}>
-            <Text style={styles.restaurantName}>{restaurant.name}</Text>
-            <Text style={styles.restaurantPhone}>
-              {restaurant.contact?.phone || "ტელეფონი არ არის მითითებული"}
-            </Text>
-          </View>
         </View>
 
-        {/* Product Details */}
-        <View style={styles.productDetails}>
+        <View style={styles.body}>
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.productPrice}>{product.price.toFixed(2)}₾</Text>
-          <Text style={styles.productDescription}>{product.description}</Text>
+          <Text style={styles.productPrice}>{formatPriceGel(product.price)}</Text>
+          {product.description ? (
+            <Text style={styles.productDescription}>{product.description}</Text>
+          ) : null}
         </View>
 
-        {/* Ingredients Section */}
-        {product.ingredients && product.ingredients.length > 0 && (
+        {product.ingredients && product.ingredients.length > 0 ? (
           <View style={styles.section}>
+            <View style={styles.sectionDividerTop} />
             <View style={styles.sectionHeader}>
-              <Ionicons name="grid-outline" size={20} color="#666666" />
+              <Ionicons name="grid-outline" size={20} color="#374151" />
               <Text style={styles.sectionTitle}>ინგრედიენტები</Text>
             </View>
-
-            {product.ingredients.map((ingredient) => (
-              <TouchableOpacity
-                key={ingredient.id}
-                style={styles.ingredientItem}
-                onPress={() =>
-                  ingredient.canRemove && toggleIngredient(ingredient.id)
-                }
-              >
-                <View style={styles.ingredientLeft}>
+            {product.ingredients.map((ingredient, idx) => {
+              const mandatory = ingredient.canRemove === false;
+              const selected =
+                mandatory || selectedIngredients.has(ingredient.id);
+              const canTap = ingredient.canRemove === true;
+              return (
+                <TouchableOpacity
+                  key={ingredient.id}
+                  style={[
+                    styles.optionRow,
+                    idx === product.ingredients!.length - 1 &&
+                      styles.optionRowLast,
+                  ]}
+                  onPress={() =>
+                    canTap ? toggleIngredient(ingredient.id) : undefined
+                  }
+                  activeOpacity={canTap ? 0.65 : 1}
+                  disabled={!canTap}
+                >
                   <View
                     style={[
-                      styles.radioButton,
-                      selectedIngredients.has(ingredient.id) &&
-                        styles.radioButtonSelected,
+                      styles.radioOuter,
+                      selected && styles.radioOuterOn,
                     ]}
                   >
-                    {selectedIngredients.has(ingredient.id) && (
-                      <View style={styles.radioButtonInner} />
-                    )}
+                    {selected ? <View style={styles.radioInner} /> : null}
                   </View>
-                  <Text style={styles.ingredientName}>{ingredient.name}</Text>
-                </View>
-                {/* {ingredient.icon && (
-                <Text style={styles.ingredientIcon}>
-                  {getIngredientIcon(ingredient.icon)}
-                </Text>
-              )} */}
-              </TouchableOpacity>
-            ))}
+                  <Text style={styles.optionLabel} numberOfLines={2}>
+                    {ingredient.name}
+                  </Text>
+                  <Text style={styles.optionEmoji} allowFontScaling={false}>
+                    {ingredientEmoji(ingredient.icon)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        )}
+        ) : null}
 
-        {/* Drinks Section */}
-        {product.drinks && product.drinks.length > 0 && (
+        {product.drinks && product.drinks.length > 0 ? (
           <View style={styles.section}>
+            <View style={styles.sectionDividerTop} />
             <View style={styles.sectionHeader}>
-              <Ionicons name="cafe-outline" size={20} color="#666666" />
+              <Ionicons name="cafe-outline" size={20} color="#374151" />
               <Text style={styles.sectionTitle}>აირჩიეთ სასმელი</Text>
             </View>
-
-            {product.drinks.map((drink) => (
-              <TouchableOpacity
-                key={drink.id}
-                style={[
-                  styles.drinkItem,
-                  selectedDrink === drink.id && styles.drinkItemSelected,
-                ]}
-                onPress={() => setSelectedDrink(drink.id)}
-              >
-                <Image
-                  source={{ uri: drink.image }}
-                  style={styles.drinkImage}
-                />
-                <View style={styles.drinkInfo}>
-                  <Text style={styles.drinkName}>{drink.name}</Text>
-                  <Text style={styles.drinkPrice}>
-                    {drink.price.toFixed(2)}₾
-                  </Text>
-                </View>
-                <View
+            {product.drinks.map((drink, idx) => {
+              const selected = selectedDrink === drink.id;
+              return (
+                <TouchableOpacity
+                  key={drink.id}
                   style={[
-                    styles.radioButton,
-                    selectedDrink === drink.id && styles.radioButtonSelected,
+                    styles.optionRow,
+                    idx === product.drinks!.length - 1 && styles.optionRowLast,
                   ]}
+                  onPress={() => setSelectedDrink(drink.id)}
+                  activeOpacity={0.65}
                 >
-                  {selectedDrink === drink.id && (
-                    <View style={styles.radioButtonInner} />
+                  <View
+                    style={[
+                      styles.radioOuter,
+                      selected && styles.radioOuterOn,
+                    ]}
+                  >
+                    {selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                  <View style={styles.drinkTextCol}>
+                    <Text style={styles.optionLabel} numberOfLines={2}>
+                      {drink.name}
+                      {drink.price > 0
+                        ? `  +${formatPriceGel(drink.price)}`
+                        : ""}
+                    </Text>
+                  </View>
+                  {drink.image ? (
+                    <Image
+                      source={{ uri: drink.image }}
+                      style={styles.drinkThumb}
+                    />
+                  ) : (
+                    <View style={styles.drinkThumbPh} />
                   )}
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        )}
+        ) : null}
+      </ScrollView>
 
-        {/* Add to Cart Section */}
-        <View style={styles.addToCartSection}>
-          <View style={styles.quantitySelector}>
+      <View style={[styles.footer, { paddingBottom: footerPad }]}>
+        <View style={styles.footerRow}>
+          <View style={styles.qtyBar}>
             <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={decrementQuantity}
+              style={styles.qtyHit}
+              onPress={() => quantity > 1 && setQuantity((q) => q - 1)}
+              hitSlop={8}
             >
-              <Ionicons name="remove" size={20} color="#FFFFFF" />
+              <Ionicons name="remove" size={22} color={BRAND_GREEN} />
             </TouchableOpacity>
-            <Text style={styles.quantityText}>{quantity}</Text>
+            <Text style={styles.qtyNum}>{quantity}</Text>
             <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={incrementQuantity}
+              style={styles.qtyHit}
+              onPress={() => setQuantity((q) => q + 1)}
+              hitSlop={8}
             >
-              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Ionicons name="add" size={22} color={BRAND_GREEN} />
             </TouchableOpacity>
           </View>
-
           <TouchableOpacity
-            style={styles.addToCartButton}
+            style={styles.addBtn}
             onPress={handleAddToCart}
+            activeOpacity={0.9}
           >
-            <Text style={styles.addToCartText}>დამატება</Text>
-            <Text style={styles.addToCartPrice}>
-              {(totalPrice * quantity).toFixed(2)}₾
+            <Text style={styles.addBtnText}>დამატება</Text>
+            <Text style={styles.addBtnPrice}>
+              {lineTotal.toFixed(2).replace(".", ",")} ₾
             </Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.footerText}>დაამატეთ კიდევ სხვა შემადგენლობით</Text>
-      </ScrollView>
-    </SafeAreaView>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()}>
+          <Text style={styles.footerHint}>
+            დაამატეთ კიდევ სხვა შემადგენლობით
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -359,8 +374,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  heroSection: {
-    height: 300,
+  scrollContent: {
+    flexGrow: 1,
+  },
+  heroWrap: {
+    width: "100%",
+    backgroundColor: "#E5E7EB",
     position: "relative",
   },
   heroImage: {
@@ -368,198 +387,186 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  backButton: {
+  circleBack: {
     position: "absolute",
-    top: 50,
-    left: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
-  },
-  restaurantInfo: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    alignItems: "flex-end",
-  },
-  restaurantName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFD700",
-    marginBottom: 4,
-  },
-  restaurantPhone: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "500",
-  },
-  productDetails: {
-    padding: 20,
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 2,
+  },
+  body: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
   productName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333333",
-    marginBottom: 8,
+    fontSize: 22,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    marginBottom: 6,
   },
   productPrice: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333333",
-    marginBottom: 12,
+    fontSize: 18,
+    fontFamily: fontFamily.bold,
+    color: LIST_ACCENT_GREEN,
+    marginBottom: 10,
   },
   productDescription: {
     fontSize: 14,
-    color: "#666666",
-    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    lineHeight: 21,
   },
   section: {
     paddingHorizontal: 20,
-    marginBottom: 30,
+    marginTop: 8,
+  },
+  sectionDividerTop: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 14,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333333",
-    marginLeft: 8,
+    fontSize: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
   },
-  ingredientItem: {
+  optionRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
+    gap: 12,
   },
-  ingredientLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
+  optionRowLast: {
+    borderBottomWidth: 0,
   },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: "#DDDDDD",
-    marginRight: 12,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-  },
-  radioButtonSelected: {
-    borderColor: "#4CAF50",
-  },
-  radioButtonInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#4CAF50",
-  },
-  ingredientName: {
-    fontSize: 14,
-    color: "#333333",
-    flex: 1,
-  },
-  ingredientIcon: {
-    fontSize: 20,
-  },
-  drinkItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: "#F8F8F8",
-    borderRadius: 12,
-  },
-  drinkItemSelected: {
-    backgroundColor: "#E8F5E8",
-    borderWidth: 2,
-    borderColor: "#4CAF50",
-  },
-  drinkImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  drinkInfo: {
-    flex: 1,
-  },
-  drinkName: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333333",
-    marginBottom: 2,
-  },
-  drinkPrice: {
-    fontSize: 12,
-    color: "#666666",
-  },
-  addToCartSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 20,
     backgroundColor: "#FFFFFF",
   },
-  quantitySelector: {
+  radioOuterOn: {
+    borderColor: LIST_ACCENT_GREEN,
+  },
+  radioInner: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: LIST_ACCENT_GREEN,
+  },
+  optionLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: fontFamily.regular,
+    color: "#111827",
+  },
+  optionEmoji: {
+    fontSize: 20,
+    width: 28,
+    textAlign: "center",
+  },
+  drinkTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  drinkThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  drinkThumbPh: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  footerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 16,
+    gap: 12,
   },
-  quantityButton: {
-    backgroundColor: "#4CAF50",
-    borderRadius: 20,
+  qtyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: QTY_BG,
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  qtyHit: {
     width: 40,
     height: 40,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
   },
-  quantityText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333333",
-    marginHorizontal: 16,
-    minWidth: 30,
+  qtyNum: {
+    fontSize: 17,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    minWidth: 28,
     textAlign: "center",
   },
-  addToCartButton: {
+  addBtn: {
     flex: 1,
-    backgroundColor: "#2E7D32",
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: ADD_BTN_BG,
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    justifyContent: "space-between",
   },
-  addToCartText: {
+  addBtnText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: fontFamily.semiBold,
     color: "#FFFFFF",
   },
-  addToCartPrice: {
+  addBtnPrice: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: fontFamily.bold,
     color: "#FFFFFF",
   },
-  footerText: {
+  footerHint: {
+    marginTop: 10,
     fontSize: 12,
-    color: "#999999",
+    fontFamily: fontFamily.regular,
+    color: "#9CA3AF",
     textAlign: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    textDecorationLine: "underline",
   },
   loadingContainer: {
     flex: 1,
@@ -569,7 +576,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#666",
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
   },
   errorContainer: {
     flex: 1,
@@ -580,18 +588,19 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
+    fontFamily: fontFamily.regular,
     color: "#EF4444",
     textAlign: "center",
   },
   retryButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: LIST_ACCENT_GREEN,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   retryButtonText: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: fontFamily.semiBold,
   },
 });

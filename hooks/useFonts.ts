@@ -1,25 +1,17 @@
-// import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-// import * as Font from "expo-font";
-// import { useEffect, useState } from "react";
+import { useFonts as useExpoFonts } from "expo-font";
 
-// export function useFonts() {
-//   const [loaded, setLoaded] = useState(false);
+const georgianFontMap = {
+  "NotoSansGeorgian-Thin": require("../assets/fonts/NotoSansGeorgian-Thin.ttf"),
+  "NotoSansGeorgian-ExtraLight": require("../assets/fonts/NotoSansGeorgian-ExtraLight.ttf"),
+  "NotoSansGeorgian-Light": require("../assets/fonts/NotoSansGeorgian-Light.ttf"),
+  "NotoSansGeorgian-Regular": require("../assets/fonts/NotoSansGeorgian-Regular.ttf"),
+  "NotoSansGeorgian-Medium": require("../assets/fonts/NotoSansGeorgian-Medium.ttf"),
+  "NotoSansGeorgian-SemiBold": require("../assets/fonts/NotoSansGeorgian-SemiBold.ttf"),
+  "NotoSansGeorgian-Bold": require("../assets/fonts/NotoSansGeorgian-Bold.ttf"),
+  "NotoSansGeorgian-ExtraBold": require("../assets/fonts/NotoSansGeorgian-ExtraBold.ttf"),
+  "NotoSansGeorgian-Black": require("../assets/fonts/NotoSansGeorgian-Black.ttf"),
+} as const;
 
-//   useEffect(() => {
-//     async function loadFonts() {
-//       try {
-//         await Font.loadAsync({
-//           ...Ionicons.font,
-//           ...MaterialIcons.font,
-//         });
-//         setLoaded(true);
-//       } catch (e) {
-//         console.warn("Font load error:", e);
-//       }
-//     }
-
-//     loadFonts();
-//   }, []);
-
-//   return loaded;
-// }
+export function useAppFonts() {
+  return useExpoFonts(georgianFontMap);
+}

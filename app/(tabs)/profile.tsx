@@ -1,3 +1,4 @@
+import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -35,8 +36,11 @@ export default function ProfileScreen() {
   const [totalOrders, setTotalOrders] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [balance, setBalance] = useState(0);
-  const [primaryCard, setPrimaryCard] = useState<{ maskedNumber: string; type: string } | null>(null);
-  
+  const [primaryCard, setPrimaryCard] = useState<{
+    maskedNumber: string;
+    type: string;
+  } | null>(null);
+
   const fetchUserBalance = async () => {
     // Balance არ არის backend-ში, ასე რომ დავტოვოთ 0.00
     // თუ მომავალში დაემატება balance endpoint, აქ უნდა გავაკეთოთ API call
@@ -66,7 +70,7 @@ export default function ProfileScreen() {
 
   const fetchUserOrders = async () => {
     if (!user?.id && !(user as any)?._id) return;
-    
+
     try {
       setLoadingOrders(true);
       const userId = user?.id || (user as any)?._id;
@@ -75,28 +79,30 @@ export default function ProfileScreen() {
         limit: 100,
         page: 1,
       });
-      
+
       if (response.success && response.data) {
-        const orders = (response.data as any).orders || (Array.isArray(response.data) ? response.data : []);
+        const orders =
+          (response.data as any).orders ||
+          (Array.isArray(response.data) ? response.data : []);
         setTotalOrders(orders.length);
-        
+
         // Get recent 5 orders
         const recent = orders
-          .filter((order: Order) => order.status === 'delivered')
+          .filter((order: Order) => order.status === "delivered")
           .slice(0, 5)
           .map((order: Order) => ({
             id: order._id,
-            restaurantName: order.restaurantId?.name || 'რესტორანი',
+            restaurantName: order.restaurantId?.name || "რესტორანი",
             items: order.items.map((item: any) => item.name),
             totalAmount: order.totalAmount,
-            orderDate: new Date(order.createdAt).toISOString().split('T')[0],
-            status: 'delivered' as const,
+            orderDate: new Date(order.createdAt).toISOString().split("T")[0],
+            status: "delivered" as const,
           }));
-        
+
         setRecentOrders(recent);
       }
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error("Error fetching orders:", error);
     } finally {
       setLoadingOrders(false);
     }
@@ -104,7 +110,10 @@ export default function ProfileScreen() {
 
   // Get user display name
   const getUserDisplayName = () => {
-    console.log('👤 Profile getUserDisplayName - User object:', JSON.stringify(user, null, 2));
+    console.log(
+      "👤 Profile getUserDisplayName - User object:",
+      JSON.stringify(user, null, 2),
+    );
     if (user?.name) {
       return user.name;
     }
@@ -114,14 +123,14 @@ export default function ProfileScreen() {
     if (user?.firstName) {
       return user.firstName;
     }
-    console.log('⚠️ No user name found, returning default');
+    console.log("⚠️ No user name found, returning default");
     return "მომხმარებელი";
   };
-  
+
   const getUserPhone = () => {
     if (user?.phoneNumber) {
       // Format: +995555123456 -> +995 555 12 34 56
-      const phone = user.phoneNumber.replace('+995', '');
+      const phone = user.phoneNumber.replace("+995", "");
       if (phone.length === 9) {
         return `+995 ${phone.slice(0, 3)} ${phone.slice(3, 5)} ${phone.slice(5, 7)} ${phone.slice(7, 9)}`;
       }
@@ -129,7 +138,7 @@ export default function ProfileScreen() {
     }
     return "+995 -- -- -- --";
   };
-  
+
   const getUserEmail = () => {
     return user?.email || "";
   };
@@ -162,7 +171,7 @@ export default function ProfileScreen() {
         {/* Greeting Section */}
         <View style={styles.greetingSection}>
           <Text style={styles.greetingText}>
-            გამარჯობა {getUserDisplayName().split(' ')[0]}! 👋
+            გამარჯობა {getUserDisplayName().split(" ")[0]}! 👋
           </Text>
         </View>
 
@@ -178,7 +187,9 @@ export default function ProfileScreen() {
               <View style={styles.cardDetails}>
                 <Ionicons name="card" size={20} color="#666" />
                 <Text style={styles.cardText}>ბარათი</Text>
-                <Text style={styles.cardNumber}>{primaryCard.maskedNumber}</Text>
+                <Text style={styles.cardNumber}>
+                  {primaryCard.maskedNumber}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => router.push("/screens/paymentMethods")}
@@ -231,7 +242,9 @@ export default function ProfileScreen() {
             onPress={() => router.push("/screens/editEmail")}
           >
             <Ionicons name="mail-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>{getUserEmail() || "ელფოსტა არ არის დამატებული"}</Text>
+            <Text style={styles.infoText}>
+              {getUserEmail() || "ელფოსტა არ არის დამატებული"}
+            </Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
@@ -301,8 +314,8 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   greetingText: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
     color: "#000",
   },
   balanceCard: {

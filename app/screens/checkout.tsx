@@ -1,3 +1,5 @@
+import { LIST_ACCENT_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
 import { getDistance } from "@/utils/restaurantUtils";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -7,25 +9,47 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  ImageSourcePropType,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCart } from "../../contexts/CartContext";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 
+const PRIMARY_GREEN = "#1B5E37";
+const QTY_BG = "#DCFCE7";
+const SCREEN_BG = "#F5F5F5";
+
+function formatGel(n: number): string {
+  return `${n.toFixed(2).replace(".", ",")} ₾`;
+}
+
+function cartImageSource(image: unknown): ImageSourcePropType {
+  if (typeof image === "string") {
+    return { uri: image };
+  }
+  if (image) {
+    return image as ImageSourcePropType;
+  }
+  return require("../../assets/images/magnolia.png");
+}
+
 export default function CheckoutScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { cartItems, updateQuantity, removeFromCart } = useCart();
   const { user } = useAuth();
-  const { restaurant } = useRestaurant(restaurantId || "");
+  const { restaurant, loading: restaurantLoading } = useRestaurant(
+    restaurantId || "",
+  );
   const [selectedTip, setSelectedTip] = useState<number>(3);
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
@@ -283,705 +307,766 @@ export default function CheckoutScreen() {
     }
   };
 
+  const openPaymentPicker = () => {
+    Alert.alert("გადახდის მეთოდი", undefined, [
+      { text: "ბარათი", onPress: () => setPaymentMethod("card") },
+      { text: "ნაღდი ფული", onPress: () => setPaymentMethod("cash") },
+      {
+        text: "GreenGo ბალანსი",
+        onPress: () => setPaymentMethod("greengo_balance"),
+      },
+      { text: "გაუქმება", style: "cancel" },
+    ]);
+  };
+
+  const paymentTitle =
+    paymentMethod === "card"
+      ? "ბარათი"
+      : paymentMethod === "cash"
+        ? "ნაღდი ფული"
+        : "GreenGo ბალანსი";
+  const paymentSubtitle =
+    paymentMethod === "card"
+      ? "**** 7729"
+      : paymentMethod === "cash"
+        ? "გადახდა მიტანისას"
+        : "ბალანსიდან ჩამოჭრა";
+
+  const goAddMore = () => {
+    router.push({
+      pathname: "/screens/restaurant",
+      params: { restaurantId: restaurantId || "" },
+    });
+  };
+
+  if (restaurantLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={LIST_ACCENT_GREEN} />
+          <Text style={styles.loadingText}>იტვირთება...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!restaurant) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>რესტორნი ვერ მოიძებნა</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={styles.headerBack}
           onPress={() => router.back()}
+          hitSlop={12}
         >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={24} color={LIST_ACCENT_GREEN} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{restaurant?.name || "შეკვეთა"}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {restaurant?.name || "შეკვეთა"}
+        </Text>
+        <View style={styles.headerRightSpacer} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Location Section */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.locationCard}
-            onPress={() => {
-              router.push({
-                pathname: "/screens/selectAddress",
-                params: {},
-              });
-            }}
-          >
-            <View style={styles.locationLeft}>
-              <Ionicons name="location" size={20} color="#2E7D32" />
-              <View style={styles.locationText}>
-                <Text style={styles.addressText}>
-                  {deliveryAddress?.street || "აირჩიეთ მისამართი"}
-                </Text>
-                <Text style={styles.detailsText}>
-                  {deliveryAddress?.city || "დააჭირეთ მისამართის ასარჩევად"}
-                </Text>
-              </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollInner,
+          { paddingBottom: 24 + insets.bottom + 88 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.85}
+          onPress={() =>
+            router.push({ pathname: "/screens/selectAddress", params: {} })
+          }
+        >
+          <View style={styles.cardRow}>
+            <Ionicons name="location" size={22} color={LIST_ACCENT_GREEN} />
+            <View style={styles.cardTextCol}>
+              <Text style={styles.addressMain}>
+                {deliveryAddress?.street || "აირჩიეთ მისამართი"}
+              </Text>
+              <Text style={styles.addressSub}>
+                {deliveryAddress
+                  ? deliveryAddress.instructions ||
+                    deliveryAddress.city ||
+                    "დამატებითი დეტალები"
+                  : "დააჭირეთ მისამართის ასარჩევად"}
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#666666" />
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.deliveryRow}>
+          <TouchableOpacity
+            style={[
+              styles.deliveryCard,
+              deliveryType === "delivery" && styles.deliveryCardOn,
+            ]}
+            onPress={() => setDeliveryType("delivery")}
+            activeOpacity={0.88}
+          >
+            <Ionicons
+              name="bicycle-outline"
+              size={26}
+              color={deliveryType === "delivery" ? "#FFFFFF" : "#4B5563"}
+            />
+            <Text
+              style={[
+                styles.deliveryTitle,
+                deliveryType === "delivery" && styles.deliveryTitleOn,
+              ]}
+            >
+              მიტანა
+            </Text>
+            <Text
+              style={[
+                styles.deliverySub,
+                deliveryType === "delivery" && styles.deliverySubOn,
+              ]}
+              numberOfLines={2}
+            >
+              კურიერი მოიტანს თქვენს მისამართზე
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.deliveryCard,
+              deliveryType === "pickup" && styles.deliveryCardOn,
+            ]}
+            onPress={() => setDeliveryType("pickup")}
+            activeOpacity={0.88}
+          >
+            <Ionicons
+              name="walk-outline"
+              size={26}
+              color={deliveryType === "pickup" ? "#FFFFFF" : "#4B5563"}
+            />
+            <Text
+              style={[
+                styles.deliveryTitle,
+                deliveryType === "pickup" && styles.deliveryTitleOn,
+              ]}
+            >
+              თვითაღება
+            </Text>
+            <Text
+              style={[
+                styles.deliverySub,
+                deliveryType === "pickup" && styles.deliverySubOn,
+              ]}
+              numberOfLines={2}
+            >
+              თვით აკრიფეთ რესტორნიდან
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Delivery/Pickup Options */}
-        <View style={styles.section}>
-          <View style={styles.deliveryOptions}>
-            <TouchableOpacity
-              style={[
-                styles.deliveryOption,
-                deliveryType === "delivery" && styles.deliveryOptionSelected,
-              ]}
-              onPress={() => setDeliveryType("delivery")}
-            >
-              <Ionicons
-                name="car"
-                size={24}
-                color={deliveryType === "delivery" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.deliveryOptionText,
-                  deliveryType === "delivery" &&
-                    styles.deliveryOptionTextSelected,
-                ]}
-              >
-                მიწოდება
-              </Text>
-              <Text
-                style={[
-                  styles.deliveryOptionSubtext,
-                  deliveryType === "delivery" &&
-                    styles.deliveryOptionSubtextSelected,
-                ]}
-              >
-                კურიერი მოიტანს თქვენს მისამართზე
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.deliveryOption,
-                deliveryType === "pickup" && styles.deliveryOptionSelected,
-              ]}
-              onPress={() => setDeliveryType("pickup")}
-            >
-              <Ionicons
-                name="walk"
-                size={24}
-                color={deliveryType === "pickup" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.deliveryOptionText,
-                  deliveryType === "pickup" &&
-                    styles.deliveryOptionTextSelected,
-                ]}
-              >
-                გატანა
-              </Text>
-              <Text
-                style={[
-                  styles.deliveryOptionSubtext,
-                  deliveryType === "pickup" &&
-                    styles.deliveryOptionSubtextSelected,
-                ]}
-              >
-                კურიერი მოიტანს თქვენს მისამართზე
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Products Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>პროდუქტები</Text>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Text style={styles.addMoreText}>დაამატე მეტი</Text>
+        <View style={styles.sectionGap}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.blockTitle}>პროდუქტები</Text>
+            <TouchableOpacity onPress={goAddMore} hitSlop={8}>
+              <Text style={styles.addMoreLink}>დაამატე მეტი</Text>
             </TouchableOpacity>
           </View>
 
           {restaurantCartItems.map((item) => (
-            <View key={item.id} style={styles.productItem}>
-              <Image source={item.image} style={styles.productImage} />
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productModification}>ხახვის გარეშე</Text>
-                <Text style={styles.productPrice}>
-                  {item.price.toFixed(2)}₾
+            <View key={item.id} style={styles.productCard}>
+              <Image
+                source={cartImageSource(item.image)}
+                style={styles.productThumb}
+              />
+              <View style={styles.productMid}>
+                <Text style={styles.productName} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                <Text style={styles.productLinePrice}>
+                  {formatGel(item.price * item.quantity)}
                 </Text>
               </View>
-              <View style={styles.quantitySelector}>
+              <View style={styles.qtyPill}>
                 <TouchableOpacity
-                  style={styles.quantityButton}
+                  style={styles.qtyHit}
                   onPress={() =>
                     handleQuantityChange(item.id, item.quantity - 1)
                   }
+                  hitSlop={6}
                 >
-                  <Text style={styles.quantityButtonText}>-</Text>
+                  <Ionicons name="remove" size={20} color={PRIMARY_GREEN} />
                 </TouchableOpacity>
-                <Text style={styles.quantityText}>{item.quantity}</Text>
+                <Text style={styles.qtyNum}>{item.quantity}</Text>
                 <TouchableOpacity
-                  style={styles.quantityButton}
+                  style={styles.qtyHit}
                   onPress={() =>
                     handleQuantityChange(item.id, item.quantity + 1)
                   }
+                  hitSlop={6}
                 >
-                  <Text style={styles.quantityButtonText}>+</Text>
+                  <Ionicons name="add" size={20} color={PRIMARY_GREEN} />
                 </TouchableOpacity>
               </View>
             </View>
           ))}
         </View>
 
-        {/* Comment Section */}
-        <View style={styles.section}>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="დატოვეთ კომენტარი.."
-            value={comment}
-            onChangeText={setComment}
-            multiline
-          />
-        </View>
+        <TextInput
+          style={styles.commentBox}
+          placeholder="დატოვეთ კომენტარი.."
+          placeholderTextColor="#9CA3AF"
+          value={comment}
+          onChangeText={setComment}
+          multiline
+        />
 
-        {/* Voucher Section */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.voucherCard}>
-            <View style={styles.voucherLeft}>
-              <View style={styles.voucherIcon}>
-                <Ionicons name="pricetag" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.voucherText}>დაამატეთ ვაუჩერი</Text>
+        <TouchableOpacity style={styles.card} activeOpacity={0.85}>
+          <View style={styles.cardRow}>
+            <View style={styles.voucherBadge}>
+              <Text style={styles.voucherPct}>%</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#666666" />
-          </TouchableOpacity>
-        </View>
+            <Text style={styles.voucherLabel}>დაამატეთ ვაუჩერი</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </View>
+        </TouchableOpacity>
 
-        {/* Tip Section */}
-        <View style={styles.section}>
-          <View style={styles.tipCard}>
-            <View style={styles.tipHeader}>
-              <View style={styles.tipIcon}>
-                <Ionicons name="card" size={20} color="#2E7D32" />
-              </View>
-              <View style={styles.tipText}>
-                <Text style={styles.tipTitle}>
-                  დატოვებთ კურიერს დამატებით თიფს?
-                </Text>
-                <Text style={styles.tipSubtitle}>
-                  კურიერი იღებს თიფის 100%-ს.
-                </Text>
-              </View>
+        <View style={[styles.card, styles.tipCard]}>
+          <View style={styles.tipHeadRow}>
+            <View style={styles.tipIconBg}>
+              <Ionicons name="wallet-outline" size={20} color={PRIMARY_GREEN} />
             </View>
-            <View style={styles.tipOptions}>
-              {tipOptions.map((tip) => (
-                <TouchableOpacity
-                  key={tip}
+            <View style={styles.tipHeadText}>
+              <Text style={styles.tipHeadTitle}>
+                დატოვებთ კურიერს დამატებით თიფს?
+              </Text>
+              <Text style={styles.tipHeadSub}>
+                კურიერი იღებს თიფის 100%-ს.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.tipChips}>
+            {tipOptions.map((tip) => (
+              <TouchableOpacity
+                key={tip}
+                style={[
+                  styles.tipChip,
+                  selectedTip === tip && styles.tipChipOn,
+                ]}
+                onPress={() => setSelectedTip(tip)}
+              >
+                <Text
                   style={[
-                    styles.tipButton,
-                    selectedTip === tip && styles.tipButtonSelected,
+                    styles.tipChipText,
+                    selectedTip === tip && styles.tipChipTextOn,
                   ]}
-                  onPress={() => setSelectedTip(tip)}
                 >
-                  <Text
-                    style={[
-                      styles.tipButtonText,
-                      selectedTip === tip && styles.tipButtonTextSelected,
-                    ]}
-                  >
-                    {tip}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  {tip === 0 ? "0" : `${tip} ₾`}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Payment Method */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>გადახდის მეთოდი</Text>
-          <View style={styles.paymentMethods}>
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === "card" && styles.paymentMethodCardSelected,
-              ]}
-              onPress={() => setPaymentMethod("card")}
-            >
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.85}
+          onPress={openPaymentPicker}
+        >
+          <View style={styles.cardRow}>
+            <View style={styles.payBrand}>
               <Ionicons
-                name="card"
-                size={24}
-                color={paymentMethod === "card" ? "#FFFFFF" : "#666666"}
+                name={
+                  paymentMethod === "card"
+                    ? "card-outline"
+                    : paymentMethod === "cash"
+                      ? "cash-outline"
+                      : "wallet-outline"
+                }
+                size={22}
+                color={PRIMARY_GREEN}
               />
-              <Text
-                style={[
-                  styles.paymentMethodText,
-                  paymentMethod === "card" && styles.paymentMethodTextSelected,
-                ]}
-              >
-                ბარათი
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === "cash" && styles.paymentMethodCardSelected,
-              ]}
-              onPress={() => setPaymentMethod("cash")}
-            >
-              <Ionicons
-                name="cash"
-                size={24}
-                color={paymentMethod === "cash" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.paymentMethodText,
-                  paymentMethod === "cash" && styles.paymentMethodTextSelected,
-                ]}
-              >
-                ნაღდი
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === "greengo_balance" && styles.paymentMethodCardSelected,
-              ]}
-              onPress={() => setPaymentMethod("greengo_balance")}
-            >
-              <Ionicons
-                name="wallet"
-                size={24}
-                color={paymentMethod === "greengo_balance" ? "#FFFFFF" : "#666666"}
-              />
-              <Text
-                style={[
-                  styles.paymentMethodText,
-                  paymentMethod === "greengo_balance" && styles.paymentMethodTextSelected,
-                ]}
-              >
-                GreenGo ბალანსი
-              </Text>
-            </TouchableOpacity>
+            </View>
+            <View style={styles.cardTextCol}>
+              <Text style={styles.payTitle}>{paymentTitle}</Text>
+              <Text style={styles.paySub}>{paymentSubtitle}</Text>
+            </View>
+            <Text style={styles.payTotal}>{formatGel(total)}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </View>
+        </TouchableOpacity>
+
+        <View style={[styles.card, styles.summaryCard]}>
+          <Text style={styles.summaryHeading}>შეკვეთის დეტალები</Text>
+          <View style={styles.summaryLine}>
+            <Text style={styles.summaryMuted}>პროდუქტების ჯამი</Text>
+            <Text style={styles.summaryVal}>{formatGel(subtotal)}</Text>
+          </View>
+          {deliveryType === "delivery" ? (
+            <View style={styles.summaryLine}>
+              <Text style={styles.summaryMuted}>მიტანის საფასური</Text>
+              <Text style={styles.summaryVal}>{formatGel(deliveryFee)}</Text>
+            </View>
+          ) : null}
+          {selectedTip > 0 ? (
+            <View style={styles.summaryLine}>
+              <Text style={styles.summaryMuted}>თიფი</Text>
+              <Text style={styles.summaryVal}>{formatGel(selectedTip)}</Text>
+            </View>
+          ) : null}
+          <View style={[styles.summaryLine, styles.summaryLineTotal]}>
+            <Text style={styles.summaryTotalLab}>სულ</Text>
+            <Text style={styles.summaryTotalNum}>{formatGel(total)}</Text>
           </View>
         </View>
-
-        {/* Order Summary Section */}
-        <View style={styles.section}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.sectionTitle}>შეკვეთის დეტალები</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>პროდუქტების ჯამი</Text>
-              <Text style={styles.summaryValue}>{subtotal.toFixed(2)}₾</Text>
-            </View>
-            {deliveryType === "delivery" && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>მიტანის საფასური</Text>
-                <Text style={styles.summaryValue}>{deliveryFee.toFixed(2)}₾</Text>
-              </View>
-            )}
-            {selectedTip > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>თიფი</Text>
-                <Text style={styles.summaryValue}>{selectedTip.toFixed(2)}₾</Text>
-              </View>
-            )}
-            <View style={[styles.summaryRow, styles.summaryTotalRow]}>
-              <Text style={styles.summaryTotalLabel}>სულ</Text>
-              <Text style={styles.summaryTotalValue}>{total.toFixed(2)}₾</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Confirm Order Button */}
-      <View style={styles.confirmButtonContainer}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: Math.max(insets.bottom, 14),
+          },
+        ]}
+      >
         <TouchableOpacity
-          style={[styles.confirmButton, isSubmitting && styles.confirmButtonDisabled]}
+          style={[
+            styles.confirmBtn,
+            isSubmitting && styles.confirmBtnDisabled,
+          ]}
           onPress={() => {
             console.log("🔘 Confirm button pressed");
-            console.log("isSubmitting:", isSubmitting);
             handleConfirmOrder();
           }}
           disabled={isSubmitting}
-          activeOpacity={0.7}
+          activeOpacity={0.88}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.confirmButtonText}>დაადასტურე შეკვეთა</Text>
+            <Text style={styles.confirmBtnText}>დაადასტურე შეკვეთა</Text>
           )}
         </TouchableOpacity>
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>სულ</Text>
-          <Text style={styles.totalAmount}>{total.toFixed(2)}</Text>
-        </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: SCREEN_BG,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#2E7D32",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
   },
-  backButton: {
+  headerBack: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    textAlign: "center",
+    marginHorizontal: 8,
+  },
+  headerRightSpacer: {
+    width: 44,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollInner: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  cardTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  addressMain: {
+    fontSize: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
+  },
+  addressSub: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  deliveryRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 8,
+  },
+  deliveryCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  deliveryCardOn: {
+    backgroundColor: PRIMARY_GREEN,
+    borderColor: PRIMARY_GREEN,
+  },
+  deliveryTitle: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
+    marginTop: 8,
+  },
+  deliveryTitleOn: {
+    color: "#FFFFFF",
+  },
+  deliverySub: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 15,
+  },
+  deliverySubOn: {
+    color: "rgba(255,255,255,0.9)",
+  },
+  sectionGap: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  sectionHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  blockTitle: {
+    fontSize: 17,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+  },
+  addMoreLink: {
+    fontSize: 14,
+    fontFamily: fontFamily.semiBold,
+    color: LIST_ACCENT_GREEN,
+  },
+  productCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  productThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  productMid: {
+    flex: 1,
+    minWidth: 0,
+  },
+  productName: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
+    marginBottom: 4,
+  },
+  productLinePrice: {
+    fontSize: 15,
+    fontFamily: fontFamily.bold,
+    color: LIST_ACCENT_GREEN,
+  },
+  qtyPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: QTY_BG,
+    borderRadius: 999,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  qtyHit: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyNum: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    minWidth: 22,
+    textAlign: "center",
+  },
+  commentBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    fontFamily: fontFamily.regular,
+    color: "#111827",
+    minHeight: 88,
+    textAlignVertical: "top",
+    marginBottom: 12,
+  },
+  voucherBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voucherPct: {
+    fontSize: 18,
+    fontFamily: fontFamily.bold,
+    color: "#FFFFFF",
+  },
+  voucherLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
+  },
+  tipCard: {
+    paddingVertical: 16,
+  },
+  tipHeadRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  tipIconBg: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: QTY_BG,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  content: {
+  tipHeadText: {
     flex: 1,
-    paddingHorizontal: 20,
   },
-  section: {
-    marginTop: 20,
+  tipHeadTitle: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
   },
-  locationCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  locationLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  locationText: {
-    marginLeft: 12,
-  },
-  addressText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  detailsText: {
-    fontSize: 14,
-    color: "#666666",
-    marginTop: 2,
-  },
-  deliveryOptions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  deliveryOption: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-  },
-  deliveryOptionSelected: {
-    backgroundColor: "#2E7D32",
-  },
-  deliveryOptionText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-    marginTop: 8,
-  },
-  deliveryOptionTextSelected: {
-    color: "#FFFFFF",
-  },
-  deliveryOptionSubtext: {
-    fontSize: 12,
-    color: "#666666",
-    textAlign: "center",
+  tipHeadSub: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
     marginTop: 4,
+    lineHeight: 18,
   },
-  deliveryOptionSubtextSelected: {
+  tipChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tipChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  tipChipOn: {
+    backgroundColor: PRIMARY_GREEN,
+  },
+  tipChipText: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#374151",
+  },
+  tipChipTextOn: {
     color: "#FFFFFF",
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  payBrand: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: QTY_BG,
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "center",
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000000",
+  payTitle: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
   },
-  addMoreText: {
-    fontSize: 14,
-    color: "#2E7D32",
-    fontWeight: "600",
-  },
-  productItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  productImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
-  productInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  productName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  productModification: {
-    fontSize: 14,
-    color: "#666666",
+  paySub: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
     marginTop: 2,
   },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#2E7D32",
-    marginTop: 4,
-  },
-  quantitySelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E8F5E8",
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  quantityButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#2E7D32",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  quantityButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  quantityText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2E7D32",
-    marginHorizontal: 12,
-  },
-  commentInput: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: "#000000",
-    minHeight: 60,
-    textAlignVertical: "top",
-  },
-  voucherCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  voucherLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  voucherIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#FF4444",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  voucherText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-    marginLeft: 12,
-  },
-  tipCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-  },
-  tipHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  tipIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E8F5E8",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tipText: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  tipSubtitle: {
-    fontSize: 14,
-    color: "#666666",
-    marginTop: 2,
-  },
-  tipOptions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  tipButton: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  tipButtonSelected: {
-    backgroundColor: "#2E7D32",
-  },
-  tipButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  tipButtonTextSelected: {
-    color: "#FFFFFF",
-  },
-  paymentMethods: {
-    flexDirection: "row",
-    gap: 12,
-    paddingTop: 20,
-  },
-  paymentMethodCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#E0E0E0",
-  },
-  paymentMethodCardSelected: {
-    backgroundColor: "#2E7D32",
-    borderColor: "#2E7D32",
-  },
-  paymentMethodText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666666",
-    marginTop: 8,
-  },
-  paymentMethodTextSelected: {
-    color: "#FFFFFF",
-  },
-  bottomSpacing: {
-    height: 100,
-  },
-  confirmButtonContainer: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-  },
-  confirmButton: {
-    backgroundColor: "#2E7D32",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  confirmButtonDisabled: {
-    opacity: 0.6,
-  },
-  totalContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  totalAmount: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2E7D32",
+  payTotal: {
+    fontSize: 15,
+    fontFamily: fontFamily.bold,
+    color: LIST_ACCENT_GREEN,
+    marginRight: 4,
   },
   summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+    marginBottom: 8,
   },
-  summaryRow: {
+  summaryHeading: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    marginBottom: 10,
+  },
+  summaryLine: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 8,
   },
-  summaryLabel: {
+  summaryMuted: {
     fontSize: 14,
-    color: "#666666",
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
   },
-  summaryValue: {
+  summaryVal: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#000000",
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
   },
-  summaryTotalRow: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
+  summaryLineTotal: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
   },
-  summaryTotalLabel: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000000",
+  summaryTotalLab: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
   },
-  summaryTotalValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2E7D32",
+  summaryTotalNum: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: LIST_ACCENT_GREEN,
+  },
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+  },
+  confirmBtn: {
+    backgroundColor: PRIMARY_GREEN,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmBtnDisabled: {
+    opacity: 0.55,
+  },
+  confirmBtnText: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: "#FFFFFF",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    fontFamily: fontFamily.regular,
+    color: "#EF4444",
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: LIST_ACCENT_GREEN,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontFamily: fontFamily.semiBold,
   },
 });

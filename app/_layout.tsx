@@ -1,24 +1,26 @@
 import { Stack } from "expo-router";
-import React from "react";
-// import { ActivityIndicator, View } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
+import React, { useEffect } from "react";
 
 import AuthGuard from "@/components/AuthGuard";
 import { AuthProvider } from "../contexts/AuthContext";
 import { CartProvider } from "../contexts/CartContext";
-// import { useFonts } from "../hooks/useFonts";
+import { useAppFonts } from "../hooks/useFonts";
+
+void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  // const fontsLoaded = useFonts();
+  const [fontsLoaded, fontError] = useAppFonts();
 
-  // if (!fontsLoaded) {
-  //   return (
-  //     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-  //       <ActivityIndicator size="large" color="#4CAF50" />
-  //     </View>
-  //   );
-  // }
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      void SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
 
-  // console.log("Fonts loaded:", fontsLoaded);
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
 
   return (
     <AuthProvider>

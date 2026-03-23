@@ -16,6 +16,7 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiService } from "../../utils/api";
+import { ordersFromGetOrdersData } from "../../utils/ordersFromResponse";
 
 interface Order {
   _id: string;
@@ -105,23 +106,7 @@ export default function OrdersScreen() {
       console.log('📦 Orders API Response:', JSON.stringify(response, null, 2));
 
       if (response.success && response.data) {
-        let orders: Order[] = [];
-        
-        // Backend returns { data: Order[], total, page, limit }
-        // api.ts wraps it in { success: true, data: { data: Order[], total, page, limit } }
-        const backendResponse = response.data as any;
-        
-        if (Array.isArray(backendResponse)) {
-          // If response.data is directly an array
-          orders = backendResponse;
-        } else if (backendResponse && typeof backendResponse === 'object') {
-          // If response.data is { data: Order[], total, page, limit }
-          if ('data' in backendResponse && Array.isArray(backendResponse.data)) {
-            orders = backendResponse.data;
-          } else if (Array.isArray(backendResponse)) {
-            orders = backendResponse;
-          }
-        }
+        const orders = ordersFromGetOrdersData(response.data) as Order[];
 
         console.log('📦 Parsed orders:', orders.length, 'Orders:', JSON.stringify(orders.slice(0, 2), null, 2));
 

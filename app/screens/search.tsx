@@ -1,7 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
+import { BRAND_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -14,7 +17,37 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCategories } from "../../hooks/useCategories";
 import { apiService } from "../../utils/api";
+import { ordersFromGetOrdersData } from "../../utils/ordersFromResponse";
 import { FilterModal } from "../components";
+
+type RecentRestaurant = {
+  id: string;
+  name: string;
+  image?: string;
+  deliveryFee: number;
+  deliveryTime: string;
+  rating: number;
+};
+
+function categoryEmoji(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("მაღაზი") || n.includes("shop")) return "🎁";
+  if (n.includes("ქართულ")) return "🇬🇪";
+  if (n.includes("სწრაფი") || n.includes("fast")) return "🍟";
+  if (n.includes("პიც")) return "🍕";
+  if (n.includes("ბურგერ")) return "🍔";
+  if (n.includes("ქათამ") || n.includes("chicken")) return "🍗";
+  if (n.includes("დესერტ")) return "🍰";
+  if (n.includes("წვნიან") || n.includes("soup")) return "🥣";
+  if (n.includes("ცომეულ")) return "🥐";
+  if (n.includes("კვებ") || n.includes("food")) return "🍽️";
+  if (n.includes("ყვავილ")) return "🌸";
+  return "📦";
+}
+
+function formatLari(value: number): string {
+  return `${value.toFixed(2).replace(".", ",")}₾`;
+}
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -22,57 +55,77 @@ export default function SearchScreen() {
   const { categories, loading: categoriesLoading } = useCategories(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [recentlyOrdered, setRecentlyOrdered] = useState<any[]>([]);
+  const [recentlyOrdered, setRecentlyOrdered] = useState<RecentRestaurant[]>(
+    [],
+  );
   const [loadingOrders, setLoadingOrders] = useState(true);
 
-  // Fetch recently ordered restaurants from orders API
-  React.useEffect(() => {
-    if (user?.id || (user as any)?._id) {
-      fetchRecentlyOrdered();
+  const fetchRecentlyOrdered = useCallback(async () => {
+    const userId = user?.id || (user as { _id?: string })?._id;
+    if (!userId) {
+      setLoadingOrders(false);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  const fetchRecentlyOrdered = async () => {
     try {
       setLoadingOrders(true);
-      const userId = user?.id || (user as any)?._id;
       const response = await apiService.getOrders({
-        userId: userId,
-        limit: 5,
+        userId,
+        limit: 50,
         page: 1,
       });
 
       if (response.success && response.data) {
-        const orders = (response.data as any).orders || (Array.isArray(response.data) ? response.data : []);
-        
-        // Get unique restaurants from recent orders
-        const restaurantMap = new Map();
-        orders.forEach((order: any) => {
-          if (order.restaurantId && !restaurantMap.has(order.restaurantId._id || order.restaurantId)) {
-            const restaurant = typeof order.restaurantId === 'object' 
-              ? order.restaurantId 
+        const orders = ordersFromGetOrdersData(response.data);
+
+        const restaurantMap = new Map<string, RecentRestaurant>();
+        for (const order of orders) {
+          if (!order?.restaurantId) continue;
+          const rid =
+            typeof order.restaurantId === "object"
+              ? order.restaurantId._id
+              : order.restaurantId;
+          const idStr = rid != null ? String(rid) : "";
+          if (!idStr || restaurantMap.has(idStr)) continue;
+
+          const r =
+            typeof order.restaurantId === "object"
+              ? order.restaurantId
               : { _id: order.restaurantId };
-            
-            restaurantMap.set(restaurant._id, {
-              id: restaurant._id,
-              name: restaurant.name || 'რესტორანი',
-              image: restaurant.image || restaurant.heroImage,
-              deliveryFee: restaurant.deliveryFee || 4.99,
-              deliveryTime: restaurant.deliveryTime || '20-30',
-              rating: restaurant.rating || 4.5,
-            });
-          }
-        });
-        
-        setRecentlyOrdered(Array.from(restaurantMap.values()).slice(0, 2));
+
+          const deliveryTimeRaw = r.deliveryTime;
+          const deliveryTimeStr =
+            deliveryTimeRaw == null
+              ? "20-30"
+              : typeof deliveryTimeRaw === "number"
+                ? `${deliveryTimeRaw}`
+                : String(deliveryTimeRaw);
+
+          restaurantMap.set(idStr, {
+            id: idStr,
+            name: r.name || "რესტორანი",
+            image: r.image || r.heroImage,
+            deliveryFee:
+              typeof r.deliveryFee === "number" ? r.deliveryFee : 4.99,
+            deliveryTime: deliveryTimeStr,
+            rating: typeof r.rating === "number" ? r.rating : 4.5,
+          });
+        }
+        setRecentlyOrdered(Array.from(restaurantMap.values()).slice(0, 8));
       }
-    } catch (error) {
-      console.error('Error fetching recently ordered:', error);
+    } catch (e) {
+      console.error("Error fetching recently ordered:", e);
     } finally {
       setLoadingOrders(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user?.id || (user as { _id?: string })?._id) {
+      void fetchRecentlyOrdered();
+    } else {
+      setLoadingOrders(false);
+    }
+  }, [user, fetchRecentlyOrdered]);
 
   const handleRestaurantPress = (restaurantId: string) => {
     router.push({
@@ -81,156 +134,176 @@ export default function SearchScreen() {
     });
   };
 
-  const handleCategoryPress = (category: any) => {
-    // Navigate to restaurants screen with category filter
+  const handleCategoryPress = (category: { name: string }) => {
     router.push({
       pathname: "/(tabs)/restaurants",
       params: { category: category.name },
     });
   };
 
-  // Fallback icon mapping for categories
-  const getCategoryIcon = (categoryName: string, iconUrl?: string) => {
-    if (iconUrl) {
-      return { uri: iconUrl };
-    }
-    const nameLower = categoryName.toLowerCase();
-    if (nameLower.includes('კვება') || nameLower.includes('food')) {
-      return require("../../assets/images/categories/food.png");
-    }
-    if (nameLower.includes('ყვავილ') || nameLower.includes('flower')) {
-      return require("../../assets/images/categories/flowers.png");
-    }
-    return require("../../assets/images/categories/all.png");
+  const openTabSearch = () => {
+    router.push("/(tabs)/search");
   };
-
-  const handleFilterPress = () => {
-    setShowFilterModal(true);
-  };
-
-  const handleCloseFilter = () => {
-    setShowFilterModal(false);
-  };
-
-  const handleApplyFilters = (filters: any) => {
-    console.log("Applied filters:", filters);
-    setShowFilterModal(false);
-  };
-
-  const renderRecentlyOrderedItem = (restaurant: any) => (
-    <TouchableOpacity
-      key={restaurant.id || restaurant._id}
-      style={styles.recentItem}
-      onPress={() => handleRestaurantPress(restaurant.id || restaurant._id)}
-    >
-      <Image 
-        source={
-          typeof restaurant.image === "string"
-            ? { uri: restaurant.image }
-            : restaurant.image || require("../../assets/images/magnolia.png")
-        } 
-        style={styles.recentItemImage} 
-      />
-      <View style={styles.recentItemDetails}>
-        <Text style={styles.recentItemName}>{restaurant.name}</Text>
-        <Text style={styles.recentItemCategory}>რესტორანი</Text>
-        <View style={styles.recentItemInfo}>
-          <View style={styles.infoItem}>
-            <Ionicons name="cash-outline" size={14} color="#666" />
-            <Text style={styles.infoText}>
-              {restaurant.deliveryFee?.toFixed(2) || "4.99"}₾
-            </Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={14} color="#666" />
-            <Text style={styles.infoText}>{restaurant.deliveryTime || "20-30"} წუთი</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="star" size={14} color="#FFD700" />
-            <Text style={styles.infoText}>{restaurant.rating?.toFixed(1) || "4.5"}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderCategoryItem = (category: any) => (
-    <TouchableOpacity
-      key={category.id || category._id}
-      style={styles.categoryItem}
-      onPress={() => handleCategoryPress(category)}
-    >
-      <Image 
-        source={getCategoryIcon(category.name, category.icon)} 
-        style={styles.categoryIcon} 
-      />
-      <Text style={styles.categoryText}>{category.name}</Text>
-      <View style={styles.radioButton}>
-        {/* Radio button placeholder - can be made interactive later */}
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Search Header */}
-      <View style={styles.searchHeader}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#4CAF50" />
-        </TouchableOpacity>
-
-        <View style={styles.searchInputContainer}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <View style={styles.screenPadding}>
+        {/* სერჩ-ბარი — ერთ ღია-ნაცრისფერ ბლოკში */}
+        <View style={styles.searchBarWrap}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.searchBarIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="arrow-back" size={22} color="#181B1A" />
+          </TouchableOpacity>
           <TextInput
             style={styles.searchInput}
-            placeholder="რესტორნები,მაღაზიები,ხელნაკეთი ნივ..."
+            placeholder="რესტორნები, მაღაზიები, ხელნაკეთი ნივ..."
             placeholderTextColor="#9E9E9E"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onSubmitEditing={openTabSearch}
+            returnKeyType="search"
           />
           <TouchableOpacity
-            style={styles.filterButton}
-            onPress={handleFilterPress}
+            style={styles.searchBarIconBtn}
+            onPress={() => setShowFilterModal(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="options-outline" size={20} color="#4CAF50" />
+            <Image
+              source={require("../../assets/images/filter-modern-square.png")}
+              style={styles.filterIcon}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Recently Ordered Section */}
-        {recentlyOrdered.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ბოლოს შეკვეთილი</Text>
-            {loadingOrders ? (
-              <Text style={styles.loadingText}>იტვირთება...</Text>
-            ) : (
-              recentlyOrdered.map(renderRecentlyOrderedItem)
-            )}
-          </View>
-        )}
-
-        {/* Categories Section */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ბოლოს შეკვეთილი */}
         <View style={styles.section}>
-          <View style={styles.categoriesHeader}>
-            <Ionicons name="grid-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>კატეგორიები</Text>
+          <Text style={styles.sectionTitle}>ბოლოს შეკვეთილი</Text>
+          {loadingOrders ? (
+            <View style={styles.recentLoading}>
+              <ActivityIndicator size="small" color={BRAND_GREEN} />
+            </View>
+          ) : recentlyOrdered.length === 0 ? (
+            <Text style={styles.emptyHint}>
+              აქ გამოჩნდება ბოლო დროს შეკვეთილი რესტორნები
+            </Text>
+          ) : (
+            recentlyOrdered.map((restaurant, index) => (
+              <View key={restaurant.id}>
+                <TouchableOpacity
+                  style={styles.recentRow}
+                  onPress={() => handleRestaurantPress(restaurant.id)}
+                  activeOpacity={0.7}
+                >
+                  <Image
+                    source={
+                      restaurant.image && typeof restaurant.image === "string"
+                        ? { uri: restaurant.image }
+                        : require("../../assets/images/magnolia.png")
+                    }
+                    style={styles.recentThumb}
+                  />
+                  <View style={styles.recentBody}>
+                    <Text style={styles.recentName} numberOfLines={1}>
+                      {restaurant.name}
+                    </Text>
+                    <Text style={styles.recentSubtitle}>რესტორანი</Text>
+                    <View style={styles.recentMetaRow}>
+                      <View style={styles.metaChip}>
+                        <MaterialIcons
+                          name="delivery-dining"
+                          size={15}
+                          color="#6B7280"
+                        />
+                        <Text style={styles.metaText}>
+                          {formatLari(restaurant.deliveryFee)}
+                        </Text>
+                      </View>
+                      <View style={styles.metaChip}>
+                        <Ionicons
+                          name="time-outline"
+                          size={14}
+                          color="#6B7280"
+                        />
+                        <Text style={styles.metaText}>
+                          {String(restaurant.deliveryTime).includes("წუთ")
+                            ? restaurant.deliveryTime
+                            : `${restaurant.deliveryTime} წუთი`}
+                        </Text>
+                      </View>
+                      <View style={styles.metaChip}>
+                        <Ionicons name="star" size={14} color="#EAB308" />
+                        <Text style={styles.metaDark}>
+                          {restaurant.rating.toFixed(1)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                {index < recentlyOrdered.length - 1 ? (
+                  <View style={styles.rowDivider} />
+                ) : null}
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* კატეგორიები */}
+        <View style={styles.section}>
+          <View style={styles.categoriesTitleRow}>
+            <Ionicons name="grid-outline" size={16} color="#181B1A" />
+            <Text style={styles.categoriesHeaderTitle}>კატეგორიები</Text>
           </View>
           {categoriesLoading ? (
-            <Text style={styles.loadingText}>იტვირთება...</Text>
+            <View style={styles.recentLoading}>
+              <ActivityIndicator size="small" color={BRAND_GREEN} />
+            </View>
           ) : (
-            categories.map(renderCategoryItem)
+            categories.map((category, index) => (
+              <View key={category.id || category._id}>
+                <TouchableOpacity
+                  style={styles.categoryRow}
+                  onPress={() => handleCategoryPress(category)}
+                  activeOpacity={0.65}
+                >
+                  {category.icon ? (
+                    <Image
+                      source={{ uri: category.icon }}
+                      style={styles.categoryRemoteIcon}
+                    />
+                  ) : (
+                    <Text style={styles.categoryEmoji}>
+                      {categoryEmoji(category.name)}
+                    </Text>
+                  )}
+                  <Text style={styles.categoryLabel} numberOfLines={1}>
+                    {category.name}
+                  </Text>
+                  <View style={styles.radioOuter} />
+                </TouchableOpacity>
+                {index < categories.length - 1 ? (
+                  <View style={styles.categoryDivider} />
+                ) : null}
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
 
-      {/* Filter Modal */}
       <FilterModal
         visible={showFilterModal}
-        onClose={handleCloseFilter}
-        onApplyFilters={handleApplyFilters}
+        onClose={() => setShowFilterModal(false)}
+        onApplyFilters={() => setShowFilterModal(false)}
       />
     </SafeAreaView>
   );
@@ -241,141 +314,166 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  searchHeader: {
+  screenPadding: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  searchBarWrap: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
     backgroundColor: "#F5F5F5",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    minHeight: 48,
+  },
+  searchBarIconBtn: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: "#333",
+    fontSize: 15,
+    fontFamily: fontFamily.regular,
+    color: "#181B1A",
     paddingVertical: 4,
+    paddingHorizontal: 8,
   },
-  filterButton: {
-    padding: 4,
-    marginLeft: 8,
+  filterIcon: {
+    width: 20,
+    height: 20,
   },
-  content: {
+  scroll: {
     flex: 1,
-    paddingHorizontal: 20,
+  },
+  scrollContent: {
+    paddingBottom: 32,
   },
   section: {
-    marginTop: 24,
+    paddingHorizontal: 20,
+    marginTop: 8,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
-  },
-  categoriesHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  recentItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  recentItemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 16,
-  },
-  recentItemDetails: {
-    flex: 1,
-  },
-  recentItemName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  recentItemCategory: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 8,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    lineHeight: 20,
+    marginBottom: 14,
   },
-  recentItemInfo: {
+  categoriesTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    marginBottom: 12,
+    gap: 10,
   },
-  infoItem: {
+  categoriesHeaderTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+  },
+  recentLoading: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  emptyHint: {
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: "#9CA3AF",
+    lineHeight: 20,
+    paddingBottom: 8,
+  },
+  recentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  recentThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  recentBody: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  recentName: {
+    fontSize: 14,
+    lineHeight: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    marginBottom: 2,
+  },
+  recentSubtitle: {
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: "#9CA3AF",
+    marginBottom: 8,
+  },
+  recentMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 14,
+  },
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  infoText: {
+  metaText: {
     fontSize: 12,
-    color: "#666",
+    fontFamily: fontFamily.medium,
+    color: "#6B7280",
   },
-  categoryItem: {
+  metaDark: {
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    color: "#181B1A",
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginLeft: 70,
+  },
+  categoryDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+  },
+  categoryRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
+    paddingVertical: 14,
+    paddingRight: 4,
   },
-  categoryIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
+  categoryEmoji: {
+    fontSize: 22,
+    width: 40,
+    textAlign: "center",
   },
-  categoryText: {
+  categoryRemoteIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    marginHorizontal: 6,
+    backgroundColor: "#F3F4F6",
+  },
+  categoryLabel: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    fontFamily: fontFamily.medium,
+    color: "#181B1A",
+    marginLeft: 6,
   },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: "#E0E0E0",
-  },
-  loadingText: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    paddingVertical: 20,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
   },
 });

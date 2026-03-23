@@ -1,19 +1,25 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { LIST_ACCENT_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CartBottomBar from "../../components/CartBottomBar";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
+
+const HERO_IMAGE_HEIGHT = 205;
+const TAB_UNDERLINE = "#003E20";
 
 interface MenuItem {
   _id: string;
@@ -27,11 +33,16 @@ interface MenuItem {
   restaurantId: string;
 }
 
+function formatPriceGel(n: number): string {
+  return `${n.toFixed(2).replace(".", ",")}₾`;
+}
+
 export default function RestaurantScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { restaurant, loading: restaurantLoading } = useRestaurant(
-    restaurantId || ""
+    restaurantId || "",
   );
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenuItems, setLoadingMenuItems] = useState(true);
@@ -45,10 +56,9 @@ export default function RestaurantScreen() {
         restaurantId: restaurantId || "",
       });
       if (response.success && response.data) {
-        // Handle paginated response
         const items = Array.isArray(response.data)
           ? response.data
-          : (response.data as any)?.data || [];
+          : (response.data as { data?: MenuItem[] })?.data || [];
         setMenuItems(items);
       }
     } catch (error) {
@@ -67,12 +77,13 @@ export default function RestaurantScreen() {
 
   useEffect(() => {
     if (menuItems.length > 0 && !selectedCategory) {
-      // Set first category as default
       const categories = [
         ...new Set(
           menuItems
             .map((item) => item.category)
-            .filter((category) => category && category !== "ყველაზე პოპულარული")
+            .filter(
+              (category) => category && category !== "ყველაზე პოპულარული",
+            ),
         ),
       ];
       if (categories.length > 0) {
@@ -81,20 +92,28 @@ export default function RestaurantScreen() {
     }
   }, [menuItems, selectedCategory]);
 
+  const getImageSource = (image: string | undefined) => {
+    if (!image) return undefined;
+    if (typeof image === "string") {
+      return { uri: image };
+    }
+    return image;
+  };
+
   if (restaurantLoading || loadingMenuItems) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color={LIST_ACCENT_GREEN} />
           <Text style={styles.loadingText}>იტვირთება...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!restaurant) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>რესტორნი ვერ მოიძებნა</Text>
           <TouchableOpacity
@@ -104,28 +123,26 @@ export default function RestaurantScreen() {
             <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const toggleLike = () => {
-    setIsLiked(!isLiked);
-  };
+  const rid = restaurant._id || restaurant.id || restaurantId || "";
+  const coverUrl =
+    (typeof restaurant.heroImage === "string" && restaurant.heroImage) ||
+    (typeof restaurant.image === "string" && restaurant.image) ||
+    "";
 
   const popularItems = menuItems.filter((item) => item.isPopular);
-
-  // Get all unique categories (excluding "ყველაზე პოპულარული")
   const categories = [
     ...new Set(
       menuItems
         .map((item) => item.category)
-        .filter((category) => category && category !== "ყველაზე პოპულარული")
+        .filter((category) => category && category !== "ყველაზე პოპულარული"),
     ),
   ];
-
-  // Filter items by selected category
   const categoryItems = menuItems.filter(
-    (item) => item.category === selectedCategory
+    (item) => item.category === selectedCategory,
   );
 
   const navigateToProduct = (itemId: string) => {
@@ -133,192 +150,242 @@ export default function RestaurantScreen() {
       pathname: "/screens/product",
       params: {
         productId: itemId,
-        restaurantId: restaurant._id || restaurant.id || restaurantId,
+        restaurantId: rid,
       },
     });
   };
 
-  // Helper function to handle both require() objects and URL strings for heroImage
-  const getImageSource = (image: any) => {
-    if (typeof image === "string") {
-      return { uri: image };
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message: `${restaurant.name} — GreenGo`,
+      });
+    } catch {
+      /* ignore */
     }
-    return image; // For require() objects
   };
 
-  const renderMenuItem = (item: MenuItem) => (
-    <TouchableOpacity
-      key={item._id || item.id}
-      style={styles.menuItem}
-      onPress={() => navigateToProduct(item._id || item.id || "")}
-    >
-      <View style={styles.menuItemContent}>
-        <View style={styles.menuItemText}>
-          <Text style={styles.menuItemName}>{item.name}</Text>
-          {item.description && (
-            <Text style={styles.menuItemDescription}>{item.description}</Text>
-          )}
-          <Text style={styles.menuItemPrice}>{item.price.toFixed(2)} ₾</Text>
-        </View>
-        {item.image && (
-          <Image
-            source={getImageSource(item.image)}
-            style={styles.menuItemImage}
-          />
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+  const logoLetter = restaurant.name?.trim()?.charAt(0)?.toUpperCase() || "G";
 
-  const renderPopularItem = (item: MenuItem) => (
-    <TouchableOpacity
-      key={item._id || item.id}
-      style={styles.popularItem}
-      onPress={() => navigateToProduct(item._id || item.id || "")}
-    >
-      {item.image && (
-        <Image
-          source={getImageSource(item.image)}
-          style={styles.popularItemImage}
-        />
-      )}
-      <Text style={styles.popularItemPrice}>{item.price.toFixed(2)}₾</Text>
-      <Text style={styles.popularItemName}>{item.name}</Text>
-    </TouchableOpacity>
-  );
+  const overlayTop = insets.top + 8;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Image Section */}
-        <View style={styles.heroSection}>
-          {restaurant.heroImage && (
+    <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        bounces
+      >
+        <View style={[styles.heroWrap, { height: HERO_IMAGE_HEIGHT }]}>
+          {coverUrl ? (
             <Image
-              source={getImageSource(restaurant.heroImage)}
+              source={{ uri: coverUrl }}
+              style={styles.heroImage}
+              defaultSource={require("../../assets/images/magnolia.png")}
+            />
+          ) : (
+            <Image
+              source={require("../../assets/images/magnolia.png")}
               style={styles.heroImage}
             />
           )}
 
-          {/* Back Button */}
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.circleBtn, { top: overlayTop, left: 16 }]}
             onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="უკან"
           >
-            <Ionicons name="arrow-back" size={24} color="#333333" />
+            <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
 
-          {/* Like Button */}
-          <TouchableOpacity style={styles.likeButton} onPress={toggleLike}>
-            <Feather
-              name="heart"
-              size={24}
-              color={isLiked ? "#FF3B30" : "#FFFFFF"}
+          <TouchableOpacity
+            style={[styles.circleBtn, { top: overlayTop, right: 16 }]}
+            onPress={() => setIsLiked((v) => !v)}
+            activeOpacity={0.85}
+            accessibilityLabel="რჩეული"
+          >
+            <Ionicons
+              name={isLiked ? "heart" : "heart-outline"}
+              size={22}
+              color={isLiked ? "#EF4444" : "#111827"}
             />
           </TouchableOpacity>
-
-          {/* Restaurant Name Overlay */}
-          <View style={styles.restaurantNameOverlay}>
-            <Text style={styles.restaurantName}>{restaurant.name}</Text>
-          </View>
         </View>
 
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <View style={styles.infoItem}>
-              <Ionicons name="star" size={20} color="#FFD700" />
-              <Text style={styles.infoValue}>{restaurant.rating}</Text>
-              <Text style={styles.infoLabel}>რეიტინგი</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="car-outline" size={20} color="#9B9B9B" />
-              <Text style={styles.infoValue}>
-                {restaurant.deliveryFee.toFixed(2)}₾
-              </Text>
-              <Text style={styles.infoLabel}>მიტანა</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="time-outline" size={20} color="#9B9B9B" />
-              <Text style={styles.infoValue}>
-                {restaurant.deliveryTime || "N/A"}
-              </Text>
-              <Text style={styles.infoLabel}>წუთი</Text>
+        <View style={styles.sheet}>
+          <View style={styles.logoWrap}>
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoLetter}>{logoLetter}</Text>
             </View>
           </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
+          <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statCell}>
+              <Ionicons name="star" size={18} color="#EAB308" />
+              <Text style={styles.statValue}>
+                {restaurant.rating?.toFixed?.(1) ?? restaurant.rating}
+              </Text>
+              <Text style={styles.statLabel}>რეიტინგი</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCell}>
+              <Ionicons name="bicycle-outline" size={18} color="#6B7280" />
+              <Text style={styles.statValue}>
+                {formatPriceGel(restaurant.deliveryFee)}
+              </Text>
+              <Text style={styles.statLabel}>მიტანა</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCell}>
+              <Ionicons name="time-outline" size={18} color="#6B7280" />
+              <Text style={styles.statValue} numberOfLines={1}>
+                {restaurant.deliveryTime?.replace(/\s*წუთ.*$/i, "") || "—"}
+              </Text>
+              <Text style={styles.statLabel}>წუთი</Text>
+            </View>
+          </View>
+
+          <View style={styles.actionRow}>
             <TouchableOpacity
-              style={styles.detailsButton}
+              style={styles.detailsBtn}
+              activeOpacity={0.88}
               onPress={() =>
                 router.push({
                   pathname: "/screens/restaurantDetails",
-                  params: { restaurantId: restaurant.id },
+                  params: { restaurantId: rid },
                 })
               }
             >
-              <Text style={styles.detailsButtonText}>დეტალური ინფორმაცია</Text>
+              <Text style={styles.detailsBtnText}>დეტალური ინფორმაცია</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.shareButton}>
-              <Ionicons name="share-outline" size={20} color="#4CAF50" />
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={onShare}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="share-outline" size={22} color={"#00592D"} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Most Popular Section */}
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>ყველაზე პოპულარული</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.popularScroll}
-          >
-            {popularItems.map(renderPopularItem)}
-          </ScrollView>
-        </View>
-
-        {/* Category Tabs */}
-        <View style={styles.categoryTabsContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoryTabsScroll}
-          >
-            {categories.map((category) => (
-              <TouchableOpacity
-                key={category}
-                style={[
-                  styles.categoryTab,
-                  selectedCategory === category && styles.categoryTabActive,
-                ]}
-                onPress={() => setSelectedCategory(category)}
-              >
-                <Text
-                  style={[
-                    styles.categoryTabText,
-                    selectedCategory === category &&
-                      styles.categoryTabTextActive,
-                  ]}
+        {popularItems.length > 0 ? (
+          <View style={styles.block}>
+            <Text style={styles.blockTitle}>ყველაზე პოპულარული</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularScrollInner}
+            >
+              {popularItems.map((item) => (
+                <TouchableOpacity
+                  key={item._id || item.id}
+                  style={styles.popularCard}
+                  activeOpacity={0.9}
+                  onPress={() => navigateToProduct(item._id || item.id || "")}
                 >
-                  {category}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                  {item.image ? (
+                    <Image
+                      source={getImageSource(item.image)!}
+                      style={styles.popularImage}
+                    />
+                  ) : (
+                    <View style={styles.popularImage} />
+                  )}
+                  <View style={styles.popularTextBlock}>
+                    {item.description ? (
+                      <Text style={styles.popularDesc} numberOfLines={2}>
+                        {item.description}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.popularPrice}>
+                      {formatPriceGel(item.price)}
+                    </Text>
+                    <Text style={styles.popularName} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
-        {/* Category Items Section */}
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>{selectedCategory}</Text>
-          {categoryItems.map(renderMenuItem)}
+        {categories.length > 0 ? (
+          <View style={styles.tabsOuter}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabsScrollInner}
+            >
+              {categories.map((cat) => {
+                const active = selectedCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={styles.tabItem}
+                    onPress={() => setSelectedCategory(cat)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[styles.tabText, active && styles.tabTextActive]}
+                      numberOfLines={1}
+                    >
+                      {cat}
+                    </Text>
+                    <View
+                      style={[
+                        styles.tabUnderline,
+                        active && styles.tabUnderlineActive,
+                      ]}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <View style={styles.block}>
+          <Text style={styles.blockTitle}>{selectedCategory || "მენიუ"}</Text>
+          {categoryItems.map((item, index) => (
+            <TouchableOpacity
+              key={item._id || item.id}
+              style={[
+                styles.menuRow,
+                index < categoryItems.length - 1 && styles.menuRowBorder,
+              ]}
+              activeOpacity={0.75}
+              onPress={() => navigateToProduct(item._id || item.id || "")}
+            >
+              <View style={styles.menuRowText}>
+                <Text style={styles.menuName}>{item.name}</Text>
+                {item.description ? (
+                  <Text style={styles.menuDesc} numberOfLines={3}>
+                    {item.description}
+                  </Text>
+                ) : null}
+                <Text style={styles.menuPrice}>
+                  {item.price.toFixed(2).replace(".", ",")} ₾
+                </Text>
+              </View>
+              {item.image ? (
+                <Image
+                  source={getImageSource(item.image)!}
+                  style={styles.menuThumb}
+                />
+              ) : (
+                <View style={styles.menuThumb} />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
 
-      {/* Cart Bottom Bar */}
-      <CartBottomBar
-        restaurantId={restaurant._id || restaurant.id || restaurantId || ""}
-      />
-    </SafeAreaView>
+      <CartBottomBar restaurantId={rid} />
+    </View>
   );
 }
 
@@ -327,208 +394,253 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  heroSection: {
-    height: 300,
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  heroWrap: {
+    width: "100%",
     position: "relative",
+    backgroundColor: "#E5E7EB",
   },
   heroImage: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
   },
-  backButton: {
+  circleBtn: {
     position: "absolute",
-    top: 50,
-    left: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 2,
   },
-  likeButton: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
-  },
-  restaurantNameOverlay: {
-    position: "absolute",
-    bottom: 40,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  restaurantName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    textAlign: "center",
-    textShadowColor: "rgba(0, 0, 0, 0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  infoCard: {
+  sheet: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
-    marginTop: -20,
-    zIndex: 2,
+    marginTop: -28,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    paddingTop: 0,
+    zIndex: 1,
   },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 20,
-  },
-  infoItem: {
+  logoWrap: {
     alignItems: "center",
+    marginTop: -36,
+    marginBottom: 8,
   },
-  infoValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333333",
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#666666",
-  },
-  actionButtons: {
-    flexDirection: "row",
+  logoCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: LIST_ACCENT_GREEN,
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  detailsButton: {
-    backgroundColor: "#E8F5E8",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    flex: 1,
-    marginRight: 12,
-  },
-  detailsButtonText: {
-    color: "#4CAF50",
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  shareButton: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
     justifyContent: "center",
-    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  menuSection: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
+  logoLetter: {
+    fontSize: 28,
+    fontFamily: fontFamily.bold,
+    color: "#FFFFFF",
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333333",
-    marginBottom: 16,
-  },
-  popularScroll: {
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  popularItem: {
-    marginRight: 16,
-    alignItems: "center",
-  },
-  popularItemImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 15,
-    marginBottom: 8,
-  },
-  popularItemPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333333",
-    marginBottom: 4,
-  },
-  popularItemName: {
-    fontSize: 14,
-    color: "#666666",
+  restaurantTitle: {
+    fontSize: 22,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
     textAlign: "center",
+    marginBottom: 18,
   },
-  menuItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 15,
-    marginBottom: 12,
-    padding: 16,
-    borderWidth: 0.5,
-    borderColor: "#E0E0E0",
-  },
-  menuItemContent: {
+  statsRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 18,
   },
-  menuItemText: {
+  statCell: {
     flex: 1,
-    marginRight: 12,
+    alignItems: "center",
+    gap: 4,
   },
-  menuItemName: {
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 44,
+    backgroundColor: "#E5E7EB",
+  },
+  statValue: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#333333",
-    marginBottom: 4,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
   },
-  menuItemDescription: {
+  statLabel: {
     fontSize: 12,
-    color: "#666666",
-    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  detailsBtn: {
+    flex: 1,
+    backgroundColor: "#EFFBF5",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  detailsBtnText: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#166534",
+    textAlign: "center",
+  },
+  shareBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: "#EFFBF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  block: {
+    paddingHorizontal: 20,
+    marginTop: 22,
+  },
+  blockTitle: {
+    fontSize: 18,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    marginBottom: 14,
+  },
+  popularScrollInner: {
+    paddingRight: 20,
+    gap: 12,
+    flexDirection: "row",
+  },
+  popularCard: {
+    width: 140,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  popularImage: {
+    width: 140,
+    height: 100,
+    resizeMode: "cover",
+    backgroundColor: "#F3F4F6",
+  },
+  popularTextBlock: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
+    gap: 4,
+  },
+  popularDesc: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    lineHeight: 15,
+  },
+  popularPrice: {
+    fontSize: 14,
+    fontFamily: fontFamily.bold,
+    color: LIST_ACCENT_GREEN,
+  },
+  popularName: {
+    fontSize: 13,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  tabsOuter: {
+    marginTop: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
+  },
+  tabsScrollInner: {
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  tabItem: {
+    marginRight: 20,
+    paddingBottom: 10,
+    minWidth: 56,
+  },
+  tabText: {
+    fontSize: 15,
+    fontFamily: fontFamily.medium,
+    color: "#6B7280",
     marginBottom: 8,
   },
-  menuItemPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#4CAF50",
+  tabTextActive: {
+    color: "#111827",
+    fontFamily: fontFamily.semiBold,
   },
-  menuItemImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
+  tabUnderline: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "transparent",
   },
-  categoryTabsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+  tabUnderlineActive: {
+    backgroundColor: TAB_UNDERLINE,
   },
-  categoryTabsScroll: {
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 12,
   },
-  categoryTab: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginRight: 16,
-    borderRadius: 25,
-    backgroundColor: "#F5F5F5",
+  menuRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
   },
-  categoryTabActive: {
-    backgroundColor: "#4CAF50",
+  menuRowText: {
+    flex: 1,
+    minWidth: 0,
   },
-  categoryTabText: {
-    fontSize: 14,
-    color: "#666666",
-    fontWeight: "500",
+  menuName: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: "#111827",
+    lineHeight: 16,
+    marginBottom: 4,
   },
-  categoryTabTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+  menuDesc: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    lineHeight: 17,
+    marginBottom: 8,
+  },
+  menuPrice: {
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    lineHeight: 20,
+    color: LIST_ACCENT_GREEN,
+  },
+  menuThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
   },
   loadingContainer: {
     flex: 1,
@@ -538,7 +650,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#666",
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
   },
   errorContainer: {
     flex: 1,
@@ -549,18 +662,19 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
+    fontFamily: fontFamily.regular,
     color: "#EF4444",
     textAlign: "center",
   },
   retryButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: LIST_ACCENT_GREEN,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   retryButtonText: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: fontFamily.semiBold,
   },
 });

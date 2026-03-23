@@ -1,28 +1,36 @@
-import { Ionicons } from "@expo/vector-icons";
+import { fontFamily } from "@/constants/fonts";
 import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../contexts/CartContext";
+
+/** მაკეტის მუქი მწვანე — ერთიანი pill ბარათი */
+const BAR_GREEN = "#0E4D27";
 
 interface CartBottomBarProps {
   restaurantId: string;
 }
 
+function formatTotal(n: number): string {
+  return `${n.toFixed(2).replace(".", ",")} ₾`;
+}
+
 export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
-  const { cartItems, getTotalPrice, getTotalItems } = useCart();
+  const insets = useSafeAreaInsets();
+  const { cartItems } = useCart();
   const router = useRouter();
 
-  // Only show items from the current restaurant
   const restaurantCartItems = cartItems.filter(
-    (item) => item.restaurantId === restaurantId
+    (item) => item.restaurantId === restaurantId,
   );
   const totalItems = restaurantCartItems.reduce(
     (total, item) => total + item.quantity,
-    0
+    0,
   );
   const totalPrice = restaurantCartItems.reduce(
     (total, item) => total + item.price * item.quantity,
-    0
+    0,
   );
 
   if (totalItems === 0) {
@@ -30,7 +38,6 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
   }
 
   const handleCheckout = () => {
-    // Navigate to checkout/payment page
     router.push({
       pathname: "/screens/checkout",
       params: { restaurantId },
@@ -38,88 +45,79 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.cartButton} onPress={handleCheckout}>
-        <View style={styles.cartContent}>
-          {/* Quantity Badge */}
-          <View style={styles.quantityBadge}>
-            <Text style={styles.quantityText}>{totalItems}</Text>
-          </View>
-
-          {/* Checkout Text */}
-          <Text style={styles.checkoutText}>გადახდის გვერდზე გადასვლა</Text>
-
-          {/* Total Price and Arrow */}
-          <View style={styles.priceContainer}>
-            <Text style={styles.totalPrice}>{totalPrice.toFixed(2)}₾</Text>
-            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-          </View>
+    <View
+      style={[
+        styles.wrap,
+        { paddingBottom: Math.max(insets.bottom, 14) },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.pill}
+        onPress={handleCheckout}
+        activeOpacity={0.92}
+        accessibilityRole="button"
+        accessibilityLabel="გადახდის გვერდზე გადასვლა"
+      >
+        <View style={styles.badge}>
+          <Text style={styles.badgeNum}>{totalItems}</Text>
         </View>
+        <Text style={styles.label} numberOfLines={2}>
+          გადახდის გვერდზე გადასვლა
+        </Text>
+        <Text style={styles.price}>{formatTotal(totalPrice)}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrap: {
     position: "absolute",
-    bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#2E7D32", // Dark green color
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: 20, // Extra padding for safe area
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: "transparent",
   },
-  cartButton: {
-    width: "100%",
-  },
-  cartContent: {
+  pill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: BAR_GREEN,
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  quantityBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  badge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#2E7D32",
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
   },
-  quantityText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#2E7D32",
+  badgeNum: {
+    fontSize: 13,
+    fontFamily: fontFamily.bold,
+    color: BAR_GREEN,
   },
-  checkoutText: {
+  label: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
     color: "#FFFFFF",
-    textAlign: "center",
-    marginHorizontal: 16,
+    lineHeight: 20,
   },
-  priceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  totalPrice: {
+  price: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: fontFamily.bold,
     color: "#FFFFFF",
-    marginRight: 4,
   },
 });

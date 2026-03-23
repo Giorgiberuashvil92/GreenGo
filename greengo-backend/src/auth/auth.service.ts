@@ -88,11 +88,18 @@ export class AuthService {
     return this.normalizeGeorgianDestination(phoneNumber);
   }
 
+  private senderApiKey(): string | undefined {
+    return (
+      this.configService.get<string>('SENDER_API_KEY')?.trim() ||
+      process.env.SENDER_API_KEY?.trim()
+    );
+  }
+
   private async sendViaSender(
     destination9: string,
     content: string,
   ): Promise<void> {
-    const apiKey = this.configService.get<string>('SENDER_API_KEY')?.trim();
+    const apiKey = this.senderApiKey();
     if (!apiKey) {
       throw new InternalServerErrorException(
         'SENDER_API_KEY is not configured',
@@ -126,9 +133,7 @@ export class AuthService {
   ): Promise<{ code?: string; sentViaSms: boolean }> {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     const destination = this.normalizeGeorgianDestination(phoneNumber);
-    const apiKey = this.configService
-      .get<string>('4ea607e63857f01a0124361eb2cd2632')
-      ?.trim();
+    const apiKey = this.senderApiKey();
 
     const storageKey = this.verificationStorageKey(phoneNumber);
     this.verificationCodes.set(storageKey, {

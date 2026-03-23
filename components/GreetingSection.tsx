@@ -1,19 +1,19 @@
+import { fontFamily } from "@/constants/fonts";
 import Feather from "@expo/vector-icons/build/Feather";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { FilterModal } from "../app/components";
 import { useAuth } from "../contexts/AuthContext";
-import { IconSymbol } from "./ui/icon-symbol";
 
 export default function GreetingSection() {
   const router = useRouter();
   const { user } = useAuth();
   const [showFilterModal, setShowFilterModal] = useState(false);
-  
+
   const getUserName = () => {
     if (user?.name) {
-      const nameParts = user.name.split(' ');
+      const nameParts = user.name.split(" ");
       return nameParts[0];
     }
     if (user?.firstName) {
@@ -43,7 +43,7 @@ export default function GreetingSection() {
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
         <Text style={[styles.greetingText, { color: "#2F80ED" }]}>
-          გამარჯობა! <Text style={{ color: "#00592D" }}>{getUserName()}</Text>
+          გამარჯობა! <Text style={{ color: "#00592D" }}></Text>
         </Text>
         <Text style={styles.waveText}>👋</Text>
       </View>
@@ -56,7 +56,7 @@ export default function GreetingSection() {
           style={styles.searchInputContainer}
           onPress={handleSearchPress}
         >
-          <Feather name="search" size={22} color="#4A8F70" />
+          <Feather name="search" size={16} color="#4A8F70" />
           <Text style={styles.searchPlaceholder}>
             რესტორნები, მაღაზიები, ხელნა...
           </Text>
@@ -64,10 +64,11 @@ export default function GreetingSection() {
             style={styles.filterButton}
             onPress={handleFilterPress}
           >
-            <IconSymbol
-              name="line.3.horizontal.decrease"
-              size={22}
-              color="#4A8F70"
+            <Image
+              source={require("../assets/images/filter-modern-square.png")}
+              style={styles.filterIcon}
+              resizeMode="contain"
+              accessibilityLabel="ფილტრი"
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -97,8 +98,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   greetingText: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
   },
   waveText: {
     fontSize: 20,
@@ -106,6 +107,7 @@ const styles = StyleSheet.create({
   },
   subtitleText: {
     fontSize: 14,
+    fontFamily: fontFamily.regular,
     color: "#666666",
     marginBottom: 12,
     lineHeight: 20,
@@ -129,11 +131,18 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: {
     flex: 1,
-    marginLeft: 2,
+    marginLeft: 4,
+    marginRight: 4,
     fontSize: 14,
     color: "#9E9E9E",
+    fontFamily: fontFamily.regular,
   },
   filterButton: {
     padding: 4,
+  },
+  filterIcon: {
+    width: 20,
+    height: 20,
+    tintColor: "#4A8F70",
   },
 });

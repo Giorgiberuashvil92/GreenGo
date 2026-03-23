@@ -1,4 +1,7 @@
 // import { Ionicons } from "@expo/vector-icons";
+import { BRAND_GREEN, INPUT_ACTIVE_BORDER } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
@@ -19,6 +22,7 @@ import { checkApiHealth, getApiInfo } from "../../utils/apiConfig";
 
 const LoginScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneFocused, setPhoneFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const { sendVerificationCode } = useAuth();
 
@@ -30,7 +34,7 @@ const LoginScreen = () => {
 
     try {
       setLoading(true);
-      
+
       // Check if backend is available
       const isBackendAvailable = await checkApiHealth();
       if (!isBackendAvailable) {
@@ -38,20 +42,18 @@ const LoginScreen = () => {
         Alert.alert(
           "Backend არ არის გაშვებული",
           `გთხოვთ გაუშვით backend server:\n\n` +
-          `cd greengo-backend\n` +
-          `npm run start:dev\n\n` +
-          `Platform: ${apiInfo.platform}\n` +
-          `API URL: ${apiInfo.url}`,
-          [
-            { text: "OK", style: "default" },
-          ]
+            `cd greengo-backend\n` +
+            `npm run start:dev\n\n` +
+            `Platform: ${apiInfo.platform}\n` +
+            `API URL: ${apiInfo.url}`,
+          [{ text: "OK", style: "default" }],
         );
         setLoading(false);
         return;
       }
-      
+
       await sendVerificationCode(phoneNumber, "+995");
-      
+
       // Navigate to verification screen with phone number
       router.push({
         pathname: "/screens/verification",
@@ -59,16 +61,19 @@ const LoginScreen = () => {
       });
     } catch (error: any) {
       const errorMessage = error.message || "ვერ მოვახერხეთ კოდის გაგზავნა";
-      
+
       // Check if it's a timeout/connection error
-      if (errorMessage.includes('timed out') || errorMessage.includes('not responding')) {
+      if (
+        errorMessage.includes("timed out") ||
+        errorMessage.includes("not responding")
+      ) {
         const apiInfo = getApiInfo();
         Alert.alert(
           "Backend Connection Error",
           `${errorMessage}\n\n` +
-          `Platform: ${Platform.OS}\n` +
-          `API URL: ${apiInfo.url}\n\n` +
-          `გთხოვთ დარწმუნდეთ რომ backend გაშვებულია: cd greengo-backend && npm run start:dev`
+            `Platform: ${Platform.OS}\n` +
+            `API URL: ${apiInfo.url}\n\n` +
+            `გთხოვთ დარწმუნდეთ რომ backend გაშვებულია: cd greengo-backend && npm run start:dev`,
         );
       } else {
         Alert.alert("შეცდომა", errorMessage);
@@ -103,17 +108,12 @@ const LoginScreen = () => {
 
         {/* Logo Section */}
         <View style={styles.logoSection}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logoIcon}>
-              <Text style={styles.logoIconText}>📍</Text>
-              <Text style={styles.lightningIcon}>⚡</Text>
-            </View>
-            <View style={styles.logoText}>
-              <Text style={styles.greenText}>Green</Text>
-              <Text style={styles.yellowText}>Go</Text>
-            </View>
-            <Text style={styles.deliveryText}>Delivery</Text>
-          </View>
+          <Image
+            source={require("../../assets/images/green-logo.png")}
+            style={styles.brandLogo}
+            contentFit="contain"
+            accessibilityLabel="GreenGo"
+          />
         </View>
 
         {/* Phone Input Section */}
@@ -129,27 +129,37 @@ const LoginScreen = () => {
             </View>
 
             {/* Phone Number Input */}
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="ტელეფონის ნომერი"
-              placeholderTextColor="#999"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              maxLength={9}
-              editable={true}
-            />
+            <View
+              style={[
+                styles.phoneInputOuter,
+                phoneFocused && styles.phoneInputOuterFocused,
+              ]}
+            >
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="ტელეფონის ნომერი"
+                placeholderTextColor="#999"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                onFocus={() => setPhoneFocused(true)}
+                onBlur={() => setPhoneFocused(false)}
+                keyboardType="phone-pad"
+                maxLength={9}
+                editable={true}
+              />
+            </View>
           </View>
-
-          <Text style={styles.helperText}>
-            ვერიფიკაციის კოდი გამოიგზავნება SMS-ით
-          </Text>
         </View>
+
+        <View style={styles.bottomSpacer} />
 
         {/* Continue Button */}
         <View style={styles.buttonSection}>
           <TouchableOpacity
-            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+            style={[
+              styles.continueButton,
+              loading && styles.continueButtonDisabled,
+            ]}
             onPress={handleSendCode}
             disabled={loading}
           >
@@ -178,77 +188,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingTop: 44,
+    paddingBottom: 8,
   },
   sendButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   sendButtonText: {
+    fontFamily: fontFamily.medium,
     fontSize: 16,
-    color: "#4CAF50",
-    fontWeight: "500",
+    color: BRAND_GREEN,
   },
   logoSection: {
-    flex: 1,
-    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+    marginTop: 70,
   },
-  logoContainer: {
-    alignItems: "center",
-  },
-  logoIcon: {
-    width: 80,
-    height: 80,
-    backgroundColor: "#F0F8F0",
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    position: "relative",
-  },
-  logoIconText: {
-    fontSize: 32,
-  },
-  lightningIcon: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    fontSize: 16,
+  brandLogo: {
+    width: 250,
+    height: 205,
   },
   chevronIcon: {
+    fontFamily: fontFamily.regular,
     fontSize: 16,
     color: "#666",
   },
-  logoText: {
-    flexDirection: "row",
-    marginBottom: 8,
-  },
-  greenText: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#4CAF50",
-  },
-  yellowText: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#FFC107",
-  },
-  deliveryText: {
-    fontSize: 16,
-    color: "#FFC107",
-    fontWeight: "500",
-  },
   inputSection: {
     paddingHorizontal: 20,
-    marginBottom: 40,
+    marginTop: 80,
+    marginBottom: 16,
+  },
+  bottomSpacer: {
+    flexGrow: 1,
+    minHeight: 16,
   },
   phoneInputContainer: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   countryCodeContainer: {
     flexDirection: "row",
@@ -268,42 +246,57 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   flagText: {
+    fontFamily: fontFamily.regular,
     fontSize: 12,
   },
   countryCode: {
+    fontFamily: fontFamily.medium,
     fontSize: 16,
     color: "#333",
-    fontWeight: "500",
+  },
+  phoneInputOuter: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: "#F5F5F5",
+    overflow: "hidden",
+  },
+  phoneInputOuterFocused: {
+    borderColor: INPUT_ACTIVE_BORDER,
   },
   phoneInput: {
+    fontFamily: fontFamily.regular,
     flex: 1,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    backgroundColor: "transparent",
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
     color: "#333",
   },
   helperText: {
+    fontFamily: fontFamily.bold,
     fontSize: 14,
+    lineHeight: 14,
     color: "#666",
     textAlign: "center",
+    marginTop: 4,
   },
   buttonSection: {
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
   continueButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: BRAND_GREEN,
     borderRadius: 25,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   continueButtonText: {
-    fontSize: 18,
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
     color: "#FFFFFF",
-    fontWeight: "600",
   },
   continueButtonDisabled: {
     opacity: 0.6,
