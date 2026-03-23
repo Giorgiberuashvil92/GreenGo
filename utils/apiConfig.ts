@@ -7,44 +7,32 @@ export const API_CONFIG = {
   // Development - NestJS Backend (Local)
   DEV: {
     // Android Emulator-ისთვის:
-    ANDROID: 'http://10.0.2.2:3001/api',
+    ANDROID: ' http://greengo-production.up.railway.app/api',
     // iOS Simulator-ისთვის (კომპიუტერის IP):
-    IOS_SIMULATOR: 'http://192.168.0.100:3001/api',
+    IOS_SIMULATOR: 'http://greengo-production.up.railway.app/api',
     // Physical Device-ისთვის (თქვენი კომპიუტერის IP):
     // შეცვალეთ ეს IP თქვენი კომპიუტერის IP-ით (იპოვეთ: ipconfig getifaddr en0 ან en1)
-    IOS_DEVICE: 'http://172.20.10.2:3001/api',
+    IOS_DEVICE: 'http://greengo-production.up.railway.app/api',
   },
 
   // Production - Railway Backend
+  // შენიშვნა: თუ Railway-ზე აპლიკაცია არ არის დეპლოირებული, ეს URL 404-ს აბრუნებს
+  // Railway Dashboard-ში შეამოწმეთ სწორი URL (Settings -> Domains)
+  // ან გამოიყენეთ custom domain: https://api.greengo.ge/api
   PROD: {
-    BASE_URL: 'https://greengo.up.railway.app/api',
+    // Railway default URL (თუ არ არის custom domain)
+    BASE_URL: 'http://greengo-production.up.railway.app/api',
+    // Custom domain (თუ დაყენებულია Railway-ზე)
+    // BASE_URL: 'https://api.greengo.ge/api',
   },
 };
 
 // Get current API URL based on environment and platform
 export const getApiUrl = () => {
-  let url: string;
-  if (__DEV__) {
-    // Auto-detect platform
-    if (Platform.OS === 'android') {
-      // Android Emulator - 10.0.2.2 points to host machine's localhost
-      url = API_CONFIG.DEV.ANDROID;
-    } else if (Platform.OS === 'ios') {
-      // iOS Simulator - can use localhost directly
-      // iOS Simulator იზიარებს host machine-ის localhost-ს
-      url = API_CONFIG.DEV.IOS_SIMULATOR;
-      // Note: For physical iOS devices, you'll need to use IOS_DEVICE with your computer's IP
-      // Uncomment and update IOS_DEVICE IP if testing on physical device:
-      // url = API_CONFIG.DEV.IOS_DEVICE;
-    } else {
-      // Fallback to Android (most common)
-      url = API_CONFIG.DEV.ANDROID;
-    }
-  } else {
-    url = API_CONFIG.PROD.BASE_URL;
-  }
-  // Remove any leading/trailing spaces
-  return url.trim();
+  // ყოველთვის production URL-ს ვიყენებთ
+  const url = API_CONFIG.PROD.BASE_URL.trim();
+  // დავრწმუნდეთ რომ URL სწორად მთავრდება (არ არის ზედმეტი /)
+  return url.endsWith('/') ? url.slice(0, -1) : url;
 };
 
 // Helper function to check if API is available

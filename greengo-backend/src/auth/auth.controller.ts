@@ -12,12 +12,11 @@ export class AuthController {
 
   @Post('send-verification-code')
   async sendVerificationCode(@Body() body: { phoneNumber: string; countryCode?: string }) {
-    const { code } = await this.authService.sendVerificationCode(body.phoneNumber);
+    const { code, sentViaSms } = await this.authService.sendVerificationCode(body.phoneNumber);
     return {
       success: true,
-      message: 'Verification code sent',
-      // In development, return code for testing (remove in production!)
-      code, // Remove this in production
+      message: sentViaSms ? 'Verification code sent' : 'Verification code (dev — no SMS key)',
+      ...(code !== undefined ? { code } : {}),
     };
   }
 
