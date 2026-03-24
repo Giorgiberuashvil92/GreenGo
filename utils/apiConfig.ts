@@ -8,8 +8,8 @@ const USE_LOCAL_BACKEND = true;
 
 const LOCAL_API = {
   /** Android emulator → ჰოსტის localhost */
-  ANDROID_EMULATOR: "http://10.0.2.2:3001/api",
-  IOS_SIMULATOR: "http://localhost:3001/api",
+  ANDROID_EMULATOR: "http://greengo-production.up.railway.app/api",
+  IOS_SIMULATOR: "http://greengo-production.up.railway.app/api",
 } as const;
 
 export const API_CONFIG = {
