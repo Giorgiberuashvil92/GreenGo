@@ -15,11 +15,11 @@ const LOCAL_API = {
 export const API_CONFIG = {
   // Development - NestJS Backend (Local)
   DEV: {
-    ANDROID: LOCAL_API.ANDROID_EMULATOR,
-    IOS_SIMULATOR: LOCAL_API.IOS_SIMULATOR,
+    ANDROID: "http://greengo-production.up.railway.app/api",
+    IOS_SIMULATOR: "http://greengo-production.up.railway.app/api",
     // Physical Device-ისთვის (თქვენი კომპიუტერის IP):
     // შეცვალეთ ეს IP თქვენი კომპიუტერის IP-ით (იპოვეთ: ipconfig getifaddr en0 ან en1)
-    IOS_DEVICE: LOCAL_API.IOS_SIMULATOR,
+    IOS_DEVICE: "http://greengo-production.up.railway.app/api",
   },
 
   // Production - Railway Backend
