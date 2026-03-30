@@ -3,8 +3,6 @@
 
 import { getApiUrl } from './apiConfig';
 
-const API_BASE_URL = getApiUrl();
-
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -49,7 +47,7 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const token = await this.getToken();
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
+      const fullUrl = `${getApiUrl()}${endpoint}`;
       
       console.log(`📤 API Request: ${options.method || 'GET'} ${fullUrl}`);
       if (options.body) {
@@ -314,7 +312,7 @@ class ApiService {
   async sendVerificationCode(phoneNumber: string, countryCode: string) {
     try {
       const response = await this.fetchWithTimeout(
-        `${API_BASE_URL}/auth/send-verification-code`,
+        `${getApiUrl()}/auth/send-verification-code`,
         {
           method: 'POST',
           headers: {
@@ -342,7 +340,7 @@ class ApiService {
   async verifyCode(phoneNumber: string, verificationCode: string) {
     try {
       const response = await this.fetchWithTimeout(
-        `${API_BASE_URL}/auth/verify-code`,
+        `${getApiUrl()}/auth/verify-code`,
         {
           method: 'POST',
           headers: {

@@ -1,4 +1,12 @@
-import { BadRequestException, Body, Controller, Get, Post, Request, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -11,18 +19,29 @@ export class AuthController {
   ) {}
 
   @Post('send-verification-code')
-  async sendVerificationCode(@Body() body: { phoneNumber: string; countryCode?: string }) {
-    const { code, sentViaSms } = await this.authService.sendVerificationCode(body.phoneNumber);
+  async sendVerificationCode(
+    @Body() body: { phoneNumber: string; countryCode?: string },
+  ) {
+    const { code, sentViaSms } = await this.authService.sendVerificationCode(
+      body.phoneNumber,
+    );
     return {
       success: true,
-      message: sentViaSms ? 'Verification code sent' : 'Verification code (dev — no SMS key)',
+      message: sentViaSms
+        ? 'Verification code sent'
+        : 'Verification code (dev — no SMS key)',
       ...(code !== undefined ? { code } : {}),
     };
   }
 
   @Post('verify-code')
-  async verifyCode(@Body() body: { phoneNumber: string; verificationCode: string }) {
-    console.log('📱 VerifyCode request:', { phoneNumber: body.phoneNumber, code: body.verificationCode });
+  async verifyCode(
+    @Body() body: { phoneNumber: string; verificationCode: string },
+  ) {
+    console.log('📱 VerifyCode request:', {
+      phoneNumber: body.phoneNumber,
+      code: body.verificationCode,
+    });
     const result = await this.authService.verifyCode(
       body.phoneNumber,
       body.verificationCode,
@@ -113,4 +132,3 @@ export class AuthController {
     };
   }
 }
-

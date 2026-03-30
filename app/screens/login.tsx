@@ -54,7 +54,6 @@ const LoginScreen = () => {
 
       await sendVerificationCode(phoneNumber, "+995");
 
-      // Navigate to verification screen with phone number
       router.push({
         pathname: "/screens/verification",
         params: { phoneNumber },

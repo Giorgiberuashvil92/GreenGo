@@ -16,9 +16,19 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (phoneNumber: string, verificationCode: string) => Promise<{ isNewUser: boolean }>;
-  sendVerificationCode: (phoneNumber: string, countryCode?: string) => Promise<string>;
-  completeRegistration: (firstName: string, lastName: string, email: string) => Promise<void>;
+  login: (
+    phoneNumber: string,
+    verificationCode: string,
+  ) => Promise<{ isNewUser: boolean }>;
+  sendVerificationCode: (
+    phoneNumber: string,
+    countryCode?: string,
+  ) => Promise<void>;
+  completeRegistration: (
+    firstName: string,
+    lastName: string,
+    email: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -53,37 +63,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const loadStoredAuth = async () => {
     try {
       const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
-      
+
       if (storedToken) {
         setToken(storedToken);
         setIsAuthenticated(true);
-        
+
         // Fetch fresh user data from /auth/me endpoint
         try {
           const meResponse = await apiService.getMe();
-          console.log('🔍 loadStoredAuth - /auth/me response:', JSON.stringify(meResponse, null, 2));
+          console.log(
+            "🔍 loadStoredAuth - /auth/me response:",
+            JSON.stringify(meResponse, null, 2),
+          );
           if (meResponse.success && meResponse.data) {
             // Backend returns {success: true, data: {...}}
             // API service wraps it: {success: true, data: {success: true, data: {...}}}
             // So we need to check if meResponse.data has nested structure
             const userData = (meResponse.data as any).data || meResponse.data;
             const fullUserData = userData as User;
-            console.log('✅ Setting user data:', JSON.stringify(fullUserData, null, 2));
+            console.log(
+              "✅ Setting user data:",
+              JSON.stringify(fullUserData, null, 2),
+            );
             await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUserData));
             setUser(fullUserData);
           } else {
             // If API call fails (401, 403, etc.), token is invalid - clear auth
             const errorCode = meResponse.error?.code;
             const errorStatus = meResponse.error?.status;
-            const errorDetails = meResponse.error?.details || '';
-            
-            if (errorCode === 'AUTH_ERROR' || 
-                (errorCode === 'API_ERROR' && 
-                 (errorStatus === 401 || errorStatus === 403 ||
-                  errorDetails.includes('401') || 
-                  errorDetails.includes('403') ||
-                  errorDetails.includes('Unauthorized')))) {
-              console.warn('⚠️ Token validation failed (401/403), clearing auth');
+            const errorDetails = meResponse.error?.details || "";
+
+            if (
+              errorCode === "AUTH_ERROR" ||
+              (errorCode === "API_ERROR" &&
+                (errorStatus === 401 ||
+                  errorStatus === 403 ||
+                  errorDetails.includes("401") ||
+                  errorDetails.includes("403") ||
+                  errorDetails.includes("Unauthorized")))
+            ) {
+              console.warn(
+                "⚠️ Token validation failed (401/403), clearing auth",
+              );
               await Promise.all([
                 AsyncStorage.removeItem(TOKEN_KEY),
                 AsyncStorage.removeItem(USER_KEY),
@@ -94,7 +115,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               setIsAuthenticated(false);
             } else {
               // For other errors, fallback to stored user data
-              console.warn('⚠️ API call failed but not auth error, using stored user data');
+              console.warn(
+                "⚠️ API call failed but not auth error, using stored user data",
+              );
               const storedUser = await AsyncStorage.getItem(USER_KEY);
               if (storedUser) {
                 setUser(JSON.parse(storedUser));
@@ -106,15 +129,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           // If error is 401/403, token is invalid - clear auth
           const errorCode = meError?.error?.code;
           const errorStatus = meError?.error?.status;
-          const errorDetails = meError?.error?.details || '';
-          
-          if (errorCode === 'AUTH_ERROR' || 
-              (errorCode === 'API_ERROR' && 
-               (errorStatus === 401 || errorStatus === 403 ||
-                errorDetails.includes('401') || 
-                errorDetails.includes('403') ||
-                errorDetails.includes('Unauthorized')))) {
-            console.warn('⚠️ Token expired or invalid, clearing auth');
+          const errorDetails = meError?.error?.details || "";
+
+          if (
+            errorCode === "AUTH_ERROR" ||
+            (errorCode === "API_ERROR" &&
+              (errorStatus === 401 ||
+                errorStatus === 403 ||
+                errorDetails.includes("401") ||
+                errorDetails.includes("403") ||
+                errorDetails.includes("Unauthorized")))
+          ) {
+            console.warn("⚠️ Token expired or invalid, clearing auth");
             await Promise.all([
               AsyncStorage.removeItem(TOKEN_KEY),
               AsyncStorage.removeItem(USER_KEY),
@@ -141,19 +167,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const sendVerificationCode = async (
     phoneNumber: string,
-    countryCode: string = "+995"
-  ): Promise<string> => {
+    countryCode: string = "+995",
+  ): Promise<void> => {
     try {
       const fullPhoneNumber = `${countryCode}${phoneNumber}`;
       const response = await apiService.sendVerificationCode(
         fullPhoneNumber,
-        countryCode
+        countryCode,
       );
 
       if (response.success) {
         await AsyncStorage.setItem(PHONE_KEY, fullPhoneNumber);
-        
-        return response.code || "1234"; // Temporary for testing
+        return;
       }
       throw new Error(response.error?.details || "Failed to send code");
     } catch (error: any) {
@@ -162,15 +187,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const login = async (phoneNumber: string, verificationCode: string): Promise<{ isNewUser: boolean }> => {
+  const login = async (
+    phoneNumber: string,
+    verificationCode: string,
+  ): Promise<{ isNewUser: boolean }> => {
     try {
       // Get stored phone number or use provided
       const storedPhone = await AsyncStorage.getItem(PHONE_KEY);
       const fullPhoneNumber = storedPhone || `+995${phoneNumber}`;
-      
+
       const response = await apiService.verifyCode(
         fullPhoneNumber,
-        verificationCode
+        verificationCode,
       );
 
       if (response.success && response.access_token) {
@@ -220,9 +248,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const completeRegistration = async (firstName: string, lastName: string, email: string) => {
+  const completeRegistration = async (
+    firstName: string,
+    lastName: string,
+    email: string,
+  ) => {
     try {
-      const response = await apiService.completeRegistration(firstName, lastName, email);
+      const response = await apiService.completeRegistration(
+        firstName,
+        lastName,
+        email,
+      );
 
       if (response.success && response.data) {
         // Update user data
@@ -256,14 +292,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshUser = async () => {
     try {
       const response = await apiService.getProfile();
-      console.log('🔄 refreshUser - API response:', JSON.stringify(response, null, 2));
+      console.log(
+        "🔄 refreshUser - API response:",
+        JSON.stringify(response, null, 2),
+      );
       if (response.success && response.data) {
         // Backend returns {success: true, data: {...}}
         // API service wraps it: {success: true, data: {success: true, data: {...}}}
         // So we need to check if response.data has nested structure
         const userData = (response.data as any).data || response.data;
         const finalUserData = userData as User;
-        console.log('✅ refreshUser - Setting user:', JSON.stringify(finalUserData, null, 2));
+        console.log(
+          "✅ refreshUser - Setting user:",
+          JSON.stringify(finalUserData, null, 2),
+        );
         setUser(finalUserData);
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(finalUserData));
       }
