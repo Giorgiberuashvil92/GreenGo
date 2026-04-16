@@ -16,7 +16,7 @@ const USE_DEV_URL = true;
 
 /** Railway public URL — Dashboard → Settings → Networking → Public URL (HTTPS) */
 const RAILWAY_API_HTTPS = "https://greengo-production.up.railway.app/api";
-
+const LOCAL_API_HTTPS = "http://localhost:3001/api";
 /** თუ admin/dashboard იყენებს სხვა ჰოსტს, აქ ჩასვით იგივე + /api */
 // const RAILWAY_API_HTTPS = "https://greengo.up.railway.app/api";
 

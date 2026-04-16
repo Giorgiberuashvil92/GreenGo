@@ -12,6 +12,13 @@ import { UsersService } from '../users/users.service';
 const VERIFICATION_TTL_MS = 10 * 60 * 1000;
 const SENDER_SEND_URL = 'https://sender.ge/api/send.php';
 
+/**
+ * Dev / სატესტო ნომერი (9 ციფრი, პრეფიქსის გარეშე): აპში +995555100000
+ * SMS არ იგზავნება; ვერიფიკაციაში ყოველთვის კოდი: 1234
+ * სხვა ნომერი: .env → DEV_BYPASS_PHONE_9=5XXXXXXXX (9 ციფრი)
+ */
+const DEFAULT_DEV_BYPASS_NINE = '555100000';
+
 @Injectable()
 export class AuthService {
   private readonly verificationCodes = new Map<
@@ -88,6 +95,22 @@ export class AuthService {
     return this.normalizeGeorgianDestination(phoneNumber);
   }
 
+  /** ერთი ფიქსირებული ნომერი OTP/SMS-ის გარეშე — კოდი მხოლოდ 1234 */
+  private getDevBypassNine(): string {
+    const raw =
+      this.configService.get<string>('DEV_BYPASS_PHONE_9')?.trim() ||
+      process.env.DEV_BYPASS_PHONE_9?.trim() ||
+      '';
+    let nine = raw.replace(/\D/g, '');
+    if (nine.startsWith('995') && nine.length >= 12) {
+      nine = nine.slice(3);
+    }
+    if (nine.length === 9 && /^5\d{8}$/.test(nine)) {
+      return nine;
+    }
+    return DEFAULT_DEV_BYPASS_NINE;
+  }
+
   private senderApiKey(): string | undefined {
     return (
       this.configService.get<string>('SENDER_API_KEY')?.trim() ||
@@ -131,11 +154,24 @@ export class AuthService {
   async sendVerificationCode(
     phoneNumber: string,
   ): Promise<{ code?: string; sentViaSms: boolean }> {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
     const destination = this.normalizeGeorgianDestination(phoneNumber);
+    const storageKey = this.verificationStorageKey(phoneNumber);
+    const bypassNine = this.getDevBypassNine();
+
+    if (destination === bypassNine) {
+      this.verificationCodes.set(storageKey, {
+        code: '1234',
+        expiresAt: Date.now() + VERIFICATION_TTL_MS,
+      });
+      console.log(
+        `DEV bypass ნომერი +995${bypassNine} — SMS არაა; ვერიფიკაციის კოდი: 1234`,
+      );
+      return { sentViaSms: false };
+    }
+
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
     const apiKey = this.senderApiKey();
 
-    const storageKey = this.verificationStorageKey(phoneNumber);
     this.verificationCodes.set(storageKey, {
       code,
       expiresAt: Date.now() + VERIFICATION_TTL_MS,
