@@ -1,6 +1,9 @@
 import { BRAND_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
+import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
+import { router } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
 
 function LocationPinIcon() {
@@ -38,15 +41,46 @@ function LocationPinIcon() {
 }
 
 export default function Header() {
+  const { address, loading } = useDeliveryAddress();
+
+  const streetLine = loading
+    ? "მდებარეობის განსაზღვრა..."
+    : address?.street?.trim() || "შეიყვანეთ მისამართი";
+
+  const cityLine = loading
+    ? ""
+    : address?.street?.trim()
+      ? address.district?.trim() || address.city?.trim() || ""
+      : "";
+
   return (
     <View style={styles.container}>
-      <View style={styles.locationContainer}>
+      <TouchableOpacity
+        style={styles.locationContainer}
+        onPress={() => router.push("/screens/locations")}
+        activeOpacity={0.7}
+      >
         <LocationPinIcon />
         <View style={styles.locationTextContainer}>
-          <Text style={styles.streetText}>4 შანიძის ქუჩა</Text>
-          <Text style={styles.cityText}>წყალტუბო</Text>
+          <View style={styles.streetRow}>
+            <Text style={styles.streetText} numberOfLines={1}>
+              {streetLine}
+            </Text>
+            {loading ? (
+              <ActivityIndicator
+                size="small"
+                color={BRAND_GREEN}
+                style={styles.loader}
+              />
+            ) : null}
+          </View>
+          {cityLine ? (
+            <Text style={styles.cityText} numberOfLines={1}>
+              {cityLine}
+            </Text>
+          ) : null}
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -67,14 +101,25 @@ const styles = StyleSheet.create({
   },
   locationTextContainer: {
     marginLeft: 8,
+    flex: 1,
+  },
+  streetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   streetText: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: fontFamily.semiBold,
     color: "#181B1A",
+  },
+  loader: {
+    marginRight: 4,
   },
   cityText: {
     fontSize: 14,
+    fontFamily: fontFamily.regular,
     color: "#9E9E9E",
     marginTop: 2,
   },

@@ -178,6 +178,18 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="screens/locations"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="screens/addAddress"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="screens/orderTracking"
               options={{
                 headerShown: false,

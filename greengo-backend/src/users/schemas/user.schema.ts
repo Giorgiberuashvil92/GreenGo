@@ -26,6 +26,9 @@ export class User {
   @Prop({ default: false })
   isVerified: boolean;
 
+  @Prop({ default: 0 })
+  balance: number;
+
   @Prop({
     type: {
       language: { type: String, enum: ['ka', 'en'], default: 'ka' },

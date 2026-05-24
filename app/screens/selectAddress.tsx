@@ -1,10 +1,15 @@
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
+import BackCircleIcon from "@/components/icons/BackCircleIcon";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  loadDeliveryAddress,
+  saveDeliveryAddress,
+  type DeliveryAddress,
+} from "@/utils/address";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,20 +23,10 @@ import {
 import MapView, { Marker, Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const PRIMARY_GREEN = "#1B5E37";
-const INPUT_BORDER = "#E5E7EB";
+const MARKER_COLOR = "#1D4045";
+const INPUT_BORDER = "#F5F5F5";
 
-interface Address {
-  street: string;
-  city: string;
-  district?: string;
-  postalCode?: string;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
-  instructions?: string;
-}
+type Address = DeliveryAddress;
 
 function buildCourierInstructions(
   floor: string,
@@ -71,6 +66,39 @@ export default function SelectAddressScreen() {
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const hydrateFromSaved = async () => {
+        const saved = await loadDeliveryAddress();
+        if (cancelled || !saved?.street?.trim()) return;
+
+        setAddress(saved);
+        setMapRegion({
+          latitude: saved.coordinates.lat,
+          longitude: saved.coordinates.lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+
+        const note = saved.instructions || "";
+        const floorMatch = note.match(/სართული:\s*(.+)/);
+        const aptMatch = note.match(/ბინა:\s*(.+)/);
+        const entranceMatch = note.match(/შესასვლელი\/კიბე:\s*(.+)/);
+        if (floorMatch) setFloor(floorMatch[1].trim());
+        if (aptMatch) setApartment(aptMatch[1].trim());
+        if (entranceMatch) setEntrance(entranceMatch[1].trim());
+      };
+
+      void hydrateFromSaved();
+
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const applyCoords = async (latitude: number, longitude: number) => {
     setLoading(true);
@@ -116,7 +144,9 @@ export default function SelectAddressScreen() {
     }
   };
 
-  const handleMapPress = (event: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
+  const handleMapPress = (event: {
+    nativeEvent: { coordinate: { latitude: number; longitude: number } };
+  }) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
     void applyCoords(latitude, longitude);
   };
@@ -146,10 +176,12 @@ export default function SelectAddressScreen() {
 
   const handleSave = async () => {
     const streetOk =
-      address.street.trim() &&
-      address.street.trim() !== "მისამართი";
+      address.street.trim() && address.street.trim() !== "მისამართი";
     if (!streetOk) {
-      Alert.alert("შეცდომა", "გთხოვთ მიუთითოთ მისამართი ან აირჩიოთ წერტილი რუკაზე");
+      Alert.alert(
+        "შეცდომა",
+        "გთხოვთ მიუთითოთ მისამართი ან აირჩიოთ წერტილი რუკაზე",
+      );
       return;
     }
 
@@ -166,10 +198,7 @@ export default function SelectAddressScreen() {
     };
 
     try {
-      await AsyncStorage.setItem(
-        "@greengo:selected_address",
-        JSON.stringify(finalAddress),
-      );
+      await saveDeliveryAddress(finalAddress);
       router.back();
     } catch (error) {
       console.error("Error saving address:", error);
@@ -185,7 +214,7 @@ export default function SelectAddressScreen() {
           onPress={() => router.back()}
           hitSlop={12}
         >
-          <Ionicons name="chevron-back" size={24} color={LIST_ACCENT_GREEN} />
+          <BackCircleIcon size={32} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           მისამართის შეცვლა
@@ -209,9 +238,7 @@ export default function SelectAddressScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.mapSectionTitle}>
-          ზუსტად სად მოვიდეს კურიერი?
-        </Text>
+        <Text style={styles.mapSectionTitle}>ზუსტად სად მოვიდეს კურიერი?</Text>
 
         <View style={styles.mapWrap}>
           <MapView
@@ -225,8 +252,10 @@ export default function SelectAddressScreen() {
                 latitude: address.coordinates.lat,
                 longitude: address.coordinates.lng,
               }}
-              pinColor="red"
-            />
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <Ionicons name="location" size={40} color={MARKER_COLOR} />
+            </Marker>
           </MapView>
           <TouchableOpacity
             style={styles.locateFab}
@@ -280,10 +309,7 @@ export default function SelectAddressScreen() {
       </ScrollView>
 
       <View
-        style={[
-          styles.footer,
-          { paddingBottom: Math.max(insets.bottom, 14) },
-        ]}
+        style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}
       >
         <TouchableOpacity
           style={styles.saveBtn}
@@ -313,23 +339,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   backCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F3F4F6",
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 17,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
     textAlign: "center",
     marginHorizontal: 8,
   },
   headerSpacer: {
-    width: 44,
+    width: 32,
   },
   scroll: {
     flex: 1,
@@ -339,8 +369,10 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   mapSectionTitle: {
-    fontSize: 17,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
     color: "#111827",
     marginBottom: 12,
   },
@@ -361,7 +393,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: LIST_ACCENT_GREEN,
+    backgroundColor: MARKER_COLOR,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -371,7 +403,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   formSectionTitle: {
-    fontSize: 17,
+    fontSize: 14,
+    lineHeight: 20,
+    textTransform: "uppercase",
     fontFamily: fontFamily.bold,
     color: "#111827",
     marginBottom: 14,
@@ -382,7 +416,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
+    fontSize: 12,
+    lineHeight: 14,
     fontFamily: fontFamily.regular,
     color: "#111827",
     marginBottom: 12,
@@ -404,14 +439,16 @@ const styles = StyleSheet.create({
     borderTopColor: INPUT_BORDER,
   },
   saveBtn: {
-    backgroundColor: PRIMARY_GREEN,
+    backgroundColor: "#1D4045",
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
   },
   saveBtnText: {
-    fontSize: 16,
-    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
     color: "#FFFFFF",
   },
   loadingOverlay: {

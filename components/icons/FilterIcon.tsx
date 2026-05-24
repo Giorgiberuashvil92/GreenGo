@@ -1,0 +1,47 @@
+import React from "react";
+import Svg, { Path } from "react-native-svg";
+
+const FILTER_COLOR = "#4A8F70";
+
+export default function FilterIcon({
+  size = 20,
+  color = FILTER_COLOR,
+}: {
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M5.8335 9.99992H14.1668"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M8.3335 6.66667H11.6668"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M8.3335 13.3334H11.6668"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M7.5 17.5C4.73858 17.5 2.5 15.2614 2.5 12.5L2.5 7.5C2.5 4.73858 4.73858 2.5 7.5 2.5H12.5C15.2614 2.5 17.5 4.73858 17.5 7.5V12.5C17.5 15.2614 15.2614 17.5 12.5 17.5H7.5Z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

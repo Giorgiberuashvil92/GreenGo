@@ -31,7 +31,7 @@ export default function TabLayout() {
           height: 56 + insets.bottom,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 10,
           fontFamily: fontFamily.regular,
         },
       }}
@@ -40,9 +40,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "სახლი",
-          tabBarIcon: ({ color }) => (
-            <TabHomeIcon color={color} size={22} />
-          ),
+          tabBarIcon: ({ color }) => <TabHomeIcon color={color} size={22} />,
         }}
       />
       <Tabs.Screen
@@ -73,9 +71,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: "ანგარიში",
-          tabBarIcon: ({ color }) => (
-            <TabProfileIcon color={color} size={22} />
-          ),
+          tabBarIcon: ({ color }) => <TabProfileIcon color={color} size={22} />,
         }}
       />
     </Tabs>

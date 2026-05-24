@@ -1,15 +1,14 @@
-import { BRAND_GREEN, INPUT_ACTIVE_BORDER } from "@/constants/colors";
+import FormScreenLayout, {
+  PrimaryFooterButton,
+} from "@/components/layout/FormScreenLayout";
+import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
-import { Ionicons } from "@expo/vector-icons";
+import { INPUT_BG, TEXT_MUTED } from "@/constants/formStyles";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -134,167 +133,109 @@ const VerificationScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-    >
+    <>
       <StatusBar style="dark" />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#000000" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.content}>
-          <Text style={styles.title}>დაადასტურე ტელეფონის ნომერი</Text>
-          <Text style={styles.subtitle}>
-            ვერიფიკაციის კოდი გაგზავნილია ნომერზე +995{displayPhone}
-          </Text>
-
-          <View style={styles.codeContainer}>
-            {code.map((digit, index) => {
-              const active = focusedIndex === index || digit.length > 0;
-              return (
-                <TextInput
-                  key={index}
-                  ref={(ref) => {
-                    inputRefs.current[index] = ref;
-                  }}
-                  style={[styles.codeInput, active && styles.codeInputActive]}
-                  value={digit}
-                  onChangeText={(text) => handleCodeChange(text, index)}
-                  onKeyPress={({ nativeEvent }) =>
-                    handleKeyPress(nativeEvent.key, index)
-                  }
-                  onFocus={() => setFocusedIndex(index)}
-                  onBlur={() =>
-                    setFocusedIndex((cur) => (cur === index ? null : cur))
-                  }
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  textAlign="center"
-                  selectTextOnFocus
-                  editable={!loading}
-                />
-              );
-            })}
-          </View>
-
-          <TouchableOpacity
-            style={styles.resendButton}
-            onPress={handleResend}
-            disabled={timeLeft > 0}
-          >
-            <Text
-              style={[
-                styles.resendText,
-                timeLeft > 0 && styles.resendTextDisabled,
-              ]}
-            >
-              {timeLeft > 0
-                ? `კოდის ხელახლა გაგზავნა (${timeLeft}წმ)`
-                : "კოდის ხელახლა გაგზავნა"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.spacer} />
-
-        <View style={styles.buttonSection}>
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              loading && styles.continueButtonDisabled,
-            ]}
+      <FormScreenLayout
+        title="შეიყვანეთ კოდი"
+        contentStyle={styles.content}
+        footer={
+          <PrimaryFooterButton
+            label="დადასტურება"
             onPress={handleVerify}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.continueButtonText}>დადასტურება</Text>
-            )}
-          </TouchableOpacity>
+            loading={loading}
+          />
+        }
+      >
+        <Text style={styles.title}>დაადასტურე</Text>
+        <Text style={styles.subtitle1}>ტელეფონის ნომერი</Text>
+        <Text style={styles.subtitle}>
+          ვერიფიკაციის კოდი გამოგზავნილია ნომერზე +995{displayPhone}
+        </Text>
+
+        <View style={styles.codeRow}>
+          {code.map((digit, index) => {
+            const active = focusedIndex === index || digit.length > 0;
+            return (
+              <TextInput
+                key={index}
+                ref={(ref) => {
+                  inputRefs.current[index] = ref;
+                }}
+                style={[styles.codeInput, active && styles.codeInputActive]}
+                value={digit}
+                onChangeText={(text) => handleCodeChange(text, index)}
+                onKeyPress={({ nativeEvent }) =>
+                  handleKeyPress(nativeEvent.key, index)
+                }
+                onFocus={() => setFocusedIndex(index)}
+                onBlur={() =>
+                  setFocusedIndex((cur) => (cur === index ? null : cur))
+                }
+                keyboardType="number-pad"
+                maxLength={1}
+                textAlign="center"
+                selectTextOnFocus
+                editable={!loading}
+              />
+            );
+          })}
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        <TouchableOpacity
+          style={styles.resendBtn}
+          onPress={handleResend}
+          disabled={timeLeft > 0}
+        >
+          <Text
+            style={[
+              styles.resendText,
+              timeLeft > 0 && styles.resendTextDisabled,
+            ]}
+          >
+            {timeLeft > 0
+              ? `კოდის ხელახლა გაგზავნა (${timeLeft}წმ)`
+              : "კოდის ხელახლა გაგზავნა"}
+          </Text>
+        </TouchableOpacity>
+      </FormScreenLayout>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    paddingHorizontal: 12,
-    paddingTop: 50,
-    paddingBottom: 8,
-  },
-  backButton: {
-    padding: 8,
-  },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    alignSelf: "stretch",
-  },
-  title: {
-    fontFamily: fontFamily.semiBold,
-    fontSize: 20,
-    lineHeight: 24,
-    color: "#000000",
-    marginBottom: 12,
+    paddingTop: 16,
   },
   subtitle: {
     fontFamily: fontFamily.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: "#666666",
-    marginBottom: 28,
-  },
-  codeContainer: {
-    flexDirection: "row",
-    width: "100%",
+    color: TEXT_MUTED,
     marginBottom: 24,
-    alignSelf: "stretch",
+  },
+  codeRow: {
+    flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 20,
   },
   codeInput: {
-    width: 74,
+    width: 72,
     height: 56,
-    borderWidth: 2,
-    borderColor: "#E8E8E8",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     borderRadius: 12,
     fontFamily: fontFamily.bold,
     fontSize: 22,
-    color: "#333333",
-    backgroundColor: "#F5F5F5",
-    padding: 0,
+    color: "#111827",
+    backgroundColor: INPUT_BG,
   },
   codeInputActive: {
-    borderColor: INPUT_ACTIVE_BORDER,
+    backgroundColor: "#FFFFFF",
+    borderColor: BRAND_GREEN,
   },
-  resendButton: {
-    paddingVertical: 8,
+  resendBtn: {
     alignSelf: "flex-start",
+    paddingVertical: 8,
   },
   resendText: {
     fontFamily: fontFamily.medium,
@@ -302,30 +243,21 @@ const styles = StyleSheet.create({
     color: BRAND_GREEN,
   },
   resendTextDisabled: {
-    color: "#999999",
+    color: "#9CA3AF",
   },
-  spacer: {
-    flexGrow: 1,
-    minHeight: 24,
+  title: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    color: "#111827",
+    lineHeight: 24,
+    textTransform: "uppercase",
   },
-  buttonSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  continueButton: {
-    backgroundColor: BRAND_GREEN,
-    borderRadius: 25,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  continueButtonText: {
-    fontFamily: fontFamily.semiBold,
-    fontSize: 14,
-    color: "#FFFFFF",
-  },
-  continueButtonDisabled: {
-    opacity: 0.6,
+  subtitle1: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    color: "#111827",
+    marginBottom: 24,
+    lineHeight: 20,
   },
 });
 

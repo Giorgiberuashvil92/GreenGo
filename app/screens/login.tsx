@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { checkApiHealth, getApiInfo } from "../../utils/apiConfig";
 
@@ -83,94 +84,96 @@ const LoginScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-    >
-      <StatusBar style="dark" />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.sendButton}
-            onPress={() => router.replace("/(tabs)")}
-          >
-            <Text style={styles.sendButtonText}>გამოტოვება</Text>
-          </TouchableOpacity>
-        </View>
+        <StatusBar style="dark" />
 
-        {/* Logo Section */}
-        <View style={styles.logoSection}>
-          <Image
-            source={require("../../assets/images/green-logo.png")}
-            style={styles.brandLogo}
-            contentFit="contain"
-            accessibilityLabel="GreenGo"
-          />
-        </View>
-
-        {/* Phone Input Section */}
-        <View style={styles.inputSection}>
-          <View style={styles.phoneInputContainer}>
-            {/* Country Code Selector */}
-            <View style={styles.countryCodeContainer}>
-              <View style={styles.flagIcon}>
-                <Text style={styles.flagText}>🇬🇪</Text>
-              </View>
-              <Text style={styles.countryCode}>+995</Text>
-              <Text style={styles.chevronIcon}>▼</Text>
-            </View>
-
-            {/* Phone Number Input */}
-            <View
-              style={[
-                styles.phoneInputOuter,
-                phoneFocused && styles.phoneInputOuterFocused,
-              ]}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={() => router.replace("/(tabs)")}
             >
-              <TextInput
-                style={styles.phoneInput}
-                placeholder="ტელეფონის ნომერი"
-                placeholderTextColor="#999"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                onFocus={() => setPhoneFocused(true)}
-                onBlur={() => setPhoneFocused(false)}
-                keyboardType="phone-pad"
-                maxLength={9}
-                editable={true}
-              />
+              <Text style={styles.sendButtonText}>გამოტოვება</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <Image
+              source={require("../../assets/images/green-logo.png")}
+              style={styles.brandLogo}
+              contentFit="contain"
+              accessibilityLabel="GreenGo"
+            />
+          </View>
+
+          {/* Phone Input Section */}
+          <View style={styles.inputSection}>
+            <View style={styles.phoneInputContainer}>
+              {/* Country Code Selector */}
+              <View style={styles.countryCodeContainer}>
+                <View style={styles.flagIcon}>
+                  <Text style={styles.flagText}>🇬🇪</Text>
+                </View>
+                <Text style={styles.countryCode}>+995</Text>
+                <Text style={styles.chevronIcon}>▼</Text>
+              </View>
+
+              {/* Phone Number Input */}
+              <View
+                style={[
+                  styles.phoneInputOuter,
+                  phoneFocused && styles.phoneInputOuterFocused,
+                ]}
+              >
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder=""
+                  placeholderTextColor="#999"
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  onFocus={() => setPhoneFocused(true)}
+                  onBlur={() => setPhoneFocused(false)}
+                  keyboardType="phone-pad"
+                  maxLength={9}
+                  editable={true}
+                />
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.bottomSpacer} />
+          <View style={styles.bottomSpacer} />
 
-        {/* Continue Button */}
-        <View style={styles.buttonSection}>
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              loading && styles.continueButtonDisabled,
-            ]}
-            onPress={handleSendCode}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.continueButtonText}>გაგრძელება</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {/* Continue Button */}
+          <View style={styles.buttonSection}>
+            <TouchableOpacity
+              style={[
+                styles.continueButton,
+                loading && styles.continueButtonDisabled,
+              ]}
+              onPress={handleSendCode}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.continueButtonText}>გაგრძელება</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -179,15 +182,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+  keyboardView: {
+    flex: 1,
+  },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 20,
   },
   header: {
     flexDirection: "row",
     justifyContent: "flex-end",
     paddingHorizontal: 20,
-    paddingTop: 44,
+    paddingTop: 8,
     paddingBottom: 8,
   },
   sendButton: {
@@ -203,6 +208,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     marginTop: 70,
+    width: "100%",
+    height: 205,
   },
   brandLogo: {
     width: 250,
@@ -283,7 +290,7 @@ const styles = StyleSheet.create({
   },
   buttonSection: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 16,
   },
   continueButton: {
     backgroundColor: BRAND_GREEN,

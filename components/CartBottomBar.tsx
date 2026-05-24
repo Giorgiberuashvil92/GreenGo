@@ -45,12 +45,7 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
   };
 
   return (
-    <View
-      style={[
-        styles.wrap,
-        { paddingBottom: Math.max(insets.bottom, 14) },
-      ]}
-    >
+    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 14) }]}>
       <TouchableOpacity
         style={styles.pill}
         onPress={handleCheckout}
@@ -84,7 +79,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: BAR_GREEN,
+    backgroundColor: "#1D4045",
     borderRadius: 999,
     paddingVertical: 14,
     paddingHorizontal: 18,
@@ -110,14 +105,15 @@ const styles = StyleSheet.create({
   },
   label: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: "#FFFFFF",
+    lineHeight: 16,
+  },
+  price: {
+    fontSize: 14,
     fontFamily: fontFamily.semiBold,
     color: "#FFFFFF",
     lineHeight: 20,
-  },
-  price: {
-    fontSize: 16,
-    fontFamily: fontFamily.bold,
-    color: "#FFFFFF",
   },
 });

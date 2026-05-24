@@ -1,3 +1,4 @@
+import SortIcon from "@/components/icons/SortIcon";
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,13 +29,26 @@ export interface FilterState {
   categories: string[];
 }
 
-/** მაკეტის აქტიური მუქი მწვანე */
-const FILTER_ACTIVE_GREEN = "#14532D";
-const PILL_INACTIVE_BG = "#F3F4F6";
+const PILL_INACTIVE_BG = "#F5F5F5";
 const TEXT_PRIMARY = "#181B1A";
-const TEXT_MUTED = "#6B7280";
 const DIVIDER = "#E8E8E8";
 const STAR_GOLD = "#EAB308";
+
+/** სექციის სათაური — 14px / 600 */
+const sectionTitleTypography = {
+  color: TEXT_PRIMARY,
+  fontFamily: fontFamily.semiBold,
+  fontSize: 14,
+  lineHeight: 22,
+} as const;
+
+/** შიდა აითემი — 12px / 600 */
+const innerItemTypography = {
+  color: TEXT_PRIMARY,
+  fontFamily: fontFamily.semiBold,
+  fontSize: 12,
+  lineHeight: 22,
+} as const;
 
 function categoryEmoji(name: string): string {
   const n = name.toLowerCase();
@@ -46,14 +60,84 @@ function categoryEmoji(name: string): string {
   if (n.includes("ბურგერ")) return "🍔";
   if (n.includes("ქათამ") || n.includes("chicken")) return "🍗";
   if (n.includes("დესერტ")) return "🍰";
-  if (n.includes("წვნიან") || n.includes("soup")) return "🍜";
+  if (n.includes("წვნიან") || n.includes("soup")) return "🥣";
   if (n.includes("ცომეულ") || n.includes("pastry")) return "🥐";
   if (n.includes("საუზმე") || n.includes("breakfast")) return "🥪";
   if (n.includes("ვეგეტარ")) return "🥑";
   if (n.includes("ჯანსაღ") || n.includes("healthy")) return "🥗";
-  if (n.includes("ყვავილ")) return "💐";
+  if (n.includes("ყვავილ")) return "🌻";
+  if (n.includes("ზოო") || n.includes("zoo") || n.includes("pet")) return "🐾";
   if (n.includes("კვებ") || n.includes("food")) return "🍽️";
   return "📦";
+}
+
+function RadioIndicator({ selected }: { selected: boolean }) {
+  return (
+    <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>
+      {selected ? <View style={styles.radioInner} /> : null}
+    </View>
+  );
+}
+
+function RatingPillButton({
+  value,
+  selected,
+  wide,
+  onPress,
+}: {
+  value: string;
+  selected: boolean;
+  wide?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        wide ? styles.ratingPillWide : styles.ratingPill,
+        selected ? styles.pillActive : styles.pillInactive,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={styles.ratingPillInner}>
+        <Text
+          style={[
+            styles.ratingStarText,
+            { color: selected ? "#FFFFFF" : STAR_GOLD },
+          ]}
+        >
+          ★
+        </Text>
+        <Text
+          style={[
+            styles.ratingPillLabel,
+            selected && styles.pillTextWhite,
+          ]}
+        >
+          {value} ან მეტი
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function SectionHeader({
+  icon,
+  title,
+}: {
+  icon: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      {icon}
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function SectionDivider() {
+  return <View style={styles.sectionDivider} />;
 }
 
 const FilterModal: React.FC<FilterModalProps> = ({
@@ -73,7 +157,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
   const { categories, loading: categoriesLoading } = useCategories(true);
 
   const sortOptions = [
-    { id: "closest", label: "უახლოესი" },
+    { id: "closest", label: "უახლოესი  ობიექტი" },
     { id: "rating", label: "საუკეთესო რეიტინგი" },
     { id: "fastest", label: "ყველაზე სწრაფი მიტანა" },
     { id: "cheapest", label: "ყველაზე იაფი მიტანა" },
@@ -86,9 +170,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
   ];
 
   const ratingOptions = [
-    { id: "4.3", afterStar: "4.3 ან მეტი" },
-    { id: "4.6", afterStar: "4.6 ან მეტი" },
-    { id: "4.8", afterStar: "4.8 ან მეტი" },
+    { id: "4.3", value: "4.3" },
+    { id: "4.6", value: "4.6" },
+    { id: "4.8", value: "4.8" },
   ];
 
   const deliveryTimeOptions = [
@@ -115,6 +199,27 @@ const FilterModal: React.FC<FilterModalProps> = ({
   const handleApply = () => {
     onApplyFilters(filters);
     onClose();
+  };
+
+  const togglePrice = (id: string) => {
+    setFilters((f) => ({
+      ...f,
+      priceRange: f.priceRange === id ? "" : id,
+    }));
+  };
+
+  const toggleRating = (id: string) => {
+    setFilters((f) => ({
+      ...f,
+      rating: f.rating === id ? "" : id,
+    }));
+  };
+
+  const toggleDelivery = (id: string) => {
+    setFilters((f) => ({
+      ...f,
+      deliveryTime: f.deliveryTime === id ? "" : id,
+    }));
   };
 
   return (
@@ -151,73 +256,58 @@ const FilterModal: React.FC<FilterModalProps> = ({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* სორტირება */}
-          <View style={styles.sectionBlock}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="swap-vertical" size={20} color={BRAND_GREEN} />
-              <Text style={styles.sectionTitle}>სორტირება</Text>
-            </View>
-            <View style={styles.sectionDivider} />
-            {sortOptions.map((option, i) => (
-              <View key={option.id}>
-                <TouchableOpacity
-                  style={styles.sortRow}
-                  onPress={() =>
-                    setFilters((f) => ({ ...f, sortBy: option.id }))
-                  }
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.sortLabel}>{option.label}</Text>
-                  <View
-                    style={[
-                      styles.radioOuter,
-                      filters.sortBy === option.id && styles.radioOuterActive,
-                    ]}
-                  >
-                    {filters.sortBy === option.id ? (
-                      <View style={styles.radioInner} />
-                    ) : null}
-                  </View>
-                </TouchableOpacity>
-                {i < sortOptions.length - 1 ? (
-                  <View style={styles.rowHairline} />
-                ) : null}
-              </View>
+          <View style={styles.section}>
+            <SectionHeader
+              icon={
+                <View style={styles.sectionIconGap}>
+                  <SortIcon size={16} color={TEXT_PRIMARY} />
+                </View>
+              }
+              title="დალაგება"
+            />
+            {sortOptions.map((option, index) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.sortRow,
+                  index === sortOptions.length - 1 && styles.sortRowLast,
+                ]}
+                onPress={() => setFilters((f) => ({ ...f, sortBy: option.id }))}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sortLabel}>{option.label}</Text>
+                <RadioIndicator selected={filters.sortBy === option.id} />
+              </TouchableOpacity>
             ))}
           </View>
 
-          {/* ფასი */}
-          <View style={styles.sectionBlock}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionIconLari} accessibilityLabel="ლარი">
-                ₾
-              </Text>
-              <Text style={styles.sectionTitle}>ფასი</Text>
-            </View>
-            <View style={styles.sectionDivider} />
-            <View style={styles.pillRow}>
-              {priceOptions.map((option) => {
+          <SectionDivider />
+
+          <View style={styles.section}>
+            <SectionHeader
+              icon={
+                <Text style={styles.lariIcon} accessibilityLabel="ლარი">
+                  ₾
+                </Text>
+              }
+              title="ფასი"
+            />
+            <View style={styles.priceRow}>
+              {priceOptions.map((option, index) => {
                 const on = filters.priceRange === option.id;
                 return (
                   <TouchableOpacity
                     key={option.id}
                     style={[
-                      styles.compactPill,
-                      on ? styles.pillActiveGreen : styles.pricePillIdle,
+                      styles.pricePill,
+                      on && styles.pillActive,
+                      index === priceOptions.length - 1 && styles.pricePillLast,
                     ]}
-                    onPress={() =>
-                      setFilters((f) => ({
-                        ...f,
-                        priceRange: on ? "" : option.id,
-                      }))
-                    }
+                    onPress={() => togglePrice(option.id)}
                     activeOpacity={0.85}
                   >
                     <Text
-                      style={[
-                        styles.pricePillText,
-                        on ? styles.pillTextWhite : styles.pricePillTextIdle,
-                      ]}
+                      style={[styles.pricePillText, on && styles.pillTextWhite]}
                     >
                       {option.label}
                     </Text>
@@ -227,73 +317,64 @@ const FilterModal: React.FC<FilterModalProps> = ({
             </View>
           </View>
 
-          {/* რეიტინგი */}
-          <View style={styles.sectionBlock}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="star" size={20} color={BRAND_GREEN} />
-              <Text style={styles.sectionTitle}>რეიტინგი</Text>
+          <SectionDivider />
+
+          <View style={styles.section}>
+            <SectionHeader
+              icon={
+                <Ionicons
+                  name="star"
+                  size={20}
+                  color={BRAND_GREEN}
+                  style={styles.sectionIconGapSm}
+                />
+              }
+              title="რეიტინგი"
+            />
+            <View style={styles.ratingRow}>
+              {ratingOptions.slice(0, 2).map((option) => (
+                <RatingPillButton
+                  key={option.id}
+                  value={option.value}
+                  selected={filters.rating === option.id}
+                  onPress={() => toggleRating(option.id)}
+                />
+              ))}
             </View>
-            <View style={styles.sectionDivider} />
-            <View style={styles.pillRow}>
-              {ratingOptions.map((option) => {
-                const on = filters.rating === option.id;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.ratingPill,
-                      on ? styles.pillActiveGreen : styles.pillGrey,
-                    ]}
-                    onPress={() =>
-                      setFilters((f) => ({
-                        ...f,
-                        rating: on ? "" : option.id,
-                      }))
-                    }
-                    activeOpacity={0.85}
-                  >
-                    {on ? (
-                      <Text style={styles.ratingPillTextActive}>
-                        ★ {option.afterStar}
-                      </Text>
-                    ) : (
-                      <Text style={styles.ratingPillTextRow}>
-                        <Text style={styles.ratingStarGold}>★</Text>
-                        <Text style={styles.ratingRestDark}>
-                          {" "}
-                          {option.afterStar}
-                        </Text>
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <RatingPillButton
+              value={ratingOptions[2].value}
+              selected={filters.rating === ratingOptions[2].id}
+              wide
+              onPress={() => toggleRating(ratingOptions[2].id)}
+            />
           </View>
 
-          {/* მოტანის დრო */}
-          <View style={styles.sectionBlock}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="time-outline" size={20} color={BRAND_GREEN} />
-              <Text style={styles.sectionTitle}>მოტანის დრო</Text>
-            </View>
-            <View style={styles.sectionDivider} />
-            <View style={styles.pillRow}>
-              {deliveryTimeOptions.map((option) => {
+          <SectionDivider />
+
+          <View style={styles.section}>
+            <SectionHeader
+              icon={
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color={BRAND_GREEN}
+                  style={styles.sectionIconGapSm}
+                />
+              }
+              title="მოტანის დრო"
+            />
+            <View style={styles.deliveryRow}>
+              {deliveryTimeOptions.slice(0, 2).map((option, index) => {
                 const on = filters.deliveryTime === option.id;
                 return (
                   <TouchableOpacity
                     key={option.id}
                     style={[
                       styles.deliveryPill,
-                      on ? styles.pillActiveGreen : styles.pillGrey,
+                      on ? styles.pillActive : styles.pillInactive,
+                      index === 0 && styles.deliveryPillFirst,
                     ]}
-                    onPress={() =>
-                      setFilters((f) => ({
-                        ...f,
-                        deliveryTime: on ? "" : option.id,
-                      }))
-                    }
+                    onPress={() => toggleDelivery(option.id)}
                     activeOpacity={0.85}
                   >
                     <Text
@@ -308,15 +389,45 @@ const FilterModal: React.FC<FilterModalProps> = ({
                 );
               })}
             </View>
+            {(() => {
+              const option = deliveryTimeOptions[2];
+              const on = filters.deliveryTime === option.id;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.deliveryPillWide,
+                    on ? styles.pillActive : styles.pillInactive,
+                  ]}
+                  onPress={() => toggleDelivery(option.id)}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      styles.deliveryPillText,
+                      on && styles.pillTextWhite,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
 
-          {/* კატეგორიები */}
-          <View style={[styles.sectionBlock, styles.lastSection]}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="grid-outline" size={20} color={BRAND_GREEN} />
-              <Text style={styles.sectionTitle}>კატეგორიები</Text>
-            </View>
-            <View style={styles.sectionDivider} />
+          <SectionDivider />
+
+          <View style={styles.sectionLast}>
+            <SectionHeader
+              icon={
+                <Ionicons
+                  name="grid-outline"
+                  size={20}
+                  color={BRAND_GREEN}
+                  style={styles.sectionIconGapMd}
+                />
+              }
+              title="კატეგორიები"
+            />
             {categoriesLoading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color={BRAND_GREEN} />
@@ -326,40 +437,31 @@ const FilterModal: React.FC<FilterModalProps> = ({
               categoryRows.map((row, index) => {
                 const selected = filters.categories.includes(row.id);
                 return (
-                  <View key={row.id}>
-                    <TouchableOpacity
-                      style={styles.categoryRow}
-                      onPress={() =>
-                        setFilters((f) => {
-                          const next = selected
-                            ? f.categories.filter((x) => x !== row.id)
-                            : [...f.categories, row.id];
-                          return { ...f, categories: next };
-                        })
-                      }
-                      activeOpacity={0.65}
-                    >
-                      <Text style={styles.categoryEmoji}>
-                        {categoryEmoji(row.name)}
-                      </Text>
-                      <Text style={styles.categoryName} numberOfLines={1}>
-                        {row.name}
-                      </Text>
-                      <View
-                        style={[
-                          styles.catRadioOuter,
-                          selected && styles.catRadioOuterOn,
-                        ]}
-                      >
-                        {selected ? (
-                          <View style={styles.catRadioInner} />
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                    {index < categoryRows.length - 1 ? (
-                      <View style={styles.rowHairlineFull} />
-                    ) : null}
-                  </View>
+                  <TouchableOpacity
+                    key={row.id}
+                    style={[
+                      styles.categoryRow,
+                      index === categoryRows.length - 1 &&
+                        styles.categoryRowLast,
+                    ]}
+                    onPress={() =>
+                      setFilters((f) => {
+                        const next = selected
+                          ? f.categories.filter((x) => x !== row.id)
+                          : [...f.categories, row.id];
+                        return { ...f, categories: next };
+                      })
+                    }
+                    activeOpacity={0.65}
+                  >
+                    <Text style={styles.categoryEmoji}>
+                      {categoryEmoji(row.name)}
+                    </Text>
+                    <Text style={styles.categoryName} numberOfLines={1}>
+                      {row.name}
+                    </Text>
+                    <RadioIndicator selected={selected} />
+                  </TouchableOpacity>
                 );
               })
             ) : (
@@ -370,10 +472,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
 
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[
-              styles.applyButton,
-              { backgroundColor: FILTER_ACTIVE_GREEN },
-            ]}
+            style={styles.applyButton}
             onPress={handleApply}
             activeOpacity={0.9}
           >
@@ -394,7 +493,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: DIVIDER,
   },
@@ -411,16 +510,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   headerTitle: {
+    ...sectionTitleTypography,
     flex: 1,
-    fontSize: 14,
-    lineHeight: 26,
-    fontFamily: fontFamily.semiBold,
-    color: TEXT_PRIMARY,
     textAlign: "center",
   },
   clearText: {
     fontSize: 12,
-    fontFamily: fontFamily.medium,
+    lineHeight: 16,
+    fontFamily: fontFamily.semiBold,
     color: BRAND_GREEN,
   },
   scroll: {
@@ -428,50 +525,64 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 24,
-  },
-  sectionBlock: {
-    marginTop: 22,
-  },
-  lastSection: {
-    marginBottom: 8,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 10,
-  },
-  sectionIconLari: {
-    fontSize: 18,
-    fontFamily: fontFamily.semiBold,
-    color: BRAND_GREEN,
-    width: 22,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: fontFamily.semiBold,
-    color: TEXT_PRIMARY,
   },
   sectionDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: DIVIDER,
-    marginBottom: 4,
+    marginBottom: 16,
+  },
+  section: {
+    paddingBottom: 16,
+    marginBottom: 16,
+  },
+  sectionLast: {
+    paddingBottom: 0,
+    marginBottom: 0,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  sectionIconGap: {
+    marginRight: 10,
+  },
+  sectionIconGapSm: {
+    marginRight: 10,
+  },
+  sectionIconGapMd: {
+    marginRight: 10,
+  },
+  lariIcon: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontFamily: fontFamily.semiBold,
+    color: BRAND_GREEN,
+    width: 22,
+    textAlign: "center",
+    marginRight: 10,
+  },
+  sectionTitle: {
+    ...sectionTitleTypography,
+    flexShrink: 1,
   },
   sortRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingRight: 4,
+    alignItems: "center",
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  sortRowLast: {
+    marginBottom: 0,
+    paddingBottom: 0,
   },
   sortLabel: {
+    ...innerItemTypography,
     flex: 1,
-    fontSize: 15,
-    fontFamily: fontFamily.regular,
-    color: TEXT_PRIMARY,
+    flexShrink: 1,
     paddingRight: 12,
   },
   radioOuter: {
@@ -485,131 +596,139 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   radioOuterActive: {
-    borderColor: FILTER_ACTIVE_GREEN,
+    borderColor: BRAND_GREEN,
   },
   radioInner: {
     width: 11,
     height: 11,
     borderRadius: 6,
-    backgroundColor: FILTER_ACTIVE_GREEN,
+    backgroundColor: BRAND_GREEN,
   },
-  rowHairline: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DIVIDER,
-    marginLeft: 0,
-  },
-  rowHairlineFull: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DIVIDER,
-  },
-  pillRow: {
+  priceRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  compactPill: {
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 22,
-    minWidth: 52,
     alignItems: "center",
-    justifyContent: "center",
   },
-  pricePillIdle: {
+  pricePill: {
     backgroundColor: PILL_INACTIVE_BG,
+    borderRadius: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 22,
+    marginRight: 10,
   },
-  pillActiveGreen: {
-    backgroundColor: FILTER_ACTIVE_GREEN,
+  pricePillLast: {
+    marginRight: 0,
   },
   pricePillText: {
-    fontSize: 16,
-    fontFamily: fontFamily.semiBold,
-  },
-  pricePillTextIdle: {
+    ...innerItemTypography,
     color: BRAND_GREEN,
   },
-  pillGrey: {
+  pillInactive: {
     backgroundColor: PILL_INACTIVE_BG,
   },
-  ratingPill: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ratingPillTextActive: {
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-    color: "#FFFFFF",
-  },
-  ratingPillTextRow: {
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-  },
-  ratingStarGold: {
-    color: STAR_GOLD,
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-  },
-  ratingRestDark: {
-    color: TEXT_PRIMARY,
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-  },
-  deliveryPill: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deliveryPillText: {
-    fontSize: 13,
-    fontFamily: fontFamily.medium,
-    color: TEXT_PRIMARY,
+  pillActive: {
+    backgroundColor: BRAND_GREEN,
   },
   pillTextWhite: {
     color: "#FFFFFF",
+    textAlign: "center",
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginBottom: 10,
+    gap: 10,
+  },
+  ratingPill: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minHeight: 40,
+    overflow: "visible",
+  },
+  ratingPillWide: {
+    alignSelf: "flex-start",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minHeight: 40,
+    overflow: "visible",
+  },
+  ratingPillInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  ratingStarText: {
+    fontSize: 12,
+    lineHeight: 22,
+    fontFamily: fontFamily.semiBold,
+    marginRight: 4,
+  },
+  ratingPillLabel: {
+    color: TEXT_PRIMARY,
+    fontFamily: fontFamily.semiBold,
+    fontSize: 12,
+    lineHeight: 22,
+    flexShrink: 0,
+  },
+  deliveryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 10,
+  },
+  deliveryPill: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    minHeight: 40,
+  },
+  deliveryPillFirst: {
+    marginRight: 0,
+  },
+  deliveryPillWide: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minHeight: 40,
+  },
+  deliveryPillText: {
+    ...innerItemTypography,
+    textAlign: "center",
+    flexShrink: 1,
   },
   categoryRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingRight: 4,
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  categoryRowLast: {
+    marginBottom: 0,
+    paddingBottom: 0,
   },
   categoryEmoji: {
     fontSize: 22,
-    width: 40,
+    width: 36,
     textAlign: "center",
   },
   categoryName: {
+    ...innerItemTypography,
     flex: 1,
-    fontSize: 15,
-    fontFamily: fontFamily.regular,
-    color: TEXT_PRIMARY,
-    marginLeft: 6,
-  },
-  catRadioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  catRadioOuterOn: {
-    borderColor: FILTER_ACTIVE_GREEN,
-  },
-  catRadioInner: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: FILTER_ACTIVE_GREEN,
+    flexShrink: 1,
+    marginLeft: 4,
   },
   loadingRow: {
     flexDirection: "row",
@@ -620,33 +739,45 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
+    lineHeight: 22,
     fontFamily: fontFamily.regular,
-    color: TEXT_MUTED,
+    color: "#666666",
   },
   emptyText: {
     fontSize: 14,
+    lineHeight: 22,
     fontFamily: fontFamily.regular,
-    color: TEXT_MUTED,
+    color: "#666666",
     textAlign: "center",
     paddingVertical: 20,
   },
   footer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: DIVIDER,
     backgroundColor: "#FFFFFF",
+    alignItems: "center",
   },
   applyButton: {
-    borderRadius: 25,
+    width: "100%",
+    maxWidth: 343,
     paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 60,
+    backgroundColor: BRAND_GREEN,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
   },
   applyButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontFamily: fontFamily.semiBold,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    textAlign: "center",
+    textTransform: "uppercase",
   },
 });
 

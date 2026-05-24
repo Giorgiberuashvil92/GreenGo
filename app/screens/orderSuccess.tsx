@@ -1,182 +1,227 @@
+import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { restaurantsData } from "../../assets/data/restaurantsData";
+import React, { useEffect } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../contexts/CartContext";
+import { useRestaurant } from "../../hooks/useRestaurants";
+
+const CARD_BG = "#F2FAF7";
+const TEXT_MUTED = "#6B7280";
+const TITLE_COLOR = "#111827";
+
+function formatGel(amount: number): string {
+  return `${amount.toFixed(2).replace(".", ",")} ₾`;
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  );
+}
 
 export default function OrderSuccessScreen() {
-  const { restaurantId, orderId } = useLocalSearchParams<{ restaurantId: string; orderId: string }>();
+  const { restaurantId, orderId, deliveryFee: deliveryFeeParam } =
+    useLocalSearchParams<{
+      restaurantId: string;
+      orderId?: string;
+      deliveryFee?: string;
+    }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { clearCart } = useCart();
+  const { restaurant } = useRestaurant(restaurantId || "");
 
-  const restaurant = restaurantsData.find((r) => r.id === restaurantId);
+  const deliveryFee = deliveryFeeParam
+    ? Number.parseFloat(deliveryFeeParam)
+    : restaurant?.deliveryFee ?? 0;
+  const deliveryTime = restaurant?.deliveryTime || "20-30 წუთი";
+  const restaurantName = restaurant?.name || "რესტორანი";
 
-  const handleBackToHome = () => {
+  useEffect(() => {
     clearCart();
-    router.push("/(tabs)/");
-  };
-
-  const handleViewOrders = () => {
-    clearCart();
-    router.push("/(tabs)/orders");
-  };
+  }, [clearCart]);
 
   const handleViewTracking = () => {
     if (orderId) {
-      router.push({
+      router.replace({
         pathname: "/screens/orderTracking",
         params: { orderId },
       });
-    } else {
-      // If no orderId, go to orders page
-      handleViewOrders();
+      return;
     }
+    router.replace("/(tabs)/orders");
+  };
+
+  const handleBackToHome = () => {
+    router.replace("/(tabs)");
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Success Icon */}
-        <View style={styles.iconContainer}>
-          <Ionicons name="checkmark-circle" size={80} color="#2E7D32" />
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: Math.max(insets.top, 24) + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.iconWrap}>
+          <Ionicons name="checkmark" size={40} color={LIST_ACCENT_GREEN} />
         </View>
 
-        {/* Success Message */}
         <Text style={styles.title}>შეკვეთა მიღებულია!</Text>
         <Text style={styles.subtitle}>
-          თქვენი შეკვეთა {restaurant?.name}-დან მიღებულია და მუშავდება
+          თქვენი შეკვეთა {restaurantName}-დან მიღებულია და მუშავდება
         </Text>
 
-        {/* Order Details */}
         <View style={styles.detailsCard}>
           <Text style={styles.detailsTitle}>შეკვეთის დეტალები</Text>
-          <Text style={styles.detailsText}>რესტორანი: {restaurant?.name}</Text>
-          <Text style={styles.detailsText}>მიტანის დრო: 20-30 წუთი</Text>
-          <Text style={styles.detailsText}>მიტანის ღირებულება: 4.99₾</Text>
+          <DetailRow label="რესტორანი" value={restaurantName} />
+          <DetailRow label="მიტანის დრო" value={deliveryTime} />
+          <DetailRow
+            label="მიტანის ღირებულება"
+            value={formatGel(deliveryFee)}
+          />
         </View>
+      </ScrollView>
 
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          {orderId && (
-            <TouchableOpacity
-              style={styles.trackingButton}
-              onPress={handleViewTracking}
-            >
-              <Ionicons name="location" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.trackingButtonText}>
-                შეკვეთის მდებარეობის ნახვა
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleBackToHome}
-          >
-            <Text style={styles.primaryButtonText}>
-              მთავარ გვერდზე დაბრუნება
-            </Text>
-          </TouchableOpacity>
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.trackingButton}
+          activeOpacity={0.85}
+          onPress={handleViewTracking}
+        >
+          <Ionicons name="location" size={20} color="#FFFFFF" />
+          <Text style={styles.trackingButtonText}>
+            შეკვეთის მდებარეობის ნახვა
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={handleViewOrders}
-          >
-            <Text style={styles.secondaryButtonText}>შეკვეთების ნახვა</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.homeButton}
+          activeOpacity={0.85}
+          onPress={handleBackToHome}
+        >
+          <Text style={styles.homeButtonText}>მთავარ გვერდზე დაბრუნება</Text>
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 20,
-    justifyContent: "center",
     alignItems: "center",
+    paddingBottom: 24,
   },
-  iconContainer: {
+  iconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: CARD_BG,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#000000",
+    fontFamily: fontFamily.extraBold,
+    fontSize: 20,
+    lineHeight: 26,
+    color: TITLE_COLOR,
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666666",
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: TEXT_MUTED,
     textAlign: "center",
-    marginBottom: 32,
-    lineHeight: 24,
+    marginBottom: 28,
+    paddingHorizontal: 8,
   },
   detailsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 20,
-    width: "100%",
-    marginBottom: 32,
-  },
-  detailsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000000",
-    marginBottom: 16,
-  },
-  detailsText: {
-    fontSize: 16,
-    color: "#666666",
-    marginBottom: 8,
-  },
-  buttonContainer: {
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    padding: 16,
     width: "100%",
     gap: 12,
   },
+  detailsTitle: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: BRAND_GREEN,
+    marginBottom: 4,
+  },
+  detailRow: {
+    gap: 4,
+  },
+  detailLabel: {
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: TEXT_MUTED,
+  },
+  detailValue: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: TITLE_COLOR,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
   trackingButton: {
-    backgroundColor: "#2196F3",
-    borderRadius: 12,
+    backgroundColor: BRAND_GREEN,
+    borderRadius: 14,
     paddingVertical: 16,
-    alignItems: "center",
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    gap: 8,
   },
   trackingButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#FFFFFF",
   },
-  primaryButton: {
-    backgroundColor: "#2E7D32",
-    borderRadius: 12,
+  homeButton: {
+    borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  secondaryButton: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "#2E7D32",
+    borderColor: BRAND_GREEN,
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2E7D32",
+  homeButtonText: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: BRAND_GREEN,
   },
 });

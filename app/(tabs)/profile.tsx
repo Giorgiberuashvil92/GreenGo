@@ -1,17 +1,18 @@
+import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
+import { useGreenGoBalance } from "@/hooks/useGreenGoBalance";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import RecentOrders from "../../components/RecentOrders";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiService } from "../../utils/api";
 
@@ -30,50 +31,64 @@ interface Order {
   createdAt: string;
 }
 
+type ProfileRowProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+};
+
+function ProfileRow({
+  icon,
+  label,
+  onPress,
+  showChevron = true,
+}: ProfileRowProps) {
+  return (
+    <TouchableOpacity
+      style={styles.menuRow}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress}
+    >
+      <View style={styles.menuRowLeft}>
+        <Ionicons name={icon} size={16} color="#666666" />
+        <Text style={styles.menuRowLabel}>{label}</Text>
+      </View>
+      {showChevron ? (
+        <Ionicons name="chevron-forward" size={20} color="#9B9B9B" />
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
 export default function ProfileScreen() {
-  const { logout, user, refreshUser } = useAuth();
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const { logout, user } = useAuth();
+  const { formattedBalance } = useGreenGoBalance();
   const [totalOrders, setTotalOrders] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [balance, setBalance] = useState(0);
   const [primaryCard, setPrimaryCard] = useState<{
     maskedNumber: string;
     type: string;
   } | null>(null);
 
-  const fetchUserBalance = async () => {
-    // Balance არ არის backend-ში, ასე რომ დავტოვოთ 0.00
-    // თუ მომავალში დაემატება balance endpoint, აქ უნდა გავაკეთოთ API call
-    setBalance(0);
-  };
-
   const fetchPrimaryCard = async () => {
-    // Payment cards არ არის backend-ში, ასე რომ დავტოვოთ null
-    // თუ მომავალში დაემატება payment cards endpoint, აქ უნდა გავაკეთოთ API call
     setPrimaryCard(null);
   };
 
   useEffect(() => {
-    // Only refresh user once on mount, not on every render
-    refreshUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     if (user) {
       fetchUserOrders();
-      fetchUserBalance();
       fetchPrimaryCard();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchUserOrders = async () => {
-    if (!user?.id && !(user as any)?._id) return;
+    if (!user?.id && !(user as { _id?: string })?._id) return;
 
     try {
       setLoadingOrders(true);
-      const userId = user?.id || (user as any)?._id;
+      const userId = user?.id || (user as { _id?: string })?._id;
       const response = await apiService.getOrders({
         userId: userId,
         limit: 100,
@@ -82,24 +97,9 @@ export default function ProfileScreen() {
 
       if (response.success && response.data) {
         const orders =
-          (response.data as any).orders ||
+          (response.data as { orders?: Order[] }).orders ||
           (Array.isArray(response.data) ? response.data : []);
         setTotalOrders(orders.length);
-
-        // Get recent 5 orders
-        const recent = orders
-          .filter((order: Order) => order.status === "delivered")
-          .slice(0, 5)
-          .map((order: Order) => ({
-            id: order._id,
-            restaurantName: order.restaurantId?.name || "რესტორანი",
-            items: order.items.map((item: any) => item.name),
-            totalAmount: order.totalAmount,
-            orderDate: new Date(order.createdAt).toISOString().split("T")[0],
-            status: "delivered" as const,
-          }));
-
-        setRecentOrders(recent);
       }
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -108,47 +108,20 @@ export default function ProfileScreen() {
     }
   };
 
-  // Get user display name
   const getUserDisplayName = () => {
-    console.log(
-      "👤 Profile getUserDisplayName - User object:",
-      JSON.stringify(user, null, 2),
-    );
-    if (user?.name) {
-      return user.name;
-    }
+    if (user?.name) return user.name;
     if (user?.firstName && user?.lastName) {
       return `${user.firstName} ${user.lastName}`;
     }
-    if (user?.firstName) {
-      return user.firstName;
-    }
-    console.log("⚠️ No user name found, returning default");
+    if (user?.firstName) return user.firstName;
     return "მომხმარებელი";
   };
 
-  const getUserPhone = () => {
-    if (user?.phoneNumber) {
-      // Format: +995555123456 -> +995 555 12 34 56
-      const phone = user.phoneNumber.replace("+995", "");
-      if (phone.length === 9) {
-        return `+995 ${phone.slice(0, 3)} ${phone.slice(3, 5)} ${phone.slice(5, 7)} ${phone.slice(7, 9)}`;
-      }
-      return user.phoneNumber;
-    }
-    return "+995 -- -- -- --";
-  };
-
-  const getUserEmail = () => {
-    return user?.email || "";
-  };
+  const getGreetingName = () => getUserDisplayName().split(" ")[0];
 
   const handleLogout = () => {
     Alert.alert("გასვლა", "ნამდვილად გსურთ გასვლა?", [
-      {
-        text: "გაუქმება",
-        style: "cancel",
-      },
+      { text: "გაუქმება", style: "cancel" },
       {
         text: "გასვლა",
         style: "destructive",
@@ -160,270 +133,358 @@ export default function ProfileScreen() {
     ]);
   };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+  const cardMask = primaryCard?.maskedNumber || "1234 56** **** 1234";
 
+  return (
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting Section */}
-        <View style={styles.greetingSection}>
+        <View style={styles.greetingRow}>
           <Text style={styles.greetingText}>
-            გამარჯობა {getUserDisplayName().split(" ")[0]}! 👋
+            <Text style={styles.greetingPrefix}>გამარჯობა, </Text>
+            <Text style={styles.greetingName}>
+              {getGreetingName()}! <Text style={styles.greetingWave}>👋</Text>
+            </Text>
           </Text>
         </View>
 
-        {/* GreenGo Balance Card */}
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceTitle}>GreenGo ბალანსი</Text>
-          <Text style={styles.balanceAmount}>{balance.toFixed(2)} ₾</Text>
+          <View style={styles.balanceHeader}>
+            <Text style={styles.balanceTitle}>GreenGo ბალანსი</Text>
+            <Text style={styles.balanceAmount}>{formattedBalance}</Text>
+          </View>
 
-          <View style={styles.cardSeparator} />
-
-          {primaryCard ? (
-            <View style={styles.cardInfo}>
-              <View style={styles.cardDetails}>
-                <Ionicons name="card" size={20} color="#666" />
-                <Text style={styles.cardText}>ბარათი</Text>
-                <Text style={styles.cardNumber}>
-                  {primaryCard.maskedNumber}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => router.push("/screens/paymentMethods")}
-              >
-                <Text style={styles.changeText}>შეცვლა</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.cardInfo}>
-              <View style={styles.cardDetails}>
-                <Ionicons name="card-outline" size={20} color="#999" />
-                <Text style={styles.cardText}>ბარათი არ არის დამატებული</Text>
+          <View style={styles.cardRow}>
+            <View style={styles.cardRowLeft}>
+              <Ionicons name="card-outline" size={21} color="#181B1A" />
+              <View style={styles.cardTextBlock}>
+                <Text style={styles.cardLabel}>Card</Text>
+                <Text style={styles.cardNumber}>{cardMask}</Text>
               </View>
             </View>
-          )}
+            <TouchableOpacity
+              onPress={() => router.push("/screens/paymentMethods")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.changeText}>შეცვლა</Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={styles.addCardButton}
             onPress={() => router.push("/screens/paymentMethods")}
+            activeOpacity={0.88}
           >
-            <Ionicons name="add" size={20} color="#000" />
+            <Ionicons name="add" size={16} color={BRAND_GREEN} />
             <Text style={styles.addCardText}>ახალი ბარათის დამატება</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Profile Information Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>პროფილი</Text>
+        <View style={styles.sectionsWrap}>
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>პროფილი</Text>
+            <View style={styles.menuCard}>
+              <ProfileRow
+                icon="person-outline"
+                label="სახელი გვარი"
+                onPress={() => router.push("/screens/editName")}
+              />
+              <ProfileRow
+                icon="call-outline"
+                label="მობილურის ნომერი"
+                onPress={() => router.push("/screens/editPhone")}
+              />
+              <ProfileRow
+                icon="mail-outline"
+                label="ელ.ფოსტა"
+                onPress={() => router.push("/screens/editEmail")}
+              />
+              <ProfileRow
+                icon="location-outline"
+                label="საქართველო"
+                onPress={() => router.push("/screens/selectCountry")}
+              />
+            </View>
+          </View>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/editName")}
-          >
-            <Ionicons name="person-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>{getUserDisplayName()}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>სხვა</Text>
+            <View style={styles.menuCard}>
+              <ProfileRow
+                icon="card-outline"
+                label="ბარათები"
+                onPress={() => router.push("/screens/paymentMethods")}
+              />
+              <ProfileRow
+                icon="pricetag-outline"
+                label="პრომო კოდები"
+                onPress={() => router.push("/screens/promoCodes")}
+              />
+              <ProfileRow
+                icon="settings-outline"
+                label="პარამეტრები"
+                onPress={() => router.push("/screens/settings")}
+              />
+              <ProfileRow
+                icon="help-circle-outline"
+                label="მხარდაჭერა"
+                onPress={() => Alert.alert("მხარდაჭერა", "მალე დაემატება")}
+              />
+            </View>
+          </View>
+        </View>
 
+        <View style={styles.ordersSection}>
+          <Text style={styles.ordersSectionTitle}>შეკვეთები</Text>
           <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/editPhone")}
+            style={styles.ordersCard}
+            activeOpacity={0.85}
+            onPress={() => router.push("/screens/orderHistory")}
           >
-            <Ionicons name="call-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>{getUserPhone()}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/editEmail")}
-          >
-            <Ionicons name="mail-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>
-              {getUserEmail() || "ელფოსტა არ არის დამატებული"}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/selectCountry")}
-          >
-            <Ionicons name="globe-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>საქართველო</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <View>
+              <Text style={styles.ordersCardTitle}>შეკვეთების ისტორია</Text>
+              <Text style={styles.ordersCardSub}>
+                {loadingOrders ? "..." : `${totalOrders}+ შეკვეთა`}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9B9B9B" />
           </TouchableOpacity>
         </View>
 
-        {/* Additional Options Section */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/promoCodes")}
-          >
-            <Ionicons name="pricetag-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>პრომო კოდები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => router.push("/screens/settings")}
-          >
-            <Ionicons name="settings-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>პარამეტრები</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.infoItem}>
-            <Ionicons name="help-circle-outline" size={20} color="#333" />
-            <Text style={styles.infoText}>მხარდაჭერა</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Recent Orders Section */}
-        <RecentOrders orders={recentOrders} totalCount={totalOrders} />
-
-        {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#FF4444" />
+          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
           <Text style={styles.logoutText}>გასვლა</Text>
         </TouchableOpacity>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F7F7",
   },
   scrollView: {
     flex: 1,
+    backgroundColor: "#F7F7F7",
   },
-  greetingSection: {
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  greetingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    // backgroundColor: "#FFFFFF",
   },
   greetingText: {
-    fontSize: 16,
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 24,
+    lineHeight: 30,
+    color: "#181B1A",
+    marginRight: 8,
+  },
+  greetingPrefix: {
     fontFamily: fontFamily.bold,
-    color: "#000",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  greetingName: {
+    fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
+  },
+  greetingWave: {
+    fontSize: 24,
+    lineHeight: 30,
+    flexShrink: 0,
   },
   balanceCard: {
-    marginHorizontal: 20,
-    marginBottom: 30,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 20,
+    padding: 12,
+    marginBottom: 16,
+    marginHorizontal: 16,
+  },
+  balanceHeader: {
+    paddingBottom: 16,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#003E20",
   },
   balanceTitle: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
     marginBottom: 8,
   },
   balanceAmount: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#00C851",
-    marginBottom: 16,
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: fontFamily.bold,
+    color: "#003E20",
   },
-  cardSeparator: {
-    height: 1,
-    backgroundColor: "#E0E0E0",
-    marginBottom: 16,
-  },
-  cardInfo: {
+  cardRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
-  cardDetails: {
+  cardRowLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    marginRight: 12,
   },
-  cardText: {
-    fontSize: 16,
-    color: "#666",
-    marginLeft: 8,
+  cardTextBlock: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  cardLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
+    marginBottom: 2,
   },
   cardNumber: {
-    fontSize: 14,
-    color: "#666",
-    marginLeft: 8,
+    fontSize: 8,
+    lineHeight: 12,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
   },
   changeText: {
-    fontSize: 16,
-    color: "#00C851",
-    fontWeight: "500",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#181B1A",
   },
   addCardButton: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E8F5E8",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    alignItems: "center",
+    backgroundColor: "#F1F8F9",
+    borderRadius: 60,
+    paddingVertical: 8,
+    height: 36,
+    gap: 8,
   },
   addCardText: {
-    fontSize: 16,
-    color: "#00C851",
-    fontWeight: "500",
-    marginLeft: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#1D4045",
+    textTransform: "uppercase",
   },
-  section: {
-    marginBottom: 30,
+  sectionsWrap: {
+    marginHorizontal: 16,
+    marginBottom: 10,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#000",
+  sectionBlock: {
     marginBottom: 16,
-    paddingHorizontal: 20,
   },
-  infoItem: {
+  sectionLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    marginBottom: 8,
+    alignSelf: "flex-start",
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  menuCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  menuRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  menuRowLeft: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  infoText: {
     flex: 1,
+  },
+  menuRowLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
+    marginLeft: 8,
+  },
+  ordersSection: {
+    backgroundColor: "#FFFFFF",
+    paddingTop: 7,
+    paddingBottom: 8,
+  },
+  ordersSectionTitle: {
     fontSize: 16,
-    color: "#333",
-    marginLeft: 12,
+    lineHeight: 20,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  ordersCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#F5F5F5",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginHorizontal: 16,
+  },
+  ordersCardTitle: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#181B1A",
+    marginBottom: 2,
+  },
+  ordersCardSub: {
+    fontSize: 8,
+    lineHeight: 12,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
   },
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginTop: 20,
     borderWidth: 1,
-    borderColor: "#FF4444",
-    borderRadius: 12,
-    backgroundColor: "#FFF5F5",
+    borderColor: "#EF4444",
+    borderRadius: 14,
+    backgroundColor: "#FEF2F2",
   },
   logoutText: {
-    fontSize: 16,
-    color: "#FF4444",
-    fontWeight: "600",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#EF4444",
     marginLeft: 8,
   },
   bottomSpacing: {
-    height: 30,
+    height: 24,
   },
 });

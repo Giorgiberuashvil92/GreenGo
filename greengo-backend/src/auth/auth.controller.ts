@@ -68,6 +68,7 @@ export class AuthController {
         lastName: user.lastName,
         email: user.email,
         isVerified: user.isVerified,
+        balance: user.balance ?? 0,
       },
     };
   }
@@ -86,6 +87,7 @@ export class AuthController {
         lastName: user.lastName,
         email: user.email,
         isVerified: user.isVerified,
+        balance: user.balance ?? 0,
       },
     };
   }
@@ -128,6 +130,7 @@ export class AuthController {
         name: user.name,
         email: user.email,
         isVerified: user.isVerified,
+        balance: user.balance ?? 0,
       },
     };
   }

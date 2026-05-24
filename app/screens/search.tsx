@@ -1,3 +1,4 @@
+import { homeCategories, resolveCategoryIcon } from "@/assets/data/categories";
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -15,7 +16,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
-import { useCategories } from "../../hooks/useCategories";
 import { apiService } from "../../utils/api";
 import { ordersFromGetOrdersData } from "../../utils/ordersFromResponse";
 import { FilterModal } from "../components";
@@ -29,22 +29,6 @@ type RecentRestaurant = {
   rating: number;
 };
 
-function categoryEmoji(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes("მაღაზი") || n.includes("shop")) return "🎁";
-  if (n.includes("ქართულ")) return "🇬🇪";
-  if (n.includes("სწრაფი") || n.includes("fast")) return "🍟";
-  if (n.includes("პიც")) return "🍕";
-  if (n.includes("ბურგერ")) return "🍔";
-  if (n.includes("ქათამ") || n.includes("chicken")) return "🍗";
-  if (n.includes("დესერტ")) return "🍰";
-  if (n.includes("წვნიან") || n.includes("soup")) return "🥣";
-  if (n.includes("ცომეულ")) return "🥐";
-  if (n.includes("კვებ") || n.includes("food")) return "🍽️";
-  if (n.includes("ყვავილ")) return "🌸";
-  return "📦";
-}
-
 function formatLari(value: number): string {
   return `${value.toFixed(2).replace(".", ",")}₾`;
 }
@@ -52,7 +36,6 @@ function formatLari(value: number): string {
 export default function SearchScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { categories, loading: categoriesLoading } = useCategories(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [recentlyOrdered, setRecentlyOrdered] = useState<RecentRestaurant[]>(
@@ -134,7 +117,15 @@ export default function SearchScreen() {
     });
   };
 
-  const handleCategoryPress = (category: { name: string }) => {
+  const handleCategoryPress = (category: { name: string; link?: string }) => {
+    if (category.link) {
+      router.push(category.link as "/screens/food");
+      return;
+    }
+    if (category.name === "ყველა") {
+      router.push("/(tabs)/restaurants");
+      return;
+    }
     router.push({
       pathname: "/(tabs)/restaurants",
       params: { category: category.name },
@@ -264,39 +255,27 @@ export default function SearchScreen() {
             <Ionicons name="grid-outline" size={16} color="#181B1A" />
             <Text style={styles.categoriesHeaderTitle}>კატეგორიები</Text>
           </View>
-          {categoriesLoading ? (
-            <View style={styles.recentLoading}>
-              <ActivityIndicator size="small" color={BRAND_GREEN} />
+          {homeCategories.map((category, index) => (
+            <View key={category.id}>
+              <TouchableOpacity
+                style={styles.categoryRow}
+                onPress={() => handleCategoryPress(category)}
+                activeOpacity={0.65}
+              >
+                <Image
+                  source={resolveCategoryIcon(category.name)}
+                  style={styles.categoryRemoteIcon}
+                />
+                <Text style={styles.categoryLabel} numberOfLines={1}>
+                  {category.name}
+                </Text>
+                <View style={styles.radioOuter} />
+              </TouchableOpacity>
+              {index < homeCategories.length - 1 ? (
+                <View style={styles.categoryDivider} />
+              ) : null}
             </View>
-          ) : (
-            categories.map((category, index) => (
-              <View key={category.id || category._id}>
-                <TouchableOpacity
-                  style={styles.categoryRow}
-                  onPress={() => handleCategoryPress(category)}
-                  activeOpacity={0.65}
-                >
-                  {category.icon ? (
-                    <Image
-                      source={{ uri: category.icon }}
-                      style={styles.categoryRemoteIcon}
-                    />
-                  ) : (
-                    <Text style={styles.categoryEmoji}>
-                      {categoryEmoji(category.name)}
-                    </Text>
-                  )}
-                  <Text style={styles.categoryLabel} numberOfLines={1}>
-                    {category.name}
-                  </Text>
-                  <View style={styles.radioOuter} />
-                </TouchableOpacity>
-                {index < categories.length - 1 ? (
-                  <View style={styles.categoryDivider} />
-                ) : null}
-              </View>
-            ))
-          )}
+          ))}
         </View>
       </ScrollView>
 
@@ -361,6 +340,7 @@ const styles = StyleSheet.create({
     color: "#181B1A",
     lineHeight: 20,
     marginBottom: 14,
+    textTransform: "uppercase",
   },
   categoriesTitleRow: {
     flexDirection: "row",
@@ -373,6 +353,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#181B1A",
+    textTransform: "uppercase",
+    textAlign: "left",
   },
   recentLoading: {
     paddingVertical: 24,
@@ -463,10 +445,11 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     flex: 1,
-    fontSize: 16,
-    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
     color: "#181B1A",
     marginLeft: 6,
+    textTransform: "uppercase",
   },
   radioOuter: {
     width: 22,

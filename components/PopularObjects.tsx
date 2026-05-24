@@ -1,7 +1,8 @@
 import { fontFamily } from "@/constants/fonts";
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { type ReactNode } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -10,16 +11,17 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
+import PromosIcon from "@/components/icons/PromosIcon";
 import { useRestaurants } from "../hooks/useRestaurants";
 
-const CARD_WIDTH = 250;
-const CARD_HEIGHT = 200;
-/** სურათის ზონა 100px; დანარჩენი სიმაღლე — ქვედა პლატფორმა (ტექსტი, ხაზი, ფუტერი) */
-const IMAGE_HEIGHT = 120;
+const CARD_WIDTH = 180;
+const IMAGE_HEIGHT = 100;
 
 function DashedSeparator() {
-  const n = 26;
+  const n = 22;
   return (
     <View style={styles.dashRow}>
       {Array.from({ length: n }).map((_, i) => (
@@ -29,29 +31,73 @@ function DashedSeparator() {
   );
 }
 
-function formatDeliveryRange(deliveryTime: string | number): string {
+function formatDeliveryTimeLabel(deliveryTime: string | number): string {
+  if (typeof deliveryTime === "string") {
+    const range = deliveryTime.match(/(\d+)\s*[-–]\s*(\d+)/);
+    if (range) {
+      return `${range[1]}-${range[2]} წუთი`;
+    }
+    const single = deliveryTime.match(/(\d+)/);
+    if (single) {
+      const m = parseInt(single[1], 10);
+      return `${m}-${m + 10} წუთი`;
+    }
+  }
+
   const minutes =
     typeof deliveryTime === "number"
       ? deliveryTime
       : parseInt(String(deliveryTime).replace(/\D/g, ""), 10) || 25;
   const lo = Math.max(15, minutes - 5);
   const hi = minutes + 5;
-  return `${lo}–${hi} წთ`;
+  return `${lo}-${hi} წუთი`;
+}
+
+function formatGel(amount: number): string {
+  return `${amount.toFixed(2).replace(".", ",")}₾`;
+}
+
+function getPromoLabel(restaurant: {
+  deliveryFee: number;
+  rating: number;
+}): string | null {
+  if (restaurant.deliveryFee <= 0) return "-100%";
+  if (restaurant.rating >= 4.5) return "-20%";
+  return null;
+}
+
+function GlassBadge({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[styles.glassBadge, style]} pointerEvents="none">
+      <BlurView intensity={16} tint="light" style={StyleSheet.absoluteFill} />
+      <View style={styles.glassBadgeOverlay} />
+      <View style={styles.badgeContent}>{children}</View>
+    </View>
+  );
+}
+
+function PromoBadge({ label }: { label: string }) {
+  return (
+    <View style={styles.promoBadge} pointerEvents="none">
+      <BlurView intensity={8} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={styles.promoBadgeOverlay} />
+      <View style={styles.badgeContent}>
+        <PromosIcon />
+        <Text style={styles.promoBadgeText}>{label}</Text>
+      </View>
+    </View>
+  );
 }
 
 export default function PopularObjects() {
   const router = useRouter();
   const { restaurants, loading } = useRestaurants({ limit: 10 });
-  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
-
-  const toggleLike = (id: string) => {
-    setLikedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const navigateToRestaurant = (restaurantId: string) => {
     router.push({
@@ -99,59 +145,43 @@ export default function PopularObjects() {
       >
         {popularRestaurants.map((restaurant) => {
           const id = restaurant._id || restaurant.id || "";
-          const liked = likedItems.has(id);
           const fee = restaurant.deliveryFee;
-          const freeDelivery = fee <= 0;
+          const promoLabel = getPromoLabel(restaurant);
 
           return (
-            <View key={id} style={styles.popularCard}>
+            <TouchableOpacity
+              key={id}
+              style={styles.popularCard}
+              activeOpacity={0.92}
+              onPress={() => navigateToRestaurant(id)}
+            >
               <View style={styles.imageContainer}>
-                <TouchableOpacity
-                  activeOpacity={0.92}
-                  onPress={() => navigateToRestaurant(id)}
-                  style={StyleSheet.absoluteFill}
-                >
-                  <Image
-                    source={
-                      typeof restaurant.image === "string"
-                        ? { uri: restaurant.image }
-                        : restaurant.image ||
-                          require("../assets/images/magnolia.png")
-                    }
-                    style={styles.cardImage}
-                  />
-                </TouchableOpacity>
+                <Image
+                  source={
+                    typeof restaurant.image === "string"
+                      ? { uri: restaurant.image }
+                      : restaurant.image ||
+                        require("../assets/images/magnolia.png")
+                  }
+                  style={styles.cardImage}
+                />
 
-                <View style={styles.deliveryTimeBadge} pointerEvents="none">
-                  <Ionicons name="time-outline" size={12} color="#FFFFFF" />
-                  <Text style={styles.deliveryTimeBadgeText}>
-                    {formatDeliveryRange(restaurant.deliveryTime)}
+                <GlassBadge style={styles.glassBadgeLeft}>
+                  <Ionicons name="time-outline" size={11} color="#FFFFFF" />
+                  <Text style={styles.badgeText}>
+                    {formatDeliveryTimeLabel(restaurant.deliveryTime)}
                   </Text>
-                </View>
+                </GlassBadge>
 
-                <TouchableOpacity
-                  style={styles.likeButton}
-                  onPress={() => toggleLike(id)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons
-                    name={liked ? "heart" : "heart-outline"}
-                    size={18}
-                    color={liked ? "#FF3B30" : "#8E8E93"}
-                  />
-                </TouchableOpacity>
+                {promoLabel ? <PromoBadge label={promoLabel} /> : null}
               </View>
 
-              <TouchableOpacity
-                style={styles.cardBottomSection}
-                activeOpacity={0.92}
-                onPress={() => navigateToRestaurant(id)}
-              >
+              <View style={styles.cardBottomSection}>
                 <Text style={styles.restaurantName} numberOfLines={1}>
                   {restaurant.name}
                 </Text>
                 <Text style={styles.restaurantCategory} numberOfLines={1}>
-                  {restaurant.cuisine && restaurant.cuisine.length > 0
+                  {restaurant.cuisine?.length
                     ? restaurant.cuisine[0]
                     : "რესტორანი"}
                 </Text>
@@ -161,30 +191,38 @@ export default function PopularObjects() {
                 <View style={styles.bottomInfo}>
                   <View style={styles.deliveryInfo}>
                     <MaterialIcons
-                      name="local-shipping"
-                      size={14}
+                      name="two-wheeler"
+                      size={15}
                       color="#9B9B9B"
                     />
-                    {freeDelivery ? (
+                    {fee <= 0 ? (
                       <View style={styles.deliveryPriceRow}>
-                        <Text style={styles.deliveryStrike}>4,99₾</Text>
-                        <Text style={styles.deliveryPromo}> 0,00₾</Text>
+                        <Text style={styles.deliveryStrike}>
+                          {formatGel(4.99)}
+                        </Text>
+                        <Text style={styles.deliveryPromo}>
+                          {" "}
+                          {formatGel(0)}
+                        </Text>
                       </View>
                     ) : (
-                      <Text style={styles.deliveryText}>
-                        {fee.toFixed(2).replace(".", ",")}₾
-                      </Text>
+                      <Text style={styles.deliveryText}>{formatGel(fee)}</Text>
                     )}
                   </View>
+
                   <View style={styles.ratingInfo}>
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                    <Text style={styles.ratingText}>
-                      {restaurant.rating.toFixed(1)} ({restaurant.reviewCount})
+                    <Ionicons name="star" size={14} color="#F5B800" />
+                    <Text style={styles.ratingValue}>
+                      {restaurant.rating.toFixed(1)}
+                    </Text>
+                    <Text style={styles.reviewCount}>
+                      {" "}
+                      ({restaurant.reviewCount})
                     </Text>
                   </View>
                 </View>
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>
@@ -204,8 +242,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   popularTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: fontFamily.semiBold,
+    textTransform: "uppercase",
     lineHeight: 20,
     color: "#181B1A",
   },
@@ -222,22 +261,27 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 10,
     color: "#2E7354",
-    fontFamily: fontFamily.semiBold,
+    fontFamily: fontFamily.medium,
+    textTransform: "uppercase",
     lineHeight: 14,
     textAlign: "center",
   },
   popularScrollContent: {
     paddingHorizontal: 20,
+    gap: 12,
   },
   popularCard: {
     width: CARD_WIDTH,
-    height: CARD_HEIGHT,
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    marginRight: 16,
+    borderRadius: 12,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E5E7EB",
+    borderColor: "#EBEBEB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   imageContainer: {
     width: CARD_WIDTH,
@@ -249,89 +293,110 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  deliveryTimeBadge: {
+  glassBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
+    top: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+    zIndex: 3,
+  },
+  glassBadgeLeft: {
+    left: 4,
+  },
+  glassBadgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  promoBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    height: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "rgba(235, 0, 0, 0.5)",
+    zIndex: 5,
+  },
+  promoBadgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(235, 0, 0, 0.5)",
+  },
+  badgeContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 20,
   },
-  deliveryTimeBadgeText: {
-    fontSize: 11,
+  badgeText: {
+    fontSize: 10,
+    lineHeight: 12,
     color: "#FFFFFF",
     fontFamily: fontFamily.medium,
   },
-  likeButton: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
+  promoBadgeText: {
+    fontSize: 8,
+    lineHeight: 12,
+    color: "#FFFFFF",
+    fontFamily: fontFamily.bold,
   },
   cardBottomSection: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
     backgroundColor: "#FFFFFF",
   },
   restaurantName: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: fontFamily.semiBold,
-    color: "#000000",
-    marginBottom: 4,
-    paddingHorizontal: 2,
-    lineHeight: 18,
+    textTransform: "uppercase",
+    color: "#181B1A",
+    marginBottom: 2,
+    lineHeight: 20,
   },
   restaurantCategory: {
-    fontSize: 12,
-    fontFamily: fontFamily.regular,
+    fontSize: 8,
+    fontFamily: fontFamily.medium,
     color: "#9E9E9E",
-    marginBottom: 6,
-    paddingHorizontal: 2,
+    marginBottom: 8,
     lineHeight: 15,
+    textTransform: "uppercase",
   },
   dashRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
-    marginHorizontal: 2,
+    marginBottom: 8,
     overflow: "hidden",
   },
   dashDot: {
     width: 3,
     height: 1,
-    borderRadius: 0.5,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: "#D8D8D8",
   },
   bottomInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 2,
-    paddingTop: 2,
   },
   deliveryInfo: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 8,
-    paddingVertical: 2,
+    marginRight: 6,
   },
   deliveryText: {
     fontSize: 12,
@@ -348,25 +413,29 @@ const styles = StyleSheet.create({
   deliveryStrike: {
     fontSize: 12,
     fontFamily: fontFamily.medium,
-    color: "#EF4444",
+    color: "#9B9B9B",
     textDecorationLine: "line-through",
   },
   deliveryPromo: {
     fontSize: 12,
     fontFamily: fontFamily.semiBold,
-    color: "#EF4444",
+    color: "#D94F3D",
   },
   ratingInfo: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 2,
-    paddingLeft: 2,
+    flexShrink: 0,
   },
-  ratingText: {
+  ratingValue: {
     fontSize: 12,
-    fontFamily: fontFamily.medium,
-    color: "#000000",
-    marginLeft: 4,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    marginLeft: 3,
+  },
+  reviewCount: {
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: "#9E9E9E",
   },
   loadingContainer: {
     paddingVertical: 20,

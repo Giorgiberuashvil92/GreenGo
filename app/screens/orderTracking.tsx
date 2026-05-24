@@ -1,21 +1,29 @@
+import BackCircleIcon from "@/components/icons/BackCircleIcon";
+import TrackingDeliveryIcon from "@/components/icons/TrackingDeliveryIcon";
+import TrackingOrderReceivedIcon from "@/components/icons/TrackingOrderReceivedIcon";
+import TrackingPreparingIcon from "@/components/icons/TrackingPreparingIcon";
+import TrackingReadyIcon from "@/components/icons/TrackingReadyIcon";
+import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import MapView, { Marker, Polyline, Region } from "react-native-maps";
-import { SafeAreaView } from "react-native-safe-area-context";
+import MapView, { Marker, Region } from "react-native-maps";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiService } from "../../utils/api";
+
+const PROGRESS_GREEN = "#7BC99A";
+const PROGRESS_ACTIVE = LIST_ACCENT_GREEN;
+const MARKER_BG = "#111827";
 
 interface Courier {
   _id: string;
@@ -67,17 +75,42 @@ interface OrderTracking {
   courier?: Courier;
 }
 
-const ORDER_STAGES = [
-  { key: 'pending', label: 'შეკვეთა მიღებულია', icon: 'document-text' },
-  { key: 'preparing', label: 'მზადდება', icon: 'restaurant' },
-  { key: 'ready', label: 'მზადაა', icon: 'checkmark-circle' },
-  { key: 'delivering', label: 'მიტანისას', icon: 'bicycle' },
-  { key: 'delivered', label: 'მიტანილია', icon: 'checkmark-done-circle' },
-];
+const TRACKING_STAGES = [
+  { key: "received", Icon: TrackingOrderReceivedIcon },
+  { key: "preparing", Icon: TrackingPreparingIcon },
+  { key: "ready", Icon: TrackingReadyIcon },
+  { key: "delivering", Icon: TrackingDeliveryIcon },
+] as const;
+
+function formatRestaurantHeader(name?: string) {
+  if (!name) return "რესტორანი";
+  const trimmed = name.trim();
+  if (trimmed.toLowerCase().startsWith("რესტორანი")) {
+    return trimmed;
+  }
+  return `რესტორანი ${trimmed}`;
+}
+
+function getStatusMessage(status: string, restaurantName?: string) {
+  const name = restaurantName?.trim() || "რესტორანი";
+  switch (status) {
+    case "preparing":
+      return `რესტორანი '${name}' ამზადებს თქვენს შეკვეთას`;
+    case "ready":
+      return "შეკვეთა მზადაა გატანისთვის";
+    case "delivering":
+      return "კურიერი მოდის თქვენთან";
+    case "delivered":
+      return "შეკვეთა წარმატებით მიტანილია";
+    default:
+      return `რესტორანმა '${name}' მიიღო თქვენი შეკვეთა`;
+  }
+}
 
 export default function OrderTrackingScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [tracking, setTracking] = useState<OrderTracking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,18 +126,17 @@ export default function OrderTrackingScreen() {
   const userHasMovedMapRef = useRef(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const stageAnimations = useRef(
-    ORDER_STAGES.map(() => new Animated.Value(0))
+    TRACKING_STAGES.map(() => new Animated.Value(0)),
   ).current;
   const [showDeliveredModal, setShowDeliveredModal] = useState(false);
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const modalOpacityAnim = useRef(new Animated.Value(0)).current;
   
   const getCurrentStageIndex = useCallback((status: string): number => {
-    if (status === 'pending' || status === 'confirmed') return 0;
-    if (status === 'preparing') return 1;
-    if (status === 'ready') return 2;
-    if (status === 'delivering') return 3;
-    if (status === 'delivered') return 4;
+    if (status === "pending" || status === "confirmed") return 0;
+    if (status === "preparing") return 1;
+    if (status === "ready") return 2;
+    if (status === "delivering" || status === "delivered") return 3;
     return 0;
   }, []);
 
@@ -131,7 +163,7 @@ export default function OrderTrackingScreen() {
         
         if (statusChanged && currentStatus !== null) {
           const newStageIndex = getCurrentStageIndex(trackingData.order.status);
-          if (newStageIndex < ORDER_STAGES.length) {
+          if (newStageIndex < TRACKING_STAGES.length) {
             Animated.spring(stageAnimations[newStageIndex], {
               toValue: 1,
               useNativeDriver: true,
@@ -269,7 +301,7 @@ export default function OrderTrackingScreen() {
   useEffect(() => {
     if (tracking) {
       const currentStageIndex = getCurrentStageIndex(tracking.order.status);
-      ORDER_STAGES.forEach((_, index) => {
+      TRACKING_STAGES.forEach((_, index) => {
         if (index <= currentStageIndex) {
           Animated.timing(stageAnimations[index], {
             toValue: 1,
@@ -335,52 +367,6 @@ export default function OrderTrackingScreen() {
     }
   }, []);
 
-  const handleGoToMyLocation = useCallback(async () => {
-    try {
-      // Request location permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'ლოკაციის ნებართვა',
-          'გთხოვთ მიუთითოთ ლოკაციის ნებართვა, რომ ვნახოთ თქვენი მდებარეობა',
-          [{ text: 'კარგი' }]
-        );
-        return;
-      }
-
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const { latitude, longitude } = location.coords;
-
-      // Animate map to user location
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }, 500);
-      }
-
-      // Update map region state
-      setMapRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
-    } catch {
-      Alert.alert(
-        'შეცდომა',
-        'ლოკაციის მიღება ვერ მოხერხდა. გთხოვთ სცადოთ თავიდან.',
-        [{ text: 'კარგი' }]
-      );
-    }
-  }, []);
-
   // Memoize locations to prevent unnecessary re-renders (must be before early returns)
   const courierCoordinates = tracking?.courier?.currentLocation?.coordinates;
   const courierLat = courierCoordinates?.[1];
@@ -409,18 +395,18 @@ export default function OrderTrackingScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
+          <ActivityIndicator size="large" color={LIST_ACCENT_GREEN} />
           <Text style={styles.loadingText}>იტვირთება...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !tracking) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <View style={styles.errorIconContainer}>
             <Ionicons name="alert-circle" size={64} color="#EF4444" />
@@ -440,34 +426,36 @@ export default function OrderTrackingScreen() {
             <Text style={styles.backButtonText}>უკან დაბრუნება</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   const currentStageIndex = getCurrentStageIndex(tracking.order.status);
   const estimatedTime = getEstimatedDeliveryTime();
 
+  const headerTitle = formatRestaurantHeader(tracking.restaurant?.name);
+  const statusMessage = getStatusMessage(
+    tracking.order.status,
+    tracking.restaurant?.name,
+  );
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* Map */}
+    <View style={styles.container}>
       <View style={styles.mapContainer}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButtonHeader}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
-          </TouchableOpacity>
-          <View style={styles.headerSpacer} />
-          <TouchableOpacity 
-            onPress={() => {
-              userHasMovedMapRef.current = false; // Reset flag on manual refresh
-              setLoading(true);
-              fetchTracking(true);
-            }} 
-            style={styles.refreshButton}
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerBack}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="refresh" size={24} color="#000" />
+            <BackCircleIcon />
           </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {headerTitle}
+          </Text>
+          <View style={styles.headerSide} />
         </View>
+
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -479,301 +467,100 @@ export default function OrderTrackingScreen() {
         >
           {restaurantLocation && (
             <Marker
-              key={`restaurant-${tracking.restaurant?._id || 'restaurant'}`}
+              key={`restaurant-${tracking.restaurant?._id || "restaurant"}`}
               coordinate={restaurantLocation}
-              title={tracking.restaurant?.name || "რესტორანი"}
-              description="რესტორანი"
               tracksViewChanges={false}
             >
-              <View style={styles.restaurantMarker}>
-                <Ionicons name="restaurant" size={20} color="#FFFFFF" />
+              <View style={styles.mapMarker}>
+                <Ionicons name="storefront" size={18} color="#FFFFFF" />
               </View>
             </Marker>
           )}
 
           {deliveryLocation && (
             <Marker
-              key={`delivery-${tracking.order.id || 'delivery'}`}
+              key={`delivery-${tracking.order.id || "delivery"}`}
               coordinate={deliveryLocation}
-              title="მიტანის მისამართი"
-              description={tracking.order.deliveryAddress.street}
               tracksViewChanges={false}
             >
-              <View style={styles.deliveryMarker}>
-                <Ionicons name="location" size={20} color="#FFFFFF" />
+              <View style={styles.mapMarker}>
+                <Ionicons name="person" size={18} color="#FFFFFF" />
               </View>
             </Marker>
           )}
 
-          {courierLocation && tracking.order.status === 'delivering' && (
+          {courierLocation && tracking.order.status === "delivering" && (
             <Marker
-              key={`courier-${tracking.courier?._id || 'courier'}`}
+              key={`courier-${tracking.courier?._id || "courier"}`}
               coordinate={courierLocation}
-              title="კურიერი"
-              description="კურიერი მოდის თქვენთან"
               tracksViewChanges={false}
             >
-              <View style={styles.courierMarker}>
+              <View style={[styles.mapMarker, styles.courierMarker]}>
                 <Ionicons name="bicycle" size={18} color="#FFFFFF" />
               </View>
             </Marker>
           )}
-
-          {restaurantLocation && deliveryLocation && tracking.order.status !== 'delivering' && (
-            <Polyline
-              coordinates={[restaurantLocation, deliveryLocation]}
-              strokeColor="#4CAF50"
-              strokeWidth={3}
-              lineDashPattern={[5, 5]}
-            />
-          )}
-
-          {courierLocation && deliveryLocation && tracking.order.status === 'delivering' && (
-            <Polyline
-              coordinates={[courierLocation, deliveryLocation]}
-              strokeColor="#2196F3"
-              strokeWidth={4}
-            />
-          )}
         </MapView>
-
-        {/* Map Controls */}
-        <View style={styles.mapControls}>
-          {/* My Location Button */}
-          <TouchableOpacity
-            style={styles.myLocationButton}
-            onPress={handleGoToMyLocation}
-          >
-            <Ionicons name="locate" size={20} color="#333" />
-          </TouchableOpacity>
-          
-          {/* Zoom Controls */}
-          <View style={styles.zoomControls}>
-            <TouchableOpacity
-              style={styles.zoomButton}
-              onPress={() => {
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion({
-                    ...mapRegion,
-                    latitudeDelta: mapRegion.latitudeDelta * 0.5,
-                    longitudeDelta: mapRegion.longitudeDelta * 0.5,
-                  }, 300);
-                }
-              }}
-            >
-              <Ionicons name="add" size={18} color="#333" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.zoomButton, styles.zoomButtonBottom]}
-              onPress={() => {
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion({
-                    ...mapRegion,
-                    latitudeDelta: mapRegion.latitudeDelta * 2,
-                    longitudeDelta: mapRegion.longitudeDelta * 2,
-                  }, 300);
-                }
-              }}
-            >
-              <Ionicons name="remove" size={18} color="#333" />
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
 
-      {/* Bottom Card */}
-      <View style={styles.bottomCard}>
-        <ScrollView 
-          style={styles.bottomCardScroll}
-          contentContainerStyle={styles.bottomCardContent}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled={true}
-        >
-          <View style={styles.cardHandle} />
+      <View
+        style={[
+          styles.bottomCard,
+          { paddingBottom: Math.max(insets.bottom, 20) },
+        ]}
+      >
+        <View style={styles.cardHandle} />
 
-          {/* Estimated Delivery Time */}
-          {estimatedTime && (
-            <View style={styles.deliveryTimeContainer}>
-              <Text style={styles.deliveryTimeLabel}>მიწოდების სავარაუდო დრო</Text>
-              <Text style={styles.deliveryTimeValue}>{estimatedTime}</Text>
-            </View>
-          )}
-
-          {/* Progress Timeline */}
-          <View style={styles.progressContainer}>
-            {ORDER_STAGES.map((stage, index) => {
-              const isActive = index <= currentStageIndex;
-              const isCompleted = index < currentStageIndex;
-              const isCurrent = index === currentStageIndex;
-              
-              const scale = stageAnimations[index].interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.8, 1],
-              });
-              
-              const opacity = stageAnimations[index];
-              
-              return (
-                <React.Fragment key={stage.key}>
-                  <View style={styles.stageItem}>
-                    <Animated.View
-                      style={[
-                        styles.stageIcon,
-                        isActive && styles.stageIconActive,
-                        isCompleted && styles.stageIconCompleted,
-                        isCurrent && {
-                          transform: [{ scale: pulseAnim }],
-                        },
-                        {
-                          transform: [{ scale }],
-                          opacity,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={stage.icon as any}
-                        size={20}
-                        color={isActive ? "#FFFFFF" : "#E0E0E0"}
-                      />
-                      {isCurrent && (
-                        <View style={styles.pulseRing} />
-                      )}
-                    </Animated.View>
-                    {index < ORDER_STAGES.length - 1 && (
-                      <Animated.View
-                        style={[
-                          styles.stageLine,
-                          isCompleted && styles.stageLineCompleted,
-                          {
-                            opacity: isCompleted ? 1 : opacity,
-                          },
-                        ]}
-                      />
-                    )}
-                  </View>
-                </React.Fragment>
-              );
-            })}
-          </View>
-
-          {/* Status Message */}
-          <View style={styles.statusMessageContainer}>
-            <Text style={styles.statusMessage}>
-              {tracking.order.status === 'pending' || tracking.order.status === 'confirmed'
-                ? `${tracking.restaurant?.name || 'რესტორანმა'} მიიღო თქვენი შეკვეთა`
-                : tracking.order.status === 'preparing'
-                ? `${tracking.restaurant?.name || 'რესტორანი'} ამზადებს თქვენს შეკვეთას`
-                : tracking.order.status === 'ready'
-                ? 'შეკვეთა მზადაა'
-                : tracking.order.status === 'delivering'
-                ? 'კურიერი მოდის თქვენთან'
-                : 'შეკვეთა მიტანილია'}
+        {estimatedTime ? (
+          <View style={styles.deliveryTimeContainer}>
+            <Text style={styles.deliveryTimeLabel}>
+              მიწოდების სავარაუდო დრო
             </Text>
+            <Text style={styles.deliveryTimeValue}>{estimatedTime}</Text>
           </View>
+        ) : null}
 
-          {/* Restaurant Info */}
-          {tracking.restaurant && (
-            <View style={styles.restaurantInfoContainer}>
-              <View style={styles.restaurantInfoRow}>
-                <Ionicons name="restaurant" size={18} color="#666" />
-                <Text style={styles.restaurantInfoText}>{tracking.restaurant.name}</Text>
-              </View>
-              {tracking.restaurant.location?.address && (
-                <Text style={styles.restaurantAddress}>{tracking.restaurant.location.address}</Text>
-              )}
-            </View>
-          )}
+        <View style={styles.progressContainer}>
+          {TRACKING_STAGES.map((stage, index) => {
+            const isReached = index <= currentStageIndex;
+            const isCompleted = index < currentStageIndex;
+            const isCurrent = index === currentStageIndex;
+            const StageIcon = stage.Icon;
 
-          {/* Delivery Address */}
-          {tracking.order.deliveryAddress && (
-            <View style={styles.deliveryAddressContainer}>
-              <View style={styles.deliveryAddressRow}>
-                <Ionicons name="location" size={18} color="#666" />
-                <View style={styles.deliveryAddressTextContainer}>
-                  <Text style={styles.deliveryAddressText}>
-                    {tracking.order.deliveryAddress.street}
-                  </Text>
-                  <Text style={styles.deliveryAddressCity}>
-                    {tracking.order.deliveryAddress.city}
-                  </Text>
-                  {tracking.order.deliveryAddress.instructions && (
-                    <Text style={styles.deliveryInstructions}>
-                      {tracking.order.deliveryAddress.instructions}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </View>
-          )}
+            const scale = stageAnimations[index].interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.85, 1],
+            });
 
-          {/* Order Details */}
-          {tracking.order.items && tracking.order.items.length > 0 && (
-            <View style={styles.orderDetailsContainer}>
-              <Text style={styles.orderDetailsTitle}>შეკვეთის დეტალები</Text>
-              {tracking.order.items.map((item, index) => (
-                <View key={index} style={styles.orderItemRow}>
-                  <View style={styles.orderItemInfo}>
-                    <Text style={styles.orderItemName}>{item.name}</Text>
-                    <Text style={styles.orderItemQuantity}>x{item.quantity}</Text>
-                  </View>
-                  <Text style={styles.orderItemPrice}>
-                    {(item.price * item.quantity).toFixed(2)} ₾
-                  </Text>
-                </View>
-              ))}
-              <View style={styles.orderDivider} />
-              <View style={styles.orderTotalRow}>
-                <Text style={styles.orderTotalLabel}>პროდუქტები:</Text>
-                <Text style={styles.orderTotalValue}>
-                  {(
-                    tracking.order.items.reduce(
-                      (sum, item) => sum + item.price * item.quantity,
-                      0
-                    )
-                  ).toFixed(2)} ₾
-                </Text>
-              </View>
-              {tracking.order.deliveryFee !== undefined && tracking.order.deliveryFee > 0 && (
-                <View style={styles.orderFeeRow}>
-                  <Text style={styles.orderFeeLabel}>მიტანის საფასური:</Text>
-                  <Text style={styles.orderFeeValue}>
-                    {tracking.order.deliveryFee.toFixed(2)} ₾
-                  </Text>
-                </View>
-              )}
-              {tracking.order.tip !== undefined && tracking.order.tip > 0 && (
-                <View style={styles.orderFeeRow}>
-                  <Text style={styles.orderFeeLabel}>ჩაი:</Text>
-                  <Text style={styles.orderFeeValue}>
-                    {tracking.order.tip.toFixed(2)} ₾
-                  </Text>
-                </View>
-              )}
-              {tracking.order.totalAmount !== undefined && (
-                <View style={[styles.orderTotalRow, styles.orderFinalTotalRow]}>
-                  <Text style={styles.orderFinalTotalLabel}>სულ:</Text>
-                  <Text style={styles.orderFinalTotalValue}>
-                    {tracking.order.totalAmount.toFixed(2)} ₾
-                  </Text>
-                </View>
-              )}
-              {tracking.order.paymentMethod && (
-                <View style={styles.orderPaymentRow}>
-                  <Text style={styles.orderPaymentLabel}>გადახდის მეთოდი:</Text>
-                  <Text style={styles.orderPaymentValue}>
-                    {tracking.order.paymentMethod === 'card' 
-                      ? 'ბარათი' 
-                      : tracking.order.paymentMethod === 'cash' 
-                      ? 'ნაღდი' 
-                      : tracking.order.paymentMethod === 'greengo_balance'
-                      ? 'GreenGo ბალანსი'
-                      : tracking.order.paymentMethod}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-        </ScrollView>
+            return (
+              <React.Fragment key={stage.key}>
+                <Animated.View
+                  style={[
+                    styles.stageIconWrap,
+                    !isReached && styles.stageIconDimmed,
+                    {
+                      transform: [
+                        { scale: isCurrent ? pulseAnim : scale },
+                      ],
+                    },
+                  ]}
+                >
+                  <StageIcon size={32} />
+                </Animated.View>
+                {index < TRACKING_STAGES.length - 1 ? (
+                  <View
+                    style={[
+                      styles.stageConnector,
+                      isCompleted && styles.stageConnectorActive,
+                    ]}
+                  />
+                ) : null}
+              </React.Fragment>
+            );
+          })}
+        </View>
+
+        <Text style={styles.statusMessage}>{statusMessage}</Text>
       </View>
 
       {/* Success Modal */}
@@ -797,10 +584,14 @@ export default function OrderTrackingScreen() {
           >
             <View style={styles.modalIconContainer}>
               <View style={styles.modalIconCircle}>
-                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={64}
+                  color={LIST_ACCENT_GREEN}
+                />
               </View>
             </View>
-            <Text style={styles.modalTitle}>შეკვეთა მიტანილია! 🎉</Text>
+            <Text style={styles.modalTitle}>შეკვეთა მიტანილია!</Text>
             <Text style={styles.modalMessage}>
               თქვენ შეკვეთა წარმატებით მიიღეთ. მადლობთ, რომ აირჩიეთ GreenGo!
             </Text>
@@ -814,7 +605,7 @@ export default function OrderTrackingScreen() {
           </Animated.View>
         </Animated.View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -830,28 +621,10 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: "#666",
-  },
-  backButtonHeader: {
-    padding: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  refreshButton: {
-    padding: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#6B7280",
   },
   errorContainer: {
     flex: 1,
@@ -864,21 +637,24 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: 16,
-    fontSize: 16,
-    color: "#F44336",
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#EF4444",
     textAlign: "center",
   },
   retryButton: {
     marginTop: 24,
-    backgroundColor: "#4CAF50",
+    backgroundColor: BRAND_GREEN,
     paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
   },
   retryButtonText: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
   },
   backButton: {
     marginTop: 12,
@@ -886,128 +662,55 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButtonText: {
-    color: "#666",
-    fontSize: 16,
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#6B7280",
+  },
+  mapContainer: {
+    flex: 1,
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
   },
   header: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 10,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 70,
     paddingBottom: 8,
-    backgroundColor: "transparent",
-    zIndex: 10,
-    minHeight: 50,
   },
-  headerButton: {
-    padding: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  headerBack: {
+    width: 32,
   },
-  headerSpacer: {
+  headerTitle: {
     flex: 1,
+    fontFamily: fontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: BRAND_GREEN,
+    textAlign: "center",
+    marginHorizontal: 8,
   },
-  mapContainer: {
-    flex: 1,
+  headerSide: {
+    width: 32,
   },
-  map: {
-    flex: 1,
-  },
-  restaurantMarker: {
-    backgroundColor: "#FF5722",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  deliveryMarker: {
-    backgroundColor: "#4CAF50",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  courierMarker: {
-    backgroundColor: "#2196F3",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  mapControls: {
-    position: "absolute",
-    right: 12,
-    bottom: "58%",
-    gap: 8,
-    zIndex: 1000,
-  },
-  myLocationButton: {
+  mapMarker: {
     width: 40,
     height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  zoomControls: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-    overflow: "hidden",
-  },
-  zoomButton: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
+    backgroundColor: MARKER_BG,
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  zoomButtonBottom: {
-    borderBottomWidth: 0,
+  courierMarker: {
+    backgroundColor: BRAND_GREEN,
   },
   bottomCard: {
     position: "absolute",
@@ -1017,261 +720,76 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
-    maxHeight: "55%",
-    zIndex: 100,
-  },
-  bottomCardScroll: {
-    maxHeight: "100%",
-  },
-  bottomCardContent: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 12,
+    zIndex: 100,
   },
   cardHandle: {
     width: 40,
     height: 4,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: "#D1D5DB",
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   deliveryTimeContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
-    paddingBottom: 12,
-    marginBottom: 12,
+    marginBottom: 20,
+    alignItems: "center",
   },
   deliveryTimeLabel: {
-    fontSize: 12,
-    color: "#666",
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#6B7280",
     marginBottom: 6,
+    textAlign: "center",
   },
   deliveryTimeValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#000",
+    fontFamily: fontFamily.semiBold,
+    fontSize: 28,
+    lineHeight: 34,
+    color: "#111827",
+    letterSpacing: -0.5,
+    textAlign: "center",
   },
   progressContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
-    paddingHorizontal: 8,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
-  stageItem: {
-    alignItems: "center",
+  stageIconWrap: {
+    width: 32,
+    height: 32,
+  },
+  stageIconDimmed: {
+    opacity: 0.45,
+  },
+  stageConnector: {
     flex: 1,
+    height: 0,
+    borderTopWidth: 2,
+    borderStyle: "dotted",
+    borderColor: PROGRESS_GREEN,
+    marginHorizontal: 4,
+    marginTop: 0,
   },
-  stageIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F5F5F5",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#E0E0E0",
-  },
-  stageIconActive: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-  stageIconCompleted: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-  pulseRing: {
-    position: "absolute",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#4CAF50",
-    opacity: 0.3,
-  },
-  stageLine: {
-    position: "absolute",
-    top: 20,
-    left: "50%",
-    width: "100%",
-    height: 2,
-    backgroundColor: "#E0E0E0",
-    zIndex: -1,
-  },
-  stageLineCompleted: {
-    backgroundColor: "#4CAF50",
-  },
-  statusMessageContainer: {
-    marginBottom: 12,
-    position: "relative",
+  stageConnectorActive: {
+    borderStyle: "solid",
+    borderColor: PROGRESS_ACTIVE,
   },
   statusMessage: {
-    fontSize: 13,
-    color: "#333",
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: BRAND_GREEN,
     textAlign: "center",
-    lineHeight: 18,
-  },
-  restaurantInfoContainer: {
-    marginBottom: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  restaurantInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
     marginBottom: 4,
-  },
-  restaurantInfoText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#333",
-    marginLeft: 8,
-  },
-  restaurantAddress: {
-    fontSize: 11,
-    color: "#666",
-    marginLeft: 26,
-    marginTop: 2,
-  },
-  deliveryAddressContainer: {
-    marginBottom: 8,
-  },
-  deliveryAddressRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  deliveryAddressTextContainer: {
-    marginLeft: 8,
-    flex: 1,
-  },
-  deliveryAddressText: {
-    fontSize: 13,
-    color: "#333",
-    lineHeight: 18,
-  },
-  deliveryAddressCity: {
-    fontSize: 11,
-    color: "#666",
-    marginTop: 2,
-  },
-  deliveryInstructions: {
-    fontSize: 10,
-    color: "#999",
-    fontStyle: "italic",
-    marginTop: 4,
-  },
-  orderDetailsContainer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-  },
-  orderDetailsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 10,
-  },
-  orderItemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  orderItemInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  orderItemName: {
-    fontSize: 12,
-    color: "#333",
-    fontWeight: "500",
-    marginRight: 6,
-  },
-  orderItemQuantity: {
-    fontSize: 11,
-    color: "#666",
-  },
-  orderItemPrice: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-  },
-  orderDivider: {
-    height: 1,
-    backgroundColor: "#E0E0E0",
-    marginVertical: 10,
-  },
-  orderTotalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  orderTotalLabel: {
-    fontSize: 12,
-    color: "#666",
-  },
-  orderTotalValue: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-  },
-  orderFeeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  orderFeeLabel: {
-    fontSize: 11,
-    color: "#666",
-  },
-  orderFeeValue: {
-    fontSize: 11,
-    color: "#666",
-    fontWeight: "500",
-  },
-  orderFinalTotalRow: {
-    marginTop: 6,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-  },
-  orderFinalTotalLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#333",
-  },
-  orderFinalTotalValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#4CAF50",
-  },
-  orderPaymentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-  },
-  orderPaymentLabel: {
-    fontSize: 11,
-    color: "#666",
-  },
-  orderPaymentValue: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#333",
   },
   modalOverlay: {
     flex: 1,
@@ -1300,35 +818,38 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#F2FAF7",
     justifyContent: "center",
     alignItems: "center",
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#333",
+    fontFamily: fontFamily.extraBold,
+    fontSize: 20,
+    lineHeight: 26,
+    color: "#111827",
     marginBottom: 16,
     textAlign: "center",
   },
   modalMessage: {
-    fontSize: 16,
-    color: "#666",
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#6B7280",
     textAlign: "center",
-    lineHeight: 24,
     marginBottom: 32,
   },
   modalButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: BRAND_GREEN,
     paddingHorizontal: 48,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     width: "100%",
     alignItems: "center",
   },
   modalButtonText: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

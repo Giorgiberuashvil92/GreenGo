@@ -1,8 +1,20 @@
+import BackCircleIcon from "@/components/icons/BackCircleIcon";
+import CardBrandIcon from "@/components/icons/CardBrandIcon";
+import CourierTipIcon from "@/components/icons/CourierTipIcon";
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { getDistance } from "@/utils/restaurantUtils";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
+import {
+  formatAddressStreetLine,
+  formatAddressSubLine,
+} from "@/utils/address";
+import {
+  CheckoutPaymentSelection,
+  getPaymentDisplayLine,
+  loadCheckoutPayment,
+} from "@/utils/payment";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -23,8 +35,8 @@ import { useCart } from "../../contexts/CartContext";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 
-const PRIMARY_GREEN = "#1B5E37";
-const QTY_BG = "#DCFCE7";
+const PRIMARY_GREEN = "#1D4045";
+const QTY_BG = "#EFFBF5";
 const SCREEN_BG = "#F5F5F5";
 
 function formatGel(n: number): string {
@@ -53,62 +65,62 @@ export default function CheckoutScreen() {
   const [selectedTip, setSelectedTip] = useState<number>(3);
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
-    "delivery"
+    "delivery",
   );
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'greengo_balance'>('card');
+  const [paymentSelection, setPaymentSelection] =
+    useState<CheckoutPaymentSelection>({
+      method: "card",
+      cardId: "1",
+      cardType: "amex",
+      lastFour: "7729",
+    });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deliveryAddress, setDeliveryAddress] = useState<{
-    street: string;
-    city: string;
-    district?: string;
-    postalCode?: string;
-    coordinates: { lat: number; lng: number };
-    instructions?: string;
-  } | null>(null);
+  const { address: deliveryAddress, loading: addressLoading } =
+    useDeliveryAddress();
 
-  // Listen for address selection from selectAddress screen
+  const paymentMethod = paymentSelection.method;
+
   useFocusEffect(
     useCallback(() => {
-      const loadSelectedAddress = async () => {
-        try {
-          const addressJson = await AsyncStorage.getItem("@greengo:selected_address");
-          if (addressJson) {
-            const address = JSON.parse(addressJson);
-            setDeliveryAddress(address);
-            // Clear stored address after loading
-            await AsyncStorage.removeItem("@greengo:selected_address");
-          }
-        } catch (error) {
-          console.error("Error loading address:", error);
-        }
+      let cancelled = false;
+      const loadPayment = async () => {
+        const saved = await loadCheckoutPayment();
+        if (!cancelled) setPaymentSelection(saved);
       };
-      loadSelectedAddress();
-    }, [])
+      void loadPayment();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
   );
 
   const restaurantCartItems = cartItems.filter(
-    (item) => item.restaurantId === restaurantId
+    (item) => item.restaurantId === restaurantId,
   );
 
   const subtotal = restaurantCartItems.reduce(
     (total, item) => total + item.price * item.quantity,
-    0
+    0,
   );
 
   // Calculate delivery fee based on distance
   const deliveryFee = useMemo(() => {
-    if (deliveryType !== "delivery" || !deliveryAddress || !restaurant?.location) {
+    if (
+      deliveryType !== "delivery" ||
+      !deliveryAddress ||
+      !restaurant?.location
+    ) {
       return 0;
     }
 
     const baseFee = restaurant.deliveryFee || 4.99;
-    
+
     // Calculate distance between restaurant and delivery address
     const distanceKm = getDistance(
       restaurant.location.latitude,
       restaurant.location.longitude,
       deliveryAddress.coordinates.lat,
-      deliveryAddress.coordinates.lng
+      deliveryAddress.coordinates.lng,
     );
 
     // If distance > 10 km, add 1.20 GEL per additional kilometer
@@ -117,9 +129,14 @@ export default function CheckoutScreen() {
     }
 
     const additionalKm = distanceKm - 10;
-    const additionalFee = additionalKm * 1.20;
+    const additionalFee = additionalKm * 1.2;
     return baseFee + additionalFee;
-  }, [deliveryType, deliveryAddress, restaurant?.location, restaurant?.deliveryFee]);
+  }, [
+    deliveryType,
+    deliveryAddress,
+    restaurant?.location,
+    restaurant?.deliveryFee,
+  ]);
 
   const total = useMemo(() => {
     return subtotal + deliveryFee + selectedTip;
@@ -168,34 +185,42 @@ export default function CheckoutScreen() {
 
       // Calculate estimated delivery time based on distance
       let estimatedMinutes = 20; // Base preparation time
-      
-      if (deliveryType === "delivery" && deliveryAddress && restaurant?.location) {
+
+      if (
+        deliveryType === "delivery" &&
+        deliveryAddress &&
+        restaurant?.location
+      ) {
         // Calculate distance between restaurant and delivery address
         const distanceKm = getDistance(
           restaurant.location.latitude,
           restaurant.location.longitude,
           deliveryAddress.coordinates.lat,
-          deliveryAddress.coordinates.lng
+          deliveryAddress.coordinates.lng,
         );
-        
+
         // Calculate delivery time:
         // - Preparation time: 15-20 minutes
         // - Travel time: distance / average speed (30 km/h in city = 0.5 km/min)
         // - Add buffer: 5-10 minutes
         const travelTimeMinutes = Math.ceil(distanceKm / 0.5); // ~30 km/h average speed
         estimatedMinutes = 20 + travelTimeMinutes + 5; // Base + travel + buffer
-        
+
         // Minimum 25 minutes, maximum 60 minutes
         estimatedMinutes = Math.max(25, Math.min(60, estimatedMinutes));
-        
-        console.log(`📍 Distance: ${distanceKm.toFixed(2)} km, Estimated time: ${estimatedMinutes} minutes`);
+
+        console.log(
+          `📍 Distance: ${distanceKm.toFixed(2)} km, Estimated time: ${estimatedMinutes} minutes`,
+        );
       } else if (deliveryType === "pickup") {
         // Pickup orders are faster - just preparation time
         estimatedMinutes = 15;
       }
-      
+
       const estimatedDelivery = new Date();
-      estimatedDelivery.setMinutes(estimatedDelivery.getMinutes() + estimatedMinutes);
+      estimatedDelivery.setMinutes(
+        estimatedDelivery.getMinutes() + estimatedMinutes,
+      );
 
       // Prepare delivery address - only include required fields for backend
       let finalDeliveryAddress: {
@@ -204,28 +229,29 @@ export default function CheckoutScreen() {
         coordinates: { lat: number; lng: number };
         instructions?: string;
       };
-      
+
       if (deliveryType === "delivery") {
         if (!deliveryAddress) {
           console.log("❌ Delivery address is required for delivery orders");
-          Alert.alert(
-            "შეცდომა",
-            "გთხოვთ აირჩიოთ მიტანის მისამართი"
-          );
+          Alert.alert("შეცდომა", "გთხოვთ აირჩიოთ მიტანის მისამართი");
           setIsSubmitting(false);
           return;
         }
-        
-        if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.coordinates) {
+
+        if (
+          !deliveryAddress.street ||
+          !deliveryAddress.city ||
+          !deliveryAddress.coordinates
+        ) {
           console.log("❌ Delivery address data is incomplete");
           Alert.alert(
             "შეცდომა",
-            "მისამართის მონაცემები არასრულია. გთხოვთ აირჩიოთ მისამართი თავიდან"
+            "მისამართის მონაცემები არასრულია. გთხოვთ აირჩიოთ მისამართი თავიდან",
           );
           setIsSubmitting(false);
           return;
         }
-        
+
         finalDeliveryAddress = {
           street: deliveryAddress.street,
           city: deliveryAddress.city,
@@ -237,9 +263,9 @@ export default function CheckoutScreen() {
         };
         console.log("✅ Delivery address prepared:", finalDeliveryAddress);
       } else {
-        // For pickup, use restaurant address
         finalDeliveryAddress = {
-          street: restaurant.location?.address || restaurant.name || "რესტორანი",
+          street:
+            restaurant.location?.address || restaurant.name || "რესტორანი",
           city: restaurant.location?.city || "თბილისი",
           coordinates: {
             lat: Number(restaurant.location?.latitude || 41.7151),
@@ -254,7 +280,7 @@ export default function CheckoutScreen() {
         userId: user.id,
         restaurantId: restaurant._id || restaurant.id || restaurantId,
         items: orderItems,
-        totalAmount: Number(total.toFixed(2)), // Include subtotal + deliveryFee + tip
+        totalAmount: Number(total.toFixed(2)),
         deliveryFee: Number(deliveryFee.toFixed(2)),
         paymentMethod: paymentMethod,
         deliveryAddress: finalDeliveryAddress,
@@ -264,10 +290,13 @@ export default function CheckoutScreen() {
         deliveryType: deliveryType,
       };
 
-      console.log("📦 Creating order with data:", JSON.stringify(orderData, null, 2));
+      console.log(
+        "📦 Creating order with data:",
+        JSON.stringify(orderData, null, 2),
+      );
 
       const response = await apiService.createOrder(orderData);
-      
+
       console.log("📥 Order response:", JSON.stringify(response, null, 2));
 
       if (response.success) {
@@ -281,26 +310,26 @@ export default function CheckoutScreen() {
         console.log("🔄 Navigating to order success page...");
         router.push({
           pathname: "/screens/orderSuccess",
-          params: { 
+          params: {
             restaurantId,
-            orderId: (response.data as any)?._id || (response.data as any)?.id || "",
+            orderId:
+              (response.data as any)?._id || (response.data as any)?.id || "",
+            deliveryFee: String(deliveryFee.toFixed(2)),
           },
         });
       } else {
         console.error("❌ Order creation failed:", response.error);
         Alert.alert(
           "შეცდომა",
-          response.error?.details || "შეკვეთის შექმნა ვერ მოხერხდა"
+          response.error?.details || "შეკვეთის შექმნა ვერ მოხერხდა",
         );
       }
     } catch (error: unknown) {
       console.error("❌ Exception in handleConfirmOrder:", error);
-      const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
+      const errorMessage =
+        error instanceof Error ? error.message : "უცნობი შეცდომა";
       console.error("Error message:", errorMessage);
-      Alert.alert(
-        "შეცდომა",
-        errorMessage
-      );
+      Alert.alert("შეცდომა", errorMessage);
     } finally {
       console.log("🏁 handleConfirmOrder finished");
       setIsSubmitting(false);
@@ -308,29 +337,15 @@ export default function CheckoutScreen() {
   };
 
   const openPaymentPicker = () => {
-    Alert.alert("გადახდის მეთოდი", undefined, [
-      { text: "ბარათი", onPress: () => setPaymentMethod("card") },
-      { text: "ნაღდი ფული", onPress: () => setPaymentMethod("cash") },
-      {
-        text: "GreenGo ბალანსი",
-        onPress: () => setPaymentMethod("greengo_balance"),
-      },
-      { text: "გაუქმება", style: "cancel" },
-    ]);
+    router.push({
+      pathname: "/screens/paymentMethods",
+      params: { select: "1" },
+    });
   };
 
-  const paymentTitle =
-    paymentMethod === "card"
-      ? "ბარათი"
-      : paymentMethod === "cash"
-        ? "ნაღდი ფული"
-        : "GreenGo ბალანსი";
-  const paymentSubtitle =
-    paymentMethod === "card"
-      ? "**** 7729"
-      : paymentMethod === "cash"
-        ? "გადახდა მიტანისას"
-        : "ბალანსიდან ჩამოჭრა";
+  const paymentSubtitle = getPaymentDisplayLine(paymentSelection);
+  const selectedCardType =
+    paymentSelection.method === "card" ? paymentSelection.cardType : undefined;
 
   const goAddMore = () => {
     router.push({
@@ -374,7 +389,7 @@ export default function CheckoutScreen() {
           onPress={() => router.back()}
           hitSlop={12}
         >
-          <Ionicons name="chevron-back" size={24} color={LIST_ACCENT_GREEN} />
+          <BackCircleIcon size={32} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {restaurant?.name || "შეკვეთა"}
@@ -394,21 +409,17 @@ export default function CheckoutScreen() {
           style={styles.card}
           activeOpacity={0.85}
           onPress={() =>
-            router.push({ pathname: "/screens/selectAddress", params: {} })
+            router.push({ pathname: "/screens/locations", params: {} })
           }
         >
           <View style={styles.cardRow}>
-            <Ionicons name="location" size={22} color={LIST_ACCENT_GREEN} />
+            <Ionicons name="location" size={22} color={PRIMARY_GREEN} />
             <View style={styles.cardTextCol}>
-              <Text style={styles.addressMain}>
-                {deliveryAddress?.street || "აირჩიეთ მისამართი"}
+              <Text style={styles.addressMain} numberOfLines={1}>
+                {formatAddressStreetLine(deliveryAddress, addressLoading)}
               </Text>
-              <Text style={styles.addressSub}>
-                {deliveryAddress
-                  ? deliveryAddress.instructions ||
-                    deliveryAddress.city ||
-                    "დამატებითი დეტალები"
-                  : "დააჭირეთ მისამართის ასარჩევად"}
+              <Text style={styles.addressSub} numberOfLines={2}>
+                {formatAddressSubLine(deliveryAddress, addressLoading)}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
@@ -424,19 +435,21 @@ export default function CheckoutScreen() {
             onPress={() => setDeliveryType("delivery")}
             activeOpacity={0.88}
           >
-            <Ionicons
-              name="bicycle-outline"
-              size={26}
-              color={deliveryType === "delivery" ? "#FFFFFF" : "#4B5563"}
-            />
-            <Text
-              style={[
-                styles.deliveryTitle,
-                deliveryType === "delivery" && styles.deliveryTitleOn,
-              ]}
-            >
-              მიტანა
-            </Text>
+            <View style={styles.deliveryCardHead}>
+              <Ionicons
+                name="bicycle-outline"
+                size={22}
+                color={deliveryType === "delivery" ? "#FFFFFF" : "#4B5563"}
+              />
+              <Text
+                style={[
+                  styles.deliveryTitle,
+                  deliveryType === "delivery" && styles.deliveryTitleOn,
+                ]}
+              >
+                მიწოდება
+              </Text>
+            </View>
             <Text
               style={[
                 styles.deliverySub,
@@ -456,19 +469,21 @@ export default function CheckoutScreen() {
             onPress={() => setDeliveryType("pickup")}
             activeOpacity={0.88}
           >
-            <Ionicons
-              name="walk-outline"
-              size={26}
-              color={deliveryType === "pickup" ? "#FFFFFF" : "#4B5563"}
-            />
-            <Text
-              style={[
-                styles.deliveryTitle,
-                deliveryType === "pickup" && styles.deliveryTitleOn,
-              ]}
-            >
-              თვითაღება
-            </Text>
+            <View style={styles.deliveryCardHead}>
+              <Ionicons
+                name="walk-outline"
+                size={22}
+                color={deliveryType === "pickup" ? "#FFFFFF" : "#4B5563"}
+              />
+              <Text
+                style={[
+                  styles.deliveryTitle,
+                  deliveryType === "pickup" && styles.deliveryTitleOn,
+                ]}
+              >
+                გატანა
+              </Text>
+            </View>
             <Text
               style={[
                 styles.deliverySub,
@@ -476,7 +491,7 @@ export default function CheckoutScreen() {
               ]}
               numberOfLines={2}
             >
-              თვით აკრიფეთ რესტორნიდან
+              თავად მიაკითხავთ ობიექსს
             </Text>
           </TouchableOpacity>
         </View>
@@ -485,7 +500,7 @@ export default function CheckoutScreen() {
           <View style={styles.sectionHead}>
             <Text style={styles.blockTitle}>პროდუქტები</Text>
             <TouchableOpacity onPress={goAddMore} hitSlop={8}>
-              <Text style={styles.addMoreLink}>დაამატე მეტი</Text>
+              <Text style={styles.addMoreLink}>დაამატეთ მეტი</Text>
             </TouchableOpacity>
           </View>
 
@@ -500,7 +515,7 @@ export default function CheckoutScreen() {
                   {item.name}
                 </Text>
                 <Text style={styles.productLinePrice}>
-                  {formatGel(item.price * item.quantity)}
+                  {formatGel(item.price)}
                 </Text>
               </View>
               <View style={styles.qtyPill}>
@@ -550,15 +565,13 @@ export default function CheckoutScreen() {
         <View style={[styles.card, styles.tipCard]}>
           <View style={styles.tipHeadRow}>
             <View style={styles.tipIconBg}>
-              <Ionicons name="wallet-outline" size={20} color={PRIMARY_GREEN} />
+              <CourierTipIcon size={40} />
             </View>
             <View style={styles.tipHeadText}>
               <Text style={styles.tipHeadTitle}>
-                დატოვებთ კურიერს დამატებით თიფს?
+                დაუტოვებთ კურიერს დამატებით თიფს?
               </Text>
-              <Text style={styles.tipHeadSub}>
-                კურიერი იღებს თიფის 100%-ს.
-              </Text>
+              <Text style={styles.tipHeadSub}>კურიერი იღებს თიფის 100%-ს.</Text>
             </View>
           </View>
           <View style={styles.tipChips}>
@@ -591,50 +604,31 @@ export default function CheckoutScreen() {
         >
           <View style={styles.cardRow}>
             <View style={styles.payBrand}>
-              <Ionicons
-                name={
-                  paymentMethod === "card"
-                    ? "card-outline"
-                    : paymentMethod === "cash"
+              {selectedCardType ? (
+                <CardBrandIcon
+                  type={selectedCardType}
+                  width={40}
+                  height={24}
+                />
+              ) : (
+                <Ionicons
+                  name={
+                    paymentSelection.method === "cash"
                       ? "cash-outline"
                       : "wallet-outline"
-                }
-                size={22}
-                color={PRIMARY_GREEN}
-              />
+                  }
+                  size={22}
+                  color={PRIMARY_GREEN}
+                />
+              )}
             </View>
             <View style={styles.cardTextCol}>
-              <Text style={styles.payTitle}>{paymentTitle}</Text>
               <Text style={styles.paySub}>{paymentSubtitle}</Text>
             </View>
             <Text style={styles.payTotal}>{formatGel(total)}</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </View>
         </TouchableOpacity>
-
-        <View style={[styles.card, styles.summaryCard]}>
-          <Text style={styles.summaryHeading}>შეკვეთის დეტალები</Text>
-          <View style={styles.summaryLine}>
-            <Text style={styles.summaryMuted}>პროდუქტების ჯამი</Text>
-            <Text style={styles.summaryVal}>{formatGel(subtotal)}</Text>
-          </View>
-          {deliveryType === "delivery" ? (
-            <View style={styles.summaryLine}>
-              <Text style={styles.summaryMuted}>მიტანის საფასური</Text>
-              <Text style={styles.summaryVal}>{formatGel(deliveryFee)}</Text>
-            </View>
-          ) : null}
-          {selectedTip > 0 ? (
-            <View style={styles.summaryLine}>
-              <Text style={styles.summaryMuted}>თიფი</Text>
-              <Text style={styles.summaryVal}>{formatGel(selectedTip)}</Text>
-            </View>
-          ) : null}
-          <View style={[styles.summaryLine, styles.summaryLineTotal]}>
-            <Text style={styles.summaryTotalLab}>სულ</Text>
-            <Text style={styles.summaryTotalNum}>{formatGel(total)}</Text>
-          </View>
-        </View>
       </ScrollView>
 
       <View
@@ -646,10 +640,7 @@ export default function CheckoutScreen() {
         ]}
       >
         <TouchableOpacity
-          style={[
-            styles.confirmBtn,
-            isSubmitting && styles.confirmBtnDisabled,
-          ]}
+          style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
           onPress={() => {
             console.log("🔘 Confirm button pressed");
             handleConfirmOrder();
@@ -660,7 +651,7 @@ export default function CheckoutScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.confirmBtnText}>დაადასტურე შეკვეთა</Text>
+            <Text style={styles.confirmBtnText}>შეკვეთის დადასტურება</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -677,17 +668,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E7EB",
+    backgroundColor: SCREEN_BG,
   },
   headerBack: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -698,14 +685,15 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    fontSize: 17,
-    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    lineHeight: 26,
+    fontFamily: fontFamily.extraBold,
     color: "#111827",
     textAlign: "center",
     marginHorizontal: 8,
   },
   headerRightSpacer: {
-    width: 44,
+    width: 32,
   },
   scroll: {
     flex: 1,
@@ -734,11 +722,13 @@ const styles = StyleSheet.create({
   },
   addressMain: {
     fontSize: 16,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
   },
   addressSub: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.regular,
     color: "#6B7280",
     marginTop: 2,
@@ -754,19 +744,25 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 10,
-    alignItems: "center",
+    gap: 6,
   },
   deliveryCardOn: {
     backgroundColor: PRIMARY_GREEN,
     borderColor: PRIMARY_GREEN,
   },
+  deliveryCardHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   deliveryTitle: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
-    marginTop: 8,
   },
   deliveryTitleOn: {
     color: "#FFFFFF",
@@ -775,8 +771,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: fontFamily.regular,
     color: "#6B7280",
-    textAlign: "center",
-    marginTop: 4,
     lineHeight: 15,
   },
   deliverySubOn: {
@@ -793,14 +787,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   blockTitle: {
-    fontSize: 17,
-    fontFamily: fontFamily.bold,
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: fontFamily.extraBold,
+    textTransform: "uppercase",
     color: "#111827",
   },
   addMoreLink: {
-    fontSize: 14,
+    fontSize: 12,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
-    color: LIST_ACCENT_GREEN,
+    textTransform: "uppercase",
+    color: "#003E20",
   },
   productCard: {
     flexDirection: "row",
@@ -824,15 +822,17 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   productName: {
-    fontSize: 15,
+    fontSize: 16,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
     marginBottom: 4,
   },
   productLinePrice: {
-    fontSize: 15,
-    fontFamily: fontFamily.bold,
-    color: LIST_ACCENT_GREEN,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    color: "#111827",
   },
   qtyPill: {
     flexDirection: "row",
@@ -849,9 +849,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   qtyNum: {
-    fontSize: 16,
-    fontFamily: fontFamily.bold,
-    color: "#111827",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: PRIMARY_GREEN,
     minWidth: 22,
     textAlign: "center",
   },
@@ -862,11 +863,12 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.regular,
     color: "#111827",
-    minHeight: 88,
-    textAlignVertical: "top",
+    minHeight: 52,
+    textAlignVertical: "center",
     marginBottom: 12,
   },
   voucherBadge: {
@@ -884,7 +886,8 @@ const styles = StyleSheet.create({
   },
   voucherLabel: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
   },
@@ -901,7 +904,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: QTY_BG,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -909,8 +912,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tipHeadTitle: {
-    fontSize: 15,
-    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    textTransform: "uppercase",
+    fontFamily: fontFamily.bold,
     color: "#111827",
   },
   tipHeadSub: {
@@ -943,70 +948,23 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   payBrand: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: QTY_BG,
+    minWidth: 48,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
   },
-  payTitle: {
-    fontSize: 15,
-    fontFamily: fontFamily.semiBold,
-    color: "#111827",
-  },
   paySub: {
-    fontSize: 13,
-    fontFamily: fontFamily.regular,
-    color: "#6B7280",
-    marginTop: 2,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    color: "#111827",
   },
   payTotal: {
-    fontSize: 15,
-    fontFamily: fontFamily.bold,
-    color: LIST_ACCENT_GREEN,
-    marginRight: 4,
-  },
-  summaryCard: {
-    marginBottom: 8,
-  },
-  summaryHeading: {
-    fontSize: 16,
-    fontFamily: fontFamily.bold,
-    color: "#111827",
-    marginBottom: 10,
-  },
-  summaryLine: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  summaryMuted: {
     fontSize: 14,
-    fontFamily: fontFamily.regular,
-    color: "#6B7280",
-  },
-  summaryVal: {
-    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
-  },
-  summaryLineTotal: {
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E5E7EB",
-  },
-  summaryTotalLab: {
-    fontSize: 16,
-    fontFamily: fontFamily.bold,
-    color: "#111827",
-  },
-  summaryTotalNum: {
-    fontSize: 16,
-    fontFamily: fontFamily.bold,
-    color: LIST_ACCENT_GREEN,
+    marginRight: 4,
   },
   footer: {
     position: "absolute",
@@ -1014,15 +972,13 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E5E7EB",
+    paddingTop: 12,
+    backgroundColor: SCREEN_BG,
   },
   confirmBtn: {
     backgroundColor: PRIMARY_GREEN,
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: 12,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1030,8 +986,9 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   confirmBtnText: {
-    fontSize: 16,
-    fontFamily: fontFamily.bold,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
     color: "#FFFFFF",
   },
   loadingContainer: {

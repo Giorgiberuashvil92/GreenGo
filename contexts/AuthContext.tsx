@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import apiService from "../utils/api";
 
 interface User {
@@ -9,6 +9,7 @@ interface User {
   firstName?: string;
   lastName?: string;
   email?: string;
+  balance?: number;
 }
 
 interface AuthContextType {
@@ -289,7 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await apiService.getProfile();
       console.log(
@@ -297,22 +298,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         JSON.stringify(response, null, 2),
       );
       if (response.success && response.data) {
-        // Backend returns {success: true, data: {...}}
-        // API service wraps it: {success: true, data: {success: true, data: {...}}}
-        // So we need to check if response.data has nested structure
         const userData = (response.data as any).data || response.data;
         const finalUserData = userData as User;
         console.log(
           "✅ refreshUser - Setting user:",
           JSON.stringify(finalUserData, null, 2),
         );
-        setUser(finalUserData);
+        setUser((prev) => {
+          if (
+            prev &&
+            JSON.stringify(prev) === JSON.stringify(finalUserData)
+          ) {
+            return prev;
+          }
+          return finalUserData;
+        });
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(finalUserData));
       }
     } catch (error) {
       console.error("Refresh user error:", error);
     }
-  };
+  }, []);
 
   const value = {
     isAuthenticated,

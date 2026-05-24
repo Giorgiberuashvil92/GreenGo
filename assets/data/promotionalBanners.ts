@@ -1,35 +1,27 @@
 export interface PromotionalBanner {
   id: number;
   title: string;
-  oldPrice: string;
-  newPrice: string;
-  image: any;
+  image: number;
   description?: string;
 }
 
 export const promotionalBanners: PromotionalBanner[] = [
   {
     id: 1,
-    title: "KFC FEST",
-    oldPrice: "24,35₾",
-    newPrice: "14.95₾",
-    image: require("../images/kfc.png"),
-    description: "შეუკვეთე ახლავე",
+    title: "GreenGo",
+    image: require("../images/greengo.png"),
+    description: "მიტანა საქართველოში",
   },
   {
     id: 2,
-    title: "KFC FEST 2",
-    oldPrice: "30,00₾",
-    newPrice: "19.99₾",
-    image: require("../images/burger.png"),
-    description: "ახალი შეთავაზება",
+    title: "KFC FEST",
+    image: require("../images/kfc.png"),
+    description: "ფესტ ბოქსი ზინგერით",
   },
   {
     id: 3,
-    title: "KFC FEST 3",
-    oldPrice: "35,50₾",
-    newPrice: "24.99₾",
+    title: "Snickers McFlurry",
     image: require("../images/snickers.png"),
-    description: "ზამთრის აქცია",
+    description: "გაუსინჯე გემო სნიკერსის სიგრილეს",
   },
 ];

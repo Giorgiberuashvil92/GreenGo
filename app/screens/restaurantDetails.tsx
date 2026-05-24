@@ -1,9 +1,12 @@
+import BackCircleIcon from "@/components/icons/BackCircleIcon";
+import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Linking,
   ScrollView,
   StyleSheet,
@@ -12,342 +15,230 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRestaurant } from "../../hooks/useRestaurants";
+
+const DETAILS_TEXT_COLOR = "#1D4045";
+const MAP_HEIGHT = Math.round(Dimensions.get("window").height * 0.34);
+
+const DAY_ORDER = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+const DAY_NAMES_KA: Record<string, string> = {
+  monday: "ორშაბათი",
+  tuesday: "სამშაბათი",
+  wednesday: "ოთხშაბათი",
+  thursday: "ხუთშაბათი",
+  friday: "პარასკევი",
+  saturday: "შაბათი",
+  sunday: "კვირა",
+};
+
+const DEFAULT_HOURS = "09:00 - 23:00";
+
+const ALLERGY_NOTICE =
+  "ალერგიის შემთხვევაში გთხოვთ წინასწარ დაუკავშირდეთ რესტორანს, რათა თქვენი შეკვეთა იყოს უსაფრთხო და თქვენზე მორგებული.";
+
+function formatRestaurantTitle(name: string) {
+  const trimmed = name.trim();
+  if (trimmed.toLowerCase().startsWith("რესტორანი")) {
+    return trimmed;
+  }
+  return `რესტორანი ${trimmed}`;
+}
 
 export default function RestaurantDetailsScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { restaurant, loading, error } = useRestaurant(restaurantId || "");
 
-  // Map region (centered initially on restaurant)
   const [region, setRegion] = useState({
     latitude: 41.7151,
     longitude: 44.8271,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
+    latitudeDelta: 0.012,
+    longitudeDelta: 0.012,
   });
 
-  // Simple delivery simulation state
-  const [isSimulatingDelivery, setIsSimulatingDelivery] = useState(false);
-  const [simulationProgress, setSimulationProgress] = useState(0); // 0 → 1
-
-  // Fixed "user" location for simulation (could be current user in the future)
-  const simulatedUserLocation = useMemo(
-    () => ({
-      latitude: region.latitude + 0.01,
-      longitude: region.longitude + 0.01,
-    }),
-    [region.latitude, region.longitude]
-  );
-
-  const deliveryMarkerPosition = useMemo(() => {
-    if (!restaurant || !restaurant.location) {
-      return null;
-    }
-
-    const startLat = restaurant.location.latitude;
-    const startLng = restaurant.location.longitude;
-    const endLat = simulatedUserLocation.latitude;
-    const endLng = simulatedUserLocation.longitude;
-
-    const lat = startLat + (endLat - startLat) * simulationProgress;
-    const lng = startLng + (endLng - startLng) * simulationProgress;
-
-    return { latitude: lat, longitude: lng };
-  }, [restaurant, simulatedUserLocation, simulationProgress]);
-
-  // Location states for future use
-  // const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
-  // const [locationPermission, setLocationPermission] = useState<boolean>(false);
-
   useEffect(() => {
-    if (restaurant && restaurant.location) {
-      // Set restaurant location on map
+    if (restaurant?.location) {
       setRegion({
         latitude: restaurant.location.latitude || 41.7151,
         longitude: restaurant.location.longitude || 44.8271,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+        latitudeDelta: 0.012,
+        longitudeDelta: 0.012,
       });
     }
   }, [restaurant]);
 
-  // Very simple timer-based simulation (no real GPS)
-  useEffect(() => {
-    if (!isSimulatingDelivery) {
-      return;
+  const workingHoursRows = useMemo(() => {
+    const hours = restaurant?.workingHours;
+    if (hours && Object.keys(hours).length > 0) {
+      return DAY_ORDER.map((key) => {
+        const matchKey = Object.keys(hours).find(
+          (k) => k.toLowerCase() === key,
+        );
+        return {
+          day: DAY_NAMES_KA[key],
+          hours: matchKey ? String(hours[matchKey]) : DEFAULT_HOURS,
+        };
+      });
     }
-
-    setSimulationProgress(0);
-    const start = Date.now();
-    const durationMs = 15000; // ~15 წამი რესტორნიდან "კლიენტამდე"
-
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const progress = Math.min(1, elapsed / durationMs);
-      setSimulationProgress(progress);
-
-      if (progress >= 1) {
-        clearInterval(interval);
-        setIsSimulatingDelivery(false);
-        Alert.alert("მიტანა დასრულდა", "შეკვეთა ადგილზეა (სიმულაცია) 🛵");
-      }
-    }, 300);
-
-    return () => clearInterval(interval);
-  }, [isSimulatingDelivery]);
-
-  // Location functions for future use
-  // const getCurrentLocation = useCallback(async () => {
-  //   try {
-  //     const location = await Location.getCurrentPositionAsync({});
-  //     setUserLocation(location);
-  //   } catch (error) {
-  //     console.log("Get location error:", error);
-  //   }
-  // }, []);
-
-  // const getLocationPermission = useCallback(async () => {
-  //   try {
-  //     const { status } = await Location.requestForegroundPermissionsAsync();
-  //     if (status === "granted") {
-  //       setLocationPermission(true);
-  //       getCurrentLocation();
-  //     } else {
-  //       setLocationPermission(false);
-  //     }
-  //   } catch (error) {
-  //     console.log("Location permission error:", error);
-  //   }
-  // }, [getCurrentLocation]);
-
-  // useEffect(() => {
-  //   getLocationPermission();
-  // }, [getLocationPermission]);
+    return DAY_ORDER.map((key) => ({
+      day: DAY_NAMES_KA[key],
+      hours: DEFAULT_HOURS,
+    }));
+  }, [restaurant?.workingHours]);
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={DETAILS_TEXT_COLOR} />
           <Text style={styles.loadingText}>იტვირთება...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !restaurant) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
+      <View style={styles.container}>
+        <View style={styles.centered}>
           <Text style={styles.errorText}>
             {error || "რესტორნი ვერ მოიძებნა"}
           </Text>
           <TouchableOpacity
-            style={styles.retryButton}
+            style={styles.retryBtn}
             onPress={() => router.back()}
           >
-            <Text style={styles.retryButtonText}>უკან დაბრუნება</Text>
+            <Text style={styles.retryBtnText}>უკან დაბრუნება</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
+
+  const addressLine =
+    restaurant.location?.address ||
+    [restaurant.location?.city, restaurant.location?.district]
+      .filter(Boolean)
+      .join(", ") ||
+    "მისამართი არ არის მითითებული";
 
   const handleViewOnMap = () => {
     if (!restaurant.location) return;
     const { latitude, longitude } = restaurant.location;
     const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-
     Linking.openURL(url).catch(() => {
       Alert.alert("შეცდომა", "ვერ მოვახერხეთ რუკის გახსნა");
     });
   };
 
   const handleContact = () => {
-    const contactInfo = restaurant.contact || {};
+    const phone = restaurant.contact?.phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`).catch(() => {
+        Alert.alert("შეცდომა", "ვერ მოვახერხეთ დარეკვა");
+      });
+      return;
+    }
     Alert.alert(
       "კონტაქტი",
-      `ტელეფონი: ${contactInfo.phone || "არ არის მითითებული"}\nელ-ფოსტა: ${
-        contactInfo.email || "არ არის მითითებული"
-      }\nვებ-საიტი: ${contactInfo.website || "არ არის მითითებული"}`,
-      [{ text: "კარგი" }]
+      restaurant.contact?.email
+        ? `ელ-ფოსტა: ${restaurant.contact.email}`
+        : "საკონტაქტო ინფორმაცია არ არის მითითებული",
     );
   };
 
-  // Format working hours for display
-  const workingHours = restaurant.workingHours
-    ? Object.entries(restaurant.workingHours).map(([day, hours]) => {
-        const dayNames: { [key: string]: string } = {
-          monday: "ორშაბათი",
-          tuesday: "სამშაბათი",
-          wednesday: "ოთხშაბათი",
-          thursday: "ხუთშაბათი",
-          friday: "პარასკევი",
-          saturday: "შაბათი",
-          sunday: "კვირა",
-        };
-        return {
-          day: dayNames[day.toLowerCase()] || day,
-          hours: hours as string,
-        };
-      })
-    : [];
-  // const isOpen = isRestaurantOpen(restaurant);
-  // const currentDayHours = getCurrentDayHours(restaurant);
-  // const fullAddress = formatAddress(restaurant);
-
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
-        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* Interactive Map Section */}
-        <View style={styles.mapContainer}>
+        <View style={[styles.mapWrap, { height: MAP_HEIGHT }]}>
           <MapView
             style={styles.map}
             region={region}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
             showsUserLocation={false}
             showsMyLocationButton={false}
-            showsCompass={false}
-            showsScale={false}
-            mapType="standard"
-            onRegionChangeComplete={setRegion}
           >
-            {/* Restaurant Marker */}
-            {restaurant.location && (
+            {restaurant.location ? (
               <Marker
                 coordinate={{
                   latitude: restaurant.location.latitude,
                   longitude: restaurant.location.longitude,
                 }}
                 title={restaurant.name}
-                description={restaurant.location.address}
+                description={addressLine}
               />
-            )}
-
-            {/* Simulated user location marker */}
-            <Marker
-              coordinate={simulatedUserLocation}
-              pinColor="#3B82F6"
-              title="კლიენტის ლოკაცია (სიმულაცია)"
-            />
-
-            {/* Delivery in-progress marker */}
-            {deliveryMarkerPosition && (
-              <Marker
-                coordinate={deliveryMarkerPosition}
-                pinColor="#F97316"
-                title="კურიერი გზაშია (სიმულაცია)"
-                description="ეს არის ვიზუალური დემო მიტანისთვის"
-              />
-            )}
+            ) : null}
           </MapView>
 
-          {/* Back Button */}
           <TouchableOpacity
-            style={styles.mapBackButton}
-            onPress={() => {
-              // Try to go back to restaurant screen, or just go back
-              if (restaurantId) {
-                router.push({
-                  pathname: "/screens/restaurant",
-                  params: { restaurantId },
-                });
-              } else {
-                router.back();
-              }
-            }}
+            style={[styles.backBtn, { top: insets.top + 8 }]}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityLabel="უკან"
           >
-            <Ionicons name="arrow-back" size={24} color="#4CAF50" />
+            <BackCircleIcon size={32} />
           </TouchableOpacity>
         </View>
 
-        {/* Restaurant Information Card */}
-        <View style={styles.infoCard}>
-          <Text style={styles.restaurantName}>{restaurant.name}</Text>
+        <View style={styles.body}>
+          <Text style={styles.restaurantName}>
+            {formatRestaurantTitle(restaurant.name)}
+          </Text>
 
-          {restaurant.location && (
-            <View style={styles.addressContainer}>
-              <Ionicons name="location-outline" size={20} color="#666" />
-              <Text style={styles.address}>
-                {restaurant.location.address}, {restaurant.location.city}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[styles.viewOnMapButton, { flex: 1, marginRight: 8 }]}
-              onPress={handleViewOnMap}
-            >
-              <Text style={styles.viewOnMapText}>რუკაზე ნახვა</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.menuButton, { flex: 1, marginLeft: 8 }]}
-              onPress={() => {
-                if (restaurantId) {
-                  router.push({
-                    pathname: "/screens/restaurant",
-                    params: { restaurantId },
-                  });
-                }
-              }}
-            >
-              <Text style={styles.menuButtonText}>მენიუ</Text>
-            </TouchableOpacity>
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={18} color="#6B7280" />
+            <Text style={styles.addressText}>{addressLine}</Text>
           </View>
 
           <TouchableOpacity
-            style={[
-              styles.simulationButton,
-              isSimulatingDelivery && styles.simulationButtonDisabled,
-            ]}
-            activeOpacity={0.8}
-            onPress={() => {
-              if (!isSimulatingDelivery) {
-                setIsSimulatingDelivery(true);
-              }
-            }}
+            style={styles.secondaryBtn}
+            onPress={handleViewOnMap}
+            activeOpacity={0.88}
           >
-            <Text style={styles.simulationButtonText}>
-              {isSimulatingDelivery
-                ? "მიტანა მიმდინარეობს..."
-                : "მიტანის სიმულაცია"}
-            </Text>
+            <Text style={styles.secondaryBtnText}>რუკაზე ნახვა</Text>
           </TouchableOpacity>
-        </View>
 
-        {/* Working Hours Card */}
-        <View style={styles.hoursCard}>
-          <Text style={styles.cardTitle}>სამუშაო საათები</Text>
-          {workingHours.map((item, index) => (
-            <View key={index} style={styles.hoursRow}>
-              <Text style={styles.dayText}>{item.day}</Text>
-              <Text style={styles.hoursText}>{item.hours}</Text>
-            </View>
-          ))}
-        </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>სამუშაო საათები</Text>
+            {workingHoursRows.map((row) => (
+              <View key={row.day} style={styles.hoursRow}>
+                <Text style={styles.hoursDay}>{row.day}</Text>
+                <Text style={styles.hoursTime}>{row.hours}</Text>
+              </View>
+            ))}
+          </View>
 
-        {/* Contact Card */}
-        <View style={styles.contactCard}>
-          <Text style={styles.cardTitle}>კონტაქტი</Text>
-          <Text style={styles.contactText}>
-            თუ გაქვთ ალერგია, გთხოვთ წინასწარ დაუკავშირდეთ რესტორანს, რათა
-            თქვენი შეკვეთა იყოს უსაფრთხო და სრულად თქვენს მოთხოვნებზე მორგებული.
-          </Text>
-
-          <TouchableOpacity
-            style={styles.contactButton}
-            onPress={handleContact}
-          >
-            <Text style={styles.contactButtonText}>დაგვიკავშირდით</Text>
-          </TouchableOpacity>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>კონტაქტი</Text>
+            <Text style={styles.contactBody}>{ALLERGY_NOTICE}</Text>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={handleContact}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.secondaryBtnText}>დაგვიკავშირდით</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -356,199 +247,138 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+  scrollContent: {
+    paddingBottom: 32,
   },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  mapContainer: {
-    height: 280,
-    position: "relative",
+  mapWrap: {
+    width: "100%",
+    backgroundColor: "#E5E7EB",
   },
   map: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
-  mapBackButton: {
+  backBtn: {
     position: "absolute",
-    top: 50,
-    left: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: "center",
+    left: 16,
+    width: 32,
+    height: 32,
     alignItems: "center",
-    elevation: 3,
+    justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 2,
   },
-  infoCard: {
-    backgroundColor: "#FFFFFF",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+  body: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 20,
   },
   restaurantName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: fontFamily.extraBold,
+    color: "#111827",
+    textTransform: "uppercase",
   },
-  addressContainer: {
+  addressRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: -8,
   },
-  address: {
-    fontSize: 16,
-    color: "#666",
-    marginLeft: 8,
+  addressText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    color: "#6B7280",
   },
-  buttonRow: {
-    flexDirection: "row",
-    marginBottom: 12,
-  },
-  viewOnMapButton: {
-    backgroundColor: "#E8F5E8",
-    borderRadius: 25,
+  secondaryBtn: {
+    alignSelf: "stretch",
     paddingVertical: 12,
     paddingHorizontal: 24,
+    justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#F1F8F9",
+    borderRadius: 60,
   },
-  viewOnMapText: {
-    color: "#4CAF50",
+  secondaryBtnText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#1D4045",
+    textAlign: "center",
+  },
+  section: {
+    gap: 12,
+  },
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: "600",
-  },
-  menuButton: {
-    backgroundColor: "#4CAF50",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: "center",
-  },
-  menuButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  simulationButton: {
-    marginTop: 12,
-    backgroundColor: "#22C55E",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: "center",
-  },
-  simulationButtonDisabled: {
-    backgroundColor: "#BBF7D0",
-  },
-  simulationButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  hoursCard: {
-    backgroundColor: "#FFFFFF",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
+    lineHeight: 20,
+    fontFamily: fontFamily.bold,
+    color: "#111827",
+    textTransform: "uppercase",
   },
   hoursRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 2,
   },
-  dayText: {
-    fontSize: 16,
-    color: "#333",
+  hoursDay: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    textTransform: "uppercase",
   },
-  hoursText: {
-    fontSize: 16,
-    color: "#333",
+  hoursTime: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    textTransform: "uppercase",
   },
-  contactCard: {
-    backgroundColor: "#FFFFFF",
-    padding: 20,
-    marginBottom: 30,
+  contactBody: {
+    fontSize: 12,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#6B7280",
+    textTransform: "uppercase",
   },
-  contactText: {
-    fontSize: 16,
-    color: "#333",
-    lineHeight: 24,
-    marginBottom: 20,
-  },
-  contactButton: {
-    backgroundColor: "#E8F5E8",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: "center",
-  },
-  contactButtonText: {
-    color: "#4CAF50",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  loadingContainer: {
+  centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     gap: 12,
+    padding: 20,
   },
   loadingText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    color: "#6B7280",
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
     color: "#EF4444",
     textAlign: "center",
   },
-  retryButton: {
-    backgroundColor: "#4CAF50",
+  retryBtn: {
+    backgroundColor: DETAILS_TEXT_COLOR,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
-  retryButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
+  retryBtnText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#FFFFFF",
   },
 });

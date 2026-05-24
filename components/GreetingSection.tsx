@@ -1,13 +1,11 @@
 import { fontFamily } from "@/constants/fonts";
-import Feather from "@expo/vector-icons/build/Feather";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { FilterModal } from "../app/components";
 import { useAuth } from "../contexts/AuthContext";
+import HomeSearchBar from "./HomeSearchBar";
 
 export default function GreetingSection() {
-  const router = useRouter();
   const { user } = useAuth();
   const [showFilterModal, setShowFilterModal] = useState(false);
 
@@ -20,10 +18,6 @@ export default function GreetingSection() {
       return user.firstName;
     }
     return "მომხმარებელო"; // Fallback
-  };
-
-  const handleSearchPress = () => {
-    router.push("/screens/search");
   };
 
   const handleFilterPress = () => {
@@ -43,7 +37,7 @@ export default function GreetingSection() {
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
         <Text style={[styles.greetingText, { color: "#2F80ED" }]}>
-          გამარჯობა! <Text style={{ color: "#00592D" }}></Text>
+          გამარჯობა! <Text style={{ color: "#1D4045" }}>{getUserName()}</Text>
         </Text>
         <Text style={styles.waveText}>👋</Text>
       </View>
@@ -52,26 +46,7 @@ export default function GreetingSection() {
       </Text>
 
       <View style={styles.searchContainer}>
-        <TouchableOpacity
-          style={styles.searchInputContainer}
-          onPress={handleSearchPress}
-        >
-          <Feather name="search" size={16} color="#4A8F70" />
-          <Text style={styles.searchPlaceholder}>
-            რესტორნები, მაღაზიები, ხელნა...
-          </Text>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={handleFilterPress}
-          >
-            <Image
-              source={require("../assets/images/filter-modern-square.png")}
-              style={styles.filterIcon}
-              resizeMode="contain"
-              accessibilityLabel="ფილტრი"
-            />
-          </TouchableOpacity>
-        </TouchableOpacity>
+        <HomeSearchBar onFilterPress={handleFilterPress} />
       </View>
 
       <FilterModal
@@ -100,49 +75,22 @@ const styles = StyleSheet.create({
   greetingText: {
     fontSize: 16,
     fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
   },
   waveText: {
     fontSize: 20,
     marginLeft: 8,
+    textTransform: "uppercase",
   },
   subtitleText: {
     fontSize: 14,
     fontFamily: fontFamily.regular,
+    textTransform: "uppercase",
     color: "#666666",
     marginBottom: 12,
     lineHeight: 20,
   },
   searchContainer: {
     width: "100%",
-  },
-  searchInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 2,
-    fontSize: 14,
-    color: "#333333",
-  },
-  searchPlaceholder: {
-    flex: 1,
-    marginLeft: 4,
-    marginRight: 4,
-    fontSize: 14,
-    color: "#9E9E9E",
-    fontFamily: fontFamily.regular,
-  },
-  filterButton: {
-    padding: 4,
-  },
-  filterIcon: {
-    width: 20,
-    height: 20,
-    tintColor: "#4A8F70",
   },
 });

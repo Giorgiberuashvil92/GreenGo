@@ -1,0 +1,47 @@
+import React from "react";
+import Svg, { Path } from "react-native-svg";
+
+const DEFAULT_COLOR = "#00592D";
+
+export default function OrderMenuIcon({
+  size = 24,
+  color = DEFAULT_COLOR,
+}: {
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M21 12V12C21 16.971 16.971 21 12 21V21C7.029 21 3 16.971 3 12V12C3 7.029 7.029 3 12 3V3C16.971 3 21 7.029 21 12Z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M11.625 12.001C11.625 12.208 11.793 12.376 12 12.374C12.207 12.374 12.375 12.206 12.375 11.999C12.375 11.792 12.207 11.624 12 11.624C11.793 11.625 11.625 11.793 11.625 12.001"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M11.625 8.00101C11.625 8.20801 11.793 8.37601 12 8.37401C12.207 8.37401 12.375 8.20601 12.375 7.99901C12.375 7.79201 12.207 7.62401 12 7.62401C11.793 7.62501 11.625 7.79301 11.625 8.00101"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M11.625 16.001C11.625 16.208 11.793 16.376 12 16.374C12.207 16.374 12.375 16.206 12.375 15.999C12.375 15.792 12.207 15.624 12 15.624C11.793 15.625 11.625 15.793 11.625 16.001"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

@@ -10,16 +10,30 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextStyle,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CartBottomBar from "../../components/CartBottomBar";
+import BackCircleIcon from "../../components/icons/BackCircleIcon";
+import HeartCircleIcon from "../../components/icons/HeartCircleIcon";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 
 const HERO_IMAGE_HEIGHT = 205;
 const TAB_UNDERLINE = "#003E20";
+const DETAILS_TEXT_COLOR = "#1D4045";
+
+/** სექციის სათაურები — 16/20 extraBold uppercase */
+const SECTION_TITLE: TextStyle = {
+  fontSize: 16,
+  lineHeight: 20,
+  fontFamily: fontFamily.semiBold,
+  color: "#181B1A",
+  textAlign: "center",
+  textTransform: "uppercase",
+};
 
 interface MenuItem {
   _id: string;
@@ -35,6 +49,12 @@ interface MenuItem {
 
 function formatPriceGel(n: number): string {
   return `${n.toFixed(2).replace(".", ",")}₾`;
+}
+
+function deliveryTimeMain(time?: string): string {
+  const t = time?.trim() || "";
+  if (!t) return "—";
+  return t.replace(/\s*წუთ.*$/i, "").trim() || t;
 }
 
 export default function RestaurantScreen() {
@@ -166,6 +186,10 @@ export default function RestaurantScreen() {
   };
 
   const logoLetter = restaurant.name?.trim()?.charAt(0)?.toUpperCase() || "G";
+  const logoUri =
+    typeof restaurant.image === "string" && restaurant.image.length > 0
+      ? restaurant.image
+      : null;
 
   const overlayTop = insets.top + 8;
 
@@ -196,7 +220,7 @@ export default function RestaurantScreen() {
             activeOpacity={0.85}
             accessibilityLabel="უკან"
           >
-            <Ionicons name="chevron-back" size={24} color="#111827" />
+            <BackCircleIcon size={32} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -205,18 +229,20 @@ export default function RestaurantScreen() {
             activeOpacity={0.85}
             accessibilityLabel="რჩეული"
           >
-            <Ionicons
-              name={isLiked ? "heart" : "heart-outline"}
-              size={22}
-              color={isLiked ? "#EF4444" : "#111827"}
-            />
+            <HeartCircleIcon size={32} liked={isLiked} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.sheet}>
           <View style={styles.logoWrap}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoLetter}>{logoLetter}</Text>
+            <View style={styles.logoRing}>
+              {logoUri ? (
+                <Image source={{ uri: logoUri }} style={styles.logoImage} />
+              ) : (
+                <View style={styles.logoCircle}>
+                  <Text style={styles.logoLetter}>{logoLetter}</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -224,26 +250,30 @@ export default function RestaurantScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.statCell}>
-              <Ionicons name="star" size={18} color="#EAB308" />
-              <Text style={styles.statValue}>
-                {restaurant.rating?.toFixed?.(1) ?? restaurant.rating}
-              </Text>
+              <View style={styles.statValueRow}>
+                <Ionicons name="star" size={16} color="#EAB308" />
+                <Text style={styles.statValue}>
+                  {restaurant.rating?.toFixed?.(1) ?? restaurant.rating}
+                </Text>
+              </View>
               <Text style={styles.statLabel}>რეიტინგი</Text>
             </View>
-            <View style={styles.statDivider} />
             <View style={styles.statCell}>
-              <Ionicons name="bicycle-outline" size={18} color="#6B7280" />
-              <Text style={styles.statValue}>
-                {formatPriceGel(restaurant.deliveryFee)}
-              </Text>
+              <View style={styles.statValueRow}>
+                <Ionicons name="bicycle-outline" size={16} color="#181B1A" />
+                <Text style={styles.statValue}>
+                  {formatPriceGel(restaurant.deliveryFee)}
+                </Text>
+              </View>
               <Text style={styles.statLabel}>მიტანა</Text>
             </View>
-            <View style={styles.statDivider} />
             <View style={styles.statCell}>
-              <Ionicons name="time-outline" size={18} color="#6B7280" />
-              <Text style={styles.statValue} numberOfLines={1}>
-                {restaurant.deliveryTime?.replace(/\s*წუთ.*$/i, "") || "—"}
-              </Text>
+              <View style={styles.statValueRow}>
+                <Ionicons name="time-outline" size={16} color="#181B1A" />
+                <Text style={styles.statValue} numberOfLines={1}>
+                  {deliveryTimeMain(restaurant.deliveryTime)}
+                </Text>
+              </View>
               <Text style={styles.statLabel}>წუთი</Text>
             </View>
           </View>
@@ -259,20 +289,25 @@ export default function RestaurantScreen() {
                 })
               }
             >
-              <Text style={styles.detailsBtnText}>დეტალური ინფორმაცია</Text>
+              <Text style={styles.detailsBtnText}>დეტალური ინფორმაცია </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.shareBtn}
               onPress={onShare}
               activeOpacity={0.88}
+              accessibilityLabel="გაზიარება"
             >
-              <Ionicons name="share-outline" size={22} color={"#00592D"} />
+              <Ionicons
+                name="share-outline"
+                size={22}
+                color={DETAILS_TEXT_COLOR}
+              />
             </TouchableOpacity>
           </View>
         </View>
 
         {popularItems.length > 0 ? (
-          <View style={styles.block}>
+          <View style={styles.popularBlock}>
             <Text style={styles.blockTitle}>ყველაზე პოპულარული</Text>
             <ScrollView
               horizontal
@@ -295,11 +330,6 @@ export default function RestaurantScreen() {
                     <View style={styles.popularImage} />
                   )}
                   <View style={styles.popularTextBlock}>
-                    {item.description ? (
-                      <Text style={styles.popularDesc} numberOfLines={2}>
-                        {item.description}
-                      </Text>
-                    ) : null}
                     <Text style={styles.popularPrice}>
                       {formatPriceGel(item.price)}
                     </Text>
@@ -335,12 +365,7 @@ export default function RestaurantScreen() {
                     >
                       {cat}
                     </Text>
-                    <View
-                      style={[
-                        styles.tabUnderline,
-                        active && styles.tabUnderlineActive,
-                      ]}
-                    />
+                    {active ? <View style={styles.tabUnderlineActive} /> : null}
                   </TouchableOpacity>
                 );
               })}
@@ -348,8 +373,10 @@ export default function RestaurantScreen() {
           </View>
         ) : null}
 
-        <View style={styles.block}>
-          <Text style={styles.blockTitle}>{selectedCategory || "მენიუ"}</Text>
+        <View style={styles.menuBlock}>
+          <Text style={styles.menuSectionTitle}>
+            {selectedCategory || "მენიუ"}
+          </Text>
           {categoryItems.map((item, index) => (
             <TouchableOpacity
               key={item._id || item.id}
@@ -362,13 +389,15 @@ export default function RestaurantScreen() {
             >
               <View style={styles.menuRowText}>
                 <Text style={styles.menuName}>{item.name}</Text>
-                {item.description ? (
-                  <Text style={styles.menuDesc} numberOfLines={3}>
-                    {item.description}
-                  </Text>
-                ) : null}
+
+                <Text style={styles.menuDesc} numberOfLines={3}>
+                  {item.description
+                    ? item.description
+                    : "დეტალები დაემატება მალე"}
+                </Text>
+
                 <Text style={styles.menuPrice}>
-                  {item.price.toFixed(2).replace(".", ",")} ₾
+                  {formatPriceGel(item.price)}
                 </Text>
               </View>
               {item.image ? (
@@ -409,15 +438,13 @@ const styles = StyleSheet.create({
   },
   circleBtn: {
     position: "absolute",
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.12,
-    shadowRadius: 8,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
     zIndex: 2,
@@ -427,219 +454,248 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     marginTop: -28,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
     paddingTop: 0,
     zIndex: 1,
   },
   logoWrap: {
     alignItems: "center",
-    marginTop: -36,
-    marginBottom: 8,
+    marginTop: -32,
+    marginBottom: 5,
+  },
+  logoRing: {
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    borderRadius: 49,
+    paddingBottom: 3,
+    paddingHorizontal: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  logoImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#F3F4F6",
   },
   logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: LIST_ACCENT_GREEN,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 4,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
   logoLetter: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: fontFamily.bold,
     color: "#FFFFFF",
   },
   restaurantTitle: {
-    fontSize: 22,
+    fontSize: 20,
+    lineHeight: 26,
     fontFamily: fontFamily.bold,
-    color: "#111827",
+    color: "#181B1A",
     textAlign: "center",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   statsRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 12,
+    paddingHorizontal: 8,
   },
   statCell: {
-    flex: 1,
+    alignItems: "center",
+    minWidth: 72,
+  },
+  statValueRow: {
+    flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 44,
-    backgroundColor: "#E5E7EB",
+    marginBottom: 2,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: fontFamily.bold,
-    color: "#111827",
+    color: "#181B1A",
   },
   statLabel: {
     fontSize: 12,
+    lineHeight: 16,
     fontFamily: fontFamily.regular,
-    color: "#6B7280",
+    color: "#9B9B9B",
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    marginBottom: 4,
   },
   detailsBtn: {
+    height: 32,
     flex: 1,
-    backgroundColor: "#EFFBF5",
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    backgroundColor: "#F1F8F9",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    marginRight: 16,
   },
   detailsBtnText: {
-    fontSize: 15,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
-    color: "#166534",
+    color: DETAILS_TEXT_COLOR,
     textAlign: "center",
   },
   shareBtn: {
-    width: 52,
-    height: 52,
+    width: 32,
+    height: 32,
     borderRadius: 10,
-    backgroundColor: "#EFFBF5",
+    backgroundColor: "#F1F8F9",
     alignItems: "center",
     justifyContent: "center",
   },
-  block: {
-    paddingHorizontal: 20,
-    marginTop: 22,
+  popularBlock: {
+    marginTop: 20,
+    marginBottom: 20,
+    marginLeft: 16,
   },
   blockTitle: {
-    fontSize: 18,
-    fontFamily: fontFamily.bold,
-    color: "#111827",
-    marginBottom: 14,
+    ...SECTION_TITLE,
+    textAlign: "left",
+    alignSelf: "flex-start",
+    marginBottom: 12,
   },
   popularScrollInner: {
-    paddingRight: 20,
-    gap: 12,
+    paddingRight: 16,
     flexDirection: "row",
   },
   popularCard: {
     width: 140,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#F5F5F5",
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
+    paddingBottom: 8,
+    marginRight: 16,
   },
   popularImage: {
     width: 140,
-    height: 100,
+    height: 80,
     resizeMode: "cover",
     backgroundColor: "#F3F4F6",
+    marginBottom: 8,
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
   },
   popularTextBlock: {
     paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    gap: 4,
-  },
-  popularDesc: {
-    fontSize: 11,
-    fontFamily: fontFamily.regular,
-    color: "#6B7280",
-    lineHeight: 15,
+    alignItems: "center",
+    width: "100%",
   },
   popularPrice: {
     fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.bold,
-    color: LIST_ACCENT_GREEN,
+    color: "#003E20",
+    marginBottom: 4,
+    alignSelf: "flex-start",
   },
   popularName: {
-    fontSize: 13,
-    fontFamily: fontFamily.semiBold,
-    color: "#111827",
-    lineHeight: 17,
-    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.bold,
+    color: "#666666",
+    alignSelf: "flex-start",
   },
   tabsOuter: {
-    marginTop: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E7EB",
+    marginBottom: 12,
+    marginHorizontal: 16,
   },
   tabsScrollInner: {
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 4,
-  },
-  tabItem: {
-    marginRight: 20,
-    paddingBottom: 10,
-    minWidth: 56,
-  },
-  tabText: {
-    fontSize: 15,
-    fontFamily: fontFamily.medium,
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  tabTextActive: {
-    color: "#111827",
-    fontFamily: fontFamily.semiBold,
-  },
-  tabUnderline: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "transparent",
-  },
-  tabUnderlineActive: {
-    backgroundColor: TAB_UNDERLINE,
-  },
-  menuRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    gap: 12,
+  },
+  tabItem: {
+    marginRight: 22,
+    paddingBottom: 7,
+    alignItems: "flex-start",
+  },
+  tabText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
+    marginBottom: 7,
+  },
+  tabTextActive: {
+    color: "#181B1A",
+    fontFamily: fontFamily.bold,
+  },
+  tabUnderlineActive: {
+    height: 1,
+    alignSelf: "stretch",
+    backgroundColor: TAB_UNDERLINE,
+    minWidth: 40,
+  },
+  menuBlock: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  menuSectionTitle: {
+    ...SECTION_TITLE,
+    textAlign: "left",
+    alignSelf: "flex-start",
+    marginBottom: 12,
+    paddingVertical: 1,
+  },
+  menuRow: {
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingBottom: 12,
+    marginBottom: 12,
   },
   menuRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: "#F5F5F5",
   },
   menuRowText: {
     flex: 1,
     minWidth: 0,
+    marginRight: 8,
+    paddingRight: 90,
   },
   menuName: {
-    fontSize: 12,
-    fontFamily: fontFamily.semiBold,
-    color: "#111827",
-    lineHeight: 16,
-    marginBottom: 4,
+    ...SECTION_TITLE,
+    textAlign: "left",
+    textTransform: "none",
+    marginBottom: 2,
   },
   menuDesc: {
-    fontSize: 12,
+    fontSize: 8,
+    lineHeight: 12,
     fontFamily: fontFamily.regular,
-    color: "#6B7280",
-    lineHeight: 17,
-    marginBottom: 8,
+    color: "#9B9B9B",
+    marginBottom: 2,
   },
   menuPrice: {
     fontSize: 12,
-    fontFamily: fontFamily.medium,
-    lineHeight: 20,
-    color: LIST_ACCENT_GREEN,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: DETAILS_TEXT_COLOR,
   },
   menuThumb: {
-    width: 88,
-    height: 88,
-    borderRadius: 12,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 90,
+    height: 68,
+    borderRadius: 8,
     backgroundColor: "#F3F4F6",
   },
   loadingContainer: {
@@ -649,8 +705,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    fontSize: 16,
-    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
     color: "#6B7280",
   },
   errorContainer: {
@@ -661,8 +718,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   errorText: {
-    fontSize: 16,
-    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
     color: "#EF4444",
     textAlign: "center",
   },
@@ -674,7 +732,8 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.semiBold,
   },
 });

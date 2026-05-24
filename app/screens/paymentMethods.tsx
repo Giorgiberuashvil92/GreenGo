@@ -1,7 +1,20 @@
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import CardBrandIcon from "@/components/icons/CardBrandIcon";
+import ListScreenLayout from "@/components/layout/ListScreenLayout";
+import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
+import { fontFamily } from "@/constants/fonts";
+import { useGreenGoBalance } from "@/hooks/useGreenGoBalance";
 import {
+  CheckoutPaymentSelection,
+  loadCheckoutPayment,
+  PAYMENT_CARDS,
+  saveCheckoutPayment,
+  SavedPaymentCard,
+} from "@/utils/payment";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
+  Image,
   Modal,
   StatusBar,
   StyleSheet,
@@ -10,45 +23,75 @@ import {
   View,
 } from "react-native";
 
-interface PaymentCard {
-  id: string;
-  type: "amex" | "mastercard" | "visa";
-  lastFour: string;
-  maskedNumber: string;
-}
-
-const paymentCards: PaymentCard[] = [
-  {
-    id: "1",
-    type: "amex",
-    lastFour: "1234",
-    maskedNumber: "1234 56** **** 1234",
-  },
-  {
-    id: "2",
-    type: "mastercard",
-    lastFour: "1234",
-    maskedNumber: "1234 56** **** 1234",
-  },
-  {
-    id: "3",
-    type: "visa",
-    lastFour: "1234",
-    maskedNumber: "1234 56** **** 1234",
-  },
-];
+const bogCashIcon = require("@/assets/images/bog-cash-payment.png");
 
 export default function PaymentMethodsScreen() {
-  const [primaryCardId, setPrimaryCardId] = useState<string>("1"); // Default to first card
+  const { select } = useLocalSearchParams<{ select?: string }>();
+  const isSelectMode = select === "1";
+  const { formattedBalance } = useGreenGoBalance();
+
+  const [primaryCardId, setPrimaryCardId] = useState<string>("1");
+  const [checkoutSelection, setCheckoutSelection] =
+    useState<CheckoutPaymentSelection | null>(null);
   const [showCardModal, setShowCardModal] = useState<boolean>(false);
-  const [selectedCard, setSelectedCard] = useState<PaymentCard | null>(null);
+  const [selectedCard, setSelectedCard] = useState<SavedPaymentCard | null>(
+    null,
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isSelectMode) return;
+      let cancelled = false;
+      const load = async () => {
+        const saved = await loadCheckoutPayment();
+        if (!cancelled) setCheckoutSelection(saved);
+      };
+      void load();
+      return () => {
+        cancelled = true;
+      };
+    }, [isSelectMode]),
+  );
+
+  const selectCardForCheckout = async (card: SavedPaymentCard) => {
+    await saveCheckoutPayment({
+      method: "card",
+      cardId: card.id,
+      cardType: card.type,
+      lastFour: card.lastFour,
+    });
+    router.back();
+  };
+
+  const selectMethodForCheckout = async (
+    method: CheckoutPaymentSelection["method"],
+  ) => {
+    await saveCheckoutPayment({ method });
+    router.back();
+  };
 
   const handleGreenGoBalancePress = () => {
-    // Navigate to GreenGo balance management screen
+    if (isSelectMode) {
+      void selectMethodForCheckout("greengo_balance");
+      return;
+    }
     console.log("GreenGo balance pressed");
   };
 
-  const handleCardPress = (card: PaymentCard) => {
+  const handleCardPress = (card: SavedPaymentCard) => {
+    if (isSelectMode) {
+      void selectCardForCheckout(card);
+      return;
+    }
+    setSelectedCard(card);
+    setShowCardModal(true);
+  };
+
+  const handleCardOptionsPress = (card: SavedPaymentCard) => {
+    if (isSelectMode) {
+      void selectCardForCheckout(card);
+      return;
+    }
     setSelectedCard(card);
     setShowCardModal(true);
   };
@@ -57,155 +100,171 @@ export default function PaymentMethodsScreen() {
     if (selectedCard) {
       setPrimaryCardId(selectedCard.id);
       setShowCardModal(false);
-      console.log("Made primary:", selectedCard.id);
     }
   };
 
   const handleDeleteCard = () => {
     if (selectedCard) {
-      // Here you would typically delete the card
-      console.log("Deleted card:", selectedCard.id);
       setShowCardModal(false);
     }
   };
 
   const handleAddCardPress = () => {
-    // Navigate to add new card screen
-    router.push("/screens/addCard");
+    console.log("ბარათის დამატება შესაძლებელი იქნება ფლიტის მიერ");
   };
 
   const handleCashPaymentPress = () => {
-    // Navigate to cash payment settings
+    if (isSelectMode) {
+      void selectMethodForCheckout("cash");
+      return;
+    }
     console.log("Cash payment pressed");
   };
 
-  const getCardIcon = (type: string) => {
-    switch (type) {
-      case "amex":
-        return "💳";
-      case "mastercard":
-        return "💳";
-      case "visa":
-        return "💳";
-      default:
-        return "💳";
+  const isCardSelected = (card: SavedPaymentCard) => {
+    if (isSelectMode) {
+      return (
+        checkoutSelection?.method === "card" &&
+        checkoutSelection.cardId === card.id
+      );
     }
+    return primaryCardId === card.id;
   };
 
-  const getCardName = (type: string) => {
-    switch (type) {
-      case "amex":
-        return "American Express";
-      case "mastercard":
-        return "Mastercard";
-      case "visa":
-        return "Visa";
-      default:
-        return "Card";
-    }
-  };
+  const isCashSelected = isSelectMode && checkoutSelection?.method === "cash";
+  const isBalanceSelected =
+    isSelectMode && checkoutSelection?.method === "greengo_balance";
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <>
+      <StatusBar barStyle="dark-content" />
+      <ListScreenLayout
+        title={isSelectMode ? "აირჩიეთ გადახდა" : "გადახდის მეთოდები"}
+        titleStyle={styles.screenTitle}
+        scrollable
+      >
+        <View style={styles.content}>
+          <TouchableOpacity
+            style={styles.balanceSection}
+            onPress={handleGreenGoBalancePress}
+            activeOpacity={0.85}
+          >
+            <View style={styles.balanceTop}>
+              <Text style={styles.balanceTitle}>GreenGo ბალანსი</Text>
+              <Text style={styles.balanceAmount}>{formattedBalance}</Text>
+            </View>
+            {!isSelectMode ? (
+              <Text style={styles.balanceQuestion}>
+                რა არის GreenGo ბალანსი?
+              </Text>
+            ) : isBalanceSelected ? (
+              <View style={styles.balanceCheck}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={22}
+                  color={LIST_ACCENT_GREEN}
+                />
+              </View>
+            ) : null}
+          </TouchableOpacity>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>გადახდის მეთოდები</Text>
-      </View>
+          <View style={styles.methodsList}>
+            {PAYMENT_CARDS.map((card, index) => (
+              <TouchableOpacity
+                key={card.id}
+                style={[
+                  styles.methodRow,
+                  index < PAYMENT_CARDS.length - 1 && styles.methodRowBorder,
+                ]}
+                onPress={() => handleCardPress(card)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.methodRowLeft}>
+                  {isSelectMode && isCardSelected(card) ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={LIST_ACCENT_GREEN}
+                      style={styles.rowCheck}
+                    />
+                  ) : null}
+                  <View style={styles.cardIconWrap}>
+                    <CardBrandIcon type={card.type} width={32} height={21} />
+                  </View>
+                  <View style={styles.cardTextBlock}>
+                    <Text style={styles.cardLabel}>Card</Text>
+                    <Text style={styles.cardNumber}>{card.maskedNumber}</Text>
+                  </View>
+                </View>
+                {!isSelectMode ? (
+                  <TouchableOpacity
+                    onPress={() => handleCardOptionsPress(card)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name="ellipsis-vertical"
+                      size={20}
+                      color="#666666"
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </TouchableOpacity>
+            ))}
 
-      {/* Content */}
-      <View style={styles.content}>
-        {/* GreenGo Balance Section */}
-        <TouchableOpacity
-          style={styles.balanceSection}
-          onPress={handleGreenGoBalancePress}
-        >
-          <View style={styles.balanceHeader}>
-            <Text style={styles.balanceTitle}>GreenGo ბალანსი</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </View>
-          <Text style={styles.balanceAmount}>0.00 ₾</Text>
-          <Text style={styles.balanceQuestion}>რა არის GreenGo ბალანსი?</Text>
-        </TouchableOpacity>
-
-        {/* Saved Payment Cards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>შენახული ბარათები</Text>
-          {paymentCards.map((card) => (
             <TouchableOpacity
-              key={card.id}
-              style={styles.cardItem}
-              onPress={() => handleCardPress(card)}
+              style={[styles.methodRow, styles.methodRowLast]}
+              onPress={handleCashPaymentPress}
+              activeOpacity={0.75}
             >
-              <View style={styles.cardInfo}>
-                {primaryCardId === card.id && (
+              <View style={styles.methodRowLeft}>
+                {isCashSelected ? (
                   <Ionicons
                     name="checkmark-circle"
                     size={20}
-                    color="#00C851"
-                    style={styles.checkmark}
+                    color={LIST_ACCENT_GREEN}
+                    style={styles.rowCheck}
                   />
-                )}
-                <Text style={styles.cardIcon}>{getCardIcon(card.type)}</Text>
-                <View style={styles.cardDetails}>
-                  <Text style={styles.cardName}>{getCardName(card.type)}</Text>
-                  <Text style={styles.cardNumber}>{card.maskedNumber}</Text>
+                ) : null}
+                <Image
+                  source={bogCashIcon}
+                  style={styles.cashIcon}
+                  resizeMode="contain"
+                />
+                <View style={styles.cashLabelWrap}>
+                  <Text style={styles.cashLabel}>ნაღდი ანგარიშსწორება</Text>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.infoButton}
-                onPress={() => handleCardPress(card)}
-              >
-                <Ionicons name="ellipsis-vertical" size={20} color="#666" />
-              </TouchableOpacity>
+              {!isSelectMode ? (
+                <TouchableOpacity
+                  onPress={handleCashPaymentPress}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color="#666666"
+                  />
+                </TouchableOpacity>
+              ) : null}
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
 
-        {/* Other Payment Methods */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.paymentItem}
-            onPress={handleCashPaymentPress}
-          >
-            <View style={styles.paymentInfo}>
-              <Text style={styles.paymentIcon}>🌿</Text>
-              <Text style={styles.paymentName}>ნაღდი ანგარიშსწორება</Text>
-            </View>
+          {!isSelectMode ? (
             <TouchableOpacity
-              style={styles.infoButton}
-              onPress={handleCashPaymentPress}
+              style={styles.addCardButton}
+              onPress={handleAddCardPress}
+              activeOpacity={0.88}
             >
-              <Ionicons
-                name="information-circle-outline"
-                size={20}
-                color="#666"
-              />
+              <Ionicons name="add" size={16} color="#1D4045" />
+              <Text style={styles.addCardText}>ახალი ბარათის დამატება</Text>
             </TouchableOpacity>
-          </TouchableOpacity>
+          ) : null}
         </View>
+      </ListScreenLayout>
 
-        {/* Add New Card Button */}
-        <TouchableOpacity
-          style={styles.addCardButton}
-          onPress={handleAddCardPress}
-        >
-          <Ionicons name="add" size={20} color="#000" />
-          <Text style={styles.addCardText}>ახალი ბარათის დამატება</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Card Options Modal */}
       <Modal
         visible={showCardModal}
-        transparent={true}
+        transparent
         animationType="slide"
         onRequestClose={() => setShowCardModal(false)}
       >
@@ -240,148 +299,142 @@ export default function PaymentMethodsScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+  screenTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    textTransform: "uppercase",
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   balanceSection: {
     backgroundColor: "#F5F5F5",
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 30,
-  },
-  balanceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  balanceTitle: {
-    fontSize: 16,
-    color: "#666",
-    fontWeight: "500",
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#00C851",
-    marginBottom: 8,
-  },
-  balanceQuestion: {
-    fontSize: 14,
-    color: "#00C851",
-    fontWeight: "500",
-  },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
-  },
-  cardItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingVertical: 16,
+    paddingRight: 16,
+    marginBottom: 24,
+  },
+  balanceTop: {
+    paddingBottom: 12,
+    marginBottom: 8,
+    marginLeft: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#F5F5F5",
   },
-  cardInfo: {
+  balanceTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
+    marginBottom: 8,
+  },
+  balanceAmount: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: fontFamily.bold,
+    color: "#003E20",
+  },
+  balanceQuestion: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#181B1A",
+    marginLeft: 16,
+  },
+  balanceCheck: {
+    marginLeft: 16,
+    marginTop: 4,
+  },
+  methodsList: {
+    marginBottom: 19,
+  },
+  methodRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: 12,
+    marginBottom: 9,
+  },
+  methodRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F5F5F5",
+  },
+  methodRowLast: {
+    marginBottom: 0,
+    paddingBottom: 12,
+  },
+  methodRowLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-  },
-  cardIcon: {
-    fontSize: 24,
     marginRight: 12,
   },
-  cardDetails: {
+  rowCheck: {
+    marginRight: 8,
+  },
+  cardIconWrap: {
+    width: 32,
+    height: 21,
+    marginRight: 12,
+    justifyContent: "center",
+  },
+  cardTextBlock: {
     flex: 1,
   },
-  cardName: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
+  cardLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#181B1A",
     marginBottom: 2,
   },
   cardNumber: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 8,
+    lineHeight: 12,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
   },
-  paymentItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-  },
-  paymentInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  paymentIcon: {
-    fontSize: 20,
+  cashIcon: {
+    width: 32,
+    height: 16,
     marginRight: 12,
   },
-  paymentName: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
+  cashLabelWrap: {
+    flex: 1,
+    justifyContent: "center",
   },
-  infoButton: {
-    padding: 4,
+  cashLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    color: "#181B1A",
   },
   addCardButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E8F5E8",
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginTop: 20,
+    backgroundColor: "#F1F8F9",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    height: 36,
   },
   addCardText: {
-    fontSize: 16,
-    color: "#00C851",
-    fontWeight: "500",
-    marginLeft: 8,
-  },
-  checkmark: {
-    marginRight: 8,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#1D4045",
+    textTransform: "uppercase",
+    marginLeft: 12,
   },
   modalOverlay: {
     flex: 1,
@@ -398,8 +451,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
+    fontFamily: fontFamily.bold,
+    color: "#333333",
     textAlign: "center",
     marginBottom: 20,
   },
@@ -409,18 +462,18 @@ const styles = StyleSheet.create({
   },
   makePrimaryText: {
     fontSize: 16,
-    color: "#00C851",
-    fontWeight: "500",
+    fontFamily: fontFamily.medium,
+    color: BRAND_GREEN,
   },
   deleteText: {
     fontSize: 16,
+    fontFamily: fontFamily.medium,
     color: "#FF4444",
-    fontWeight: "500",
   },
   cancelText: {
     fontSize: 16,
+    fontFamily: fontFamily.medium,
     color: "#007AFF",
-    fontWeight: "500",
   },
   modalSeparator: {
     height: 1,
