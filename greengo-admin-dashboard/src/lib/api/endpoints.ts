@@ -33,9 +33,10 @@ export interface Order {
 export interface Restaurant {
   _id: string;
   name: string;
-  description?: string;
+  description: string;
   image?: string;
-  address: {
+  heroImage?: string;
+  address?: {
     street: string;
     city: string;
     country: string;
@@ -44,15 +45,78 @@ export interface Restaurant {
       longitude: number;
     };
   };
+  location?: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    city: string;
+    district?: string;
+    postalCode?: string;
+  };
+  contact?: {
+    phone?: string;
+    email?: string;
+    website?: string;
+  };
   cuisineType?: string;
+  cuisine?: string[];
   rating?: number;
-  deliveryTime?: number;
+  reviewCount?: number;
+  deliveryTime?: string;
   deliveryFee?: number;
   minimumOrder?: number;
   isActive: boolean;
   categories?: string[];
+  priceRange?: '€' | '€€' | '€€€' | '€€€€';
+  features?: {
+    hasDelivery?: boolean;
+    hasPickup?: boolean;
+    hasDineIn?: boolean;
+    acceptsOnlineOrders?: boolean;
+    hasParking?: boolean;
+    isWheelchairAccessible?: boolean;
+  };
+  workingHours?: { [key: string]: string };
+  allergens?: string[];
+  paymentMethods?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateRestaurantPayload {
+  name: string;
+  description: string;
+  deliveryFee: number;
+  deliveryTime: string;
+  image: string;
+  heroImage: string;
+  isActive?: boolean;
+  location: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    city: string;
+    district?: string;
+    postalCode?: string;
+  };
+  contact?: {
+    phone?: string;
+    email?: string;
+    website?: string;
+  };
+  features?: {
+    hasDelivery?: boolean;
+    hasPickup?: boolean;
+    hasDineIn?: boolean;
+    acceptsOnlineOrders?: boolean;
+    hasParking?: boolean;
+    isWheelchairAccessible?: boolean;
+  };
+  categories: string[];
+  priceRange?: '€' | '€€' | '€€€' | '€€€€';
+  cuisine?: string[];
+  allergens?: string[];
+  paymentMethods?: string[];
 }
 
 export interface User {
@@ -236,9 +300,9 @@ export const restaurantsApi = {
   
   getById: (id: string) => apiClient.get<Restaurant>(`/restaurants/${id}`),
   
-  create: (data: Partial<Restaurant>) => apiClient.post<Restaurant>('/restaurants', data),
+  create: (data: CreateRestaurantPayload) => apiClient.post<Restaurant>('/restaurants', data),
   
-  update: (id: string, data: Partial<Restaurant>) => 
+  update: (id: string, data: Partial<CreateRestaurantPayload>) => 
     apiClient.patch<Restaurant>(`/restaurants/${id}`, data),
   
   delete: (id: string) => apiClient.delete(`/restaurants/${id}`),
