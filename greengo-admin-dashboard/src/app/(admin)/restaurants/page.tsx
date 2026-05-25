@@ -1,8 +1,6 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Badge from "@/components/ui/badge/Badge";
-import { Dropdown } from "@/components/ui/dropdown/Dropdown";
-import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import { Modal } from "@/components/ui/modal";
 import {
   Table,
@@ -15,7 +13,8 @@ import { MoreDotIcon, PencilIcon, PlusIcon, TrashBinIcon } from "@/icons";
 import { CreateRestaurantPayload, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type RestaurantFormState = {
   name: string;
@@ -105,6 +104,7 @@ const featureCheckboxes: Array<{
 ];
 
 const RESTAURANTS_PAGE_LIMIT = 10;
+const ACTION_MENU_WIDTH = 192;
 
 export default function RestaurantsPage() {
   const router = useRouter();
@@ -114,11 +114,13 @@ export default function RestaurantsPage() {
   const [total, setTotal] = useState(0);
   const [isActiveFilter, setIsActiveFilter] = useState<string>("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [formData, setFormData] = useState<RestaurantFormState>(createInitialRestaurantForm);
   const [saving, setSaving] = useState(false);
   const [togglingRestaurantId, setTogglingRestaurantId] = useState<string | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
 
   const fetchRestaurants = useCallback(async () => {
     try {
@@ -148,6 +150,60 @@ export default function RestaurantsPage() {
   useEffect(() => {
     fetchRestaurants();
   }, [fetchRestaurants]);
+
+  const closeActionMenu = useCallback(() => {
+    setOpenDropdown(null);
+    setActionMenuPosition(null);
+  }, []);
+
+  useEffect(() => {
+    if (!openDropdown) {
+      return;
+    }
+
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        actionMenuRef.current &&
+        !actionMenuRef.current.contains(target) &&
+        !target.closest(`[data-restaurant-action-toggle="${openDropdown}"]`)
+      ) {
+        closeActionMenu();
+      }
+    };
+
+    document.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("resize", closeActionMenu);
+    window.addEventListener("scroll", closeActionMenu, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("resize", closeActionMenu);
+      window.removeEventListener("scroll", closeActionMenu, true);
+    };
+  }, [closeActionMenu, openDropdown]);
+
+  const handleToggleActionMenu = (
+    restaurantId: string,
+    event: ReactMouseEvent<HTMLButtonElement>,
+  ) => {
+    if (openDropdown === restaurantId) {
+      closeActionMenu();
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(8, rect.right - ACTION_MENU_WIDTH),
+      window.innerWidth - ACTION_MENU_WIDTH - 8,
+    );
+
+    setOpenDropdown(restaurantId);
+    setActionMenuPosition({
+      top: rect.bottom + 8,
+      left,
+    });
+  };
 
   const handleOpenCreate = () => {
     setEditingRestaurant(null);
@@ -302,12 +358,13 @@ export default function RestaurantsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("დარწმუნებული ხართ რომ გსურთ რესტორნის წაშლა?")) {
+      closeActionMenu();
       return;
     }
     try {
       await restaurantsApi.delete(id);
       fetchRestaurants();
-      setOpenDropdown(null);
+      closeActionMenu();
     } catch (error) {
       console.error("Error deleting restaurant:", error);
       alert("წაშლა ვერ მოხერხდა");
@@ -318,6 +375,7 @@ export default function RestaurantsPage() {
     // დეაქტივაციისთვის დადასტურება
     if (restaurant.isActive) {
       if (!confirm(`დარწმუნებული ხართ რომ გსურთ "${restaurant.name}" რესტორანის დეაქტივაცია?`)) {
+        closeActionMenu();
         return;
       }
     }
@@ -332,7 +390,7 @@ export default function RestaurantsPage() {
     );
     
     setTogglingRestaurantId(restaurant._id);
-    setOpenDropdown(null);
+    closeActionMenu();
 
     try {
       await restaurantsApi.update(restaurant._id, {
@@ -357,6 +415,10 @@ export default function RestaurantsPage() {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ka-GE");
   };
+
+  const selectedActionRestaurant = openDropdown
+    ? restaurants.find((restaurant) => restaurant._id === openDropdown)
+    : null;
 
   return (
     <div>
@@ -499,78 +561,15 @@ export default function RestaurantsPage() {
                       <TableCell className="px-5 py-4">
                         <div className="relative inline-block">
                           <button
-                            onClick={() =>
-                              setOpenDropdown(
-                                openDropdown === restaurant._id
-                                  ? null
-                                  : restaurant._id
-                              )
-                            }
+                            type="button"
+                            onClick={(event) => handleToggleActionMenu(restaurant._id, event)}
+                            data-restaurant-action-toggle={restaurant._id}
                             className="dropdown-toggle"
+                            aria-haspopup="menu"
+                            aria-expanded={openDropdown === restaurant._id}
                           >
                             <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
                           </button>
-                          <Dropdown
-                            isOpen={openDropdown === restaurant._id}
-                            onClose={() => setOpenDropdown(null)}
-                            className="w-48 p-2"
-                          >
-                            <DropdownItem
-                              onItemClick={() => {
-                                router.push(`/restaurant-dashboard?restaurantId=${restaurant._id}`);
-                                setOpenDropdown(null);
-                              }}
-                              className="flex w-full items-center gap-2 font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                            >
-                              მართვა
-                            </DropdownItem>
-                            <DropdownItem
-                              onItemClick={() => {
-                                router.push(`/orders?restaurantId=${restaurant._id}`);
-                                setOpenDropdown(null);
-                              }}
-                              className="flex w-full items-center gap-2 font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                            >
-                              შეკვეთები
-                            </DropdownItem>
-                            <DropdownItem
-                              onItemClick={() => {
-                                handleOpenEdit(restaurant);
-                                setOpenDropdown(null);
-                              }}
-                              className="flex w-full items-center gap-2 font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-                            >
-                              <PencilIcon className="w-4 h-4" />
-                              რედაქტირება
-                            </DropdownItem>
-                            <DropdownItem
-                              onItemClick={() => handleToggleActive(restaurant)}
-                              disabled={togglingRestaurantId === restaurant._id}
-                              className={`flex w-full items-center gap-2 font-normal text-left rounded-lg ${
-                                togglingRestaurantId === restaurant._id
-                                  ? 'opacity-50 cursor-not-allowed text-gray-400'
-                                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300'
-                              }`}
-                            >
-                              {togglingRestaurantId === restaurant._id ? (
-                                <>
-                                  <span className="animate-spin">⏳</span>
-                                  {restaurant.isActive ? "დეაქტივაცია..." : "აქტივაცია..."}
-                                </>
-                              ) : (
-                                <>
-                                  {restaurant.isActive ? "დეაქტივაცია" : "აქტივაცია"}
-                                </>
-                              )}
-                            </DropdownItem>
-                            <DropdownItem
-                              onItemClick={() => handleDelete(restaurant._id)}
-                              className="flex w-full items-center gap-2 font-normal text-left text-red-500 rounded-lg hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
-                            >
-                              <TrashBinIcon className="w-4 h-4" />
-                              წაშლა
-                            </DropdownItem>
-                          </Dropdown>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -605,6 +604,81 @@ export default function RestaurantsPage() {
             </div>
           )}
         </div>
+
+        {selectedActionRestaurant &&
+          actionMenuPosition &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              ref={actionMenuRef}
+              role="menu"
+              style={{
+                top: actionMenuPosition.top,
+                left: actionMenuPosition.left,
+                width: ACTION_MENU_WIDTH,
+              }}
+              className="fixed z-100000 rounded-xl border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  router.push(`/restaurant-dashboard?restaurantId=${selectedActionRestaurant._id}`);
+                  closeActionMenu();
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                მართვა
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  router.push(`/orders?restaurantId=${selectedActionRestaurant._id}`);
+                  closeActionMenu();
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                შეკვეთები
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenEdit(selectedActionRestaurant);
+                  closeActionMenu();
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <PencilIcon className="h-4 w-4" />
+                რედაქტირება
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleActive(selectedActionRestaurant)}
+                disabled={togglingRestaurantId === selectedActionRestaurant._id}
+                className={`flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal ${
+                  togglingRestaurantId === selectedActionRestaurant._id
+                    ? "cursor-not-allowed text-gray-400 opacity-50"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                }`}
+              >
+                {togglingRestaurantId === selectedActionRestaurant._id
+                  ? selectedActionRestaurant.isActive
+                    ? "დეაქტივაცია..."
+                    : "აქტივაცია..."
+                  : selectedActionRestaurant.isActive
+                    ? "დეაქტივაცია"
+                    : "აქტივაცია"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(selectedActionRestaurant._id)}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
+              >
+                <TrashBinIcon className="h-4 w-4" />
+                წაშლა
+              </button>
+            </div>,
+            document.body,
+          )}
 
         <Modal isOpen={showModal} onClose={handleCloseModal} className="m-4 max-w-[900px]">
           <div className="no-scrollbar max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">

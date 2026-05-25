@@ -6,11 +6,16 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS - explicitly allow localhost and production domains
+  const configuredOrigins = process.env.CORS_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? [];
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'https://greengo.up.railway.app',
-    // Add your production frontend domain here when ready
+    'https://green-go-admin.vercel.app',
+    ...configuredOrigins,
   ];
 
   app.enableCors({
@@ -22,7 +27,7 @@ async function bootstrap() {
       
       // Check if origin is in allowed list
       if (allowedOrigins.includes(origin)) {
-      callback(null, true);
+        callback(null, true);
       } else {
         // Log for debugging
         console.log(`⚠️ CORS blocked origin: ${origin}`);
