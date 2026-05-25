@@ -10,7 +10,7 @@ import {
 import { MenuItem, menuItemsApi, Order, ordersApi, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -65,7 +65,7 @@ const getAvailableStatusesForRestaurant = (currentStatus: string, hasCourier: bo
   }
 };
 
-export default function RestaurantDashboardPage() {
+function RestaurantDashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get('restaurantId');
@@ -603,5 +603,13 @@ export default function RestaurantDashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function RestaurantDashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">იტვირთება...</div>}>
+      <RestaurantDashboardPageContent />
+    </Suspense>
   );
 }

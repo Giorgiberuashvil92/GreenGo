@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Courier, Order, couriersApi, ordersApi, restaurantsApi } from "@/lib/api/endpoints";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -42,7 +42,7 @@ const getStatusLabel = (status: string) => {
   return statusMap[status] || status;
 };
 
-export default function OrdersPage() {
+function OrdersPageContent() {
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get('restaurantId');
   
@@ -420,5 +420,13 @@ export default function OrdersPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">იტვირთება...</div>}>
+      <OrdersPageContent />
+    </Suspense>
   );
 }
