@@ -12,7 +12,7 @@ export const API_CONFIG = {
   // Production - Direct connection to Railway
   PROD: {
     // Use the Vercel rewrite by default so browser requests stay same-origin.
-    BASE_URL: process.env.NEXT_PUBLIC_API_URL || '/api-proxy',
+    BASE_URL: '/api-proxy',
   },
 };
 

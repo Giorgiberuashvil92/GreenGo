@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+const apiProxyTarget =
+  process.env.API_PROXY_TARGET ||
+  process.env.BACKEND_API_URL ||
+  "https://greengo.up.railway.app/api";
+
 const nextConfig: NextConfig = {
   /* config options here */
   // Proxy API requests to avoid CORS issues in development
@@ -7,10 +12,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api-proxy/:path*',
-        // Try Railway first, fallback to local backend
-        destination: process.env.NEXT_PUBLIC_API_URL 
-          ? `${process.env.NEXT_PUBLIC_API_URL}/:path*`
-          : 'https://greengo.up.railway.app/api/:path*',
+        destination: `${apiProxyTarget.replace(/\/$/, "")}/:path*`,
       },
       {
         source: '/api-local/:path*',
