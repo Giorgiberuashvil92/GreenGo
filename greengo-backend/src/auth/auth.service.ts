@@ -6,6 +6,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { InjectModel } from '@nestjs/mongoose';
+import * as bcrypt from 'bcryptjs';
+import { Model } from 'mongoose';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 
@@ -30,6 +37,8 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    @InjectModel(Restaurant.name)
+    private restaurantModel: Model<RestaurantDocument>,
   ) {}
 
   async validateUser(
@@ -75,6 +84,53 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Invalid token');
     }
+  }
+
+  async businessLogin(username: string, password: string) {
+    const normalizedUsername = username?.trim().toLowerCase();
+    if (!normalizedUsername || !password) {
+      throw new UnauthorizedException('Username ან პაროლი არასწორია');
+    }
+
+    const restaurant = await this.restaurantModel
+      .findOne({ businessUsername: normalizedUsername })
+      .select('+businessPasswordHash')
+      .exec();
+
+    if (!restaurant?.businessPasswordHash) {
+      throw new UnauthorizedException('Username ან პაროლი არასწორია');
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      password,
+      restaurant.businessPasswordHash,
+    );
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Username ან პაროლი არასწორია');
+    }
+
+    const restaurantId = (restaurant as any)._id?.toString();
+    const payload = {
+      sub: restaurantId,
+      id: restaurantId,
+      type: 'business',
+      businessUsername: restaurant.businessUsername,
+      restaurantId,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: restaurantId,
+        restaurantId,
+        email: restaurant.contact?.email || restaurant.businessUsername || '',
+        businessName: restaurant.name,
+        phone: restaurant.contact?.phone || '',
+        address: [restaurant.location?.address, restaurant.location?.city]
+          .filter(Boolean)
+          .join(', '),
+      },
+    };
   }
 
   /** 9 ციფრი ქართული მობილურის ნომერი (+995 / 995 პრეფიქსის გარეშე) */

@@ -35,6 +35,8 @@ type RestaurantFormState = {
   phone: string;
   email: string;
   website: string;
+  businessUsername: string;
+  businessPassword: string;
   isActive: boolean;
   hasDelivery: boolean;
   hasPickup: boolean;
@@ -61,6 +63,8 @@ const createInitialRestaurantForm = (): RestaurantFormState => ({
   phone: "",
   email: "",
   website: "",
+  businessUsername: "",
+  businessPassword: "",
   isActive: true,
   hasDelivery: true,
   hasPickup: false,
@@ -238,6 +242,8 @@ export default function RestaurantsPage() {
       phone: restaurant.contact?.phone || "",
       email: restaurant.contact?.email || "",
       website: restaurant.contact?.website || "",
+      businessUsername: restaurant.businessUsername || "",
+      businessPassword: "",
       isActive: restaurant.isActive,
       hasDelivery: restaurant.features?.hasDelivery ?? true,
       hasPickup: restaurant.features?.hasPickup ?? false,
@@ -291,6 +297,11 @@ export default function RestaurantsPage() {
       return;
     }
 
+    if (!formData.businessUsername.trim() || (!editingRestaurant && !formData.businessPassword.trim())) {
+      alert("გთხოვთ მიუთითოთ business username და password");
+      return;
+    }
+
     const contact: CreateRestaurantPayload["contact"] = {};
     if (formData.phone.trim()) contact.phone = formData.phone.trim();
     if (formData.email.trim()) contact.email = formData.email.trim();
@@ -315,6 +326,7 @@ export default function RestaurantsPage() {
       },
       categories,
       priceRange: formData.priceRange,
+      businessUsername: formData.businessUsername.trim(),
       features: {
         hasDelivery: formData.hasDelivery,
         hasPickup: formData.hasPickup,
@@ -325,6 +337,10 @@ export default function RestaurantsPage() {
 
     if (Object.keys(contact).length > 0) {
       payload.contact = contact;
+    }
+
+    if (formData.businessPassword.trim()) {
+      payload.businessPassword = formData.businessPassword.trim();
     }
 
     if (cuisine.length > 0) {
@@ -896,6 +912,30 @@ export default function RestaurantsPage() {
                       onChange={(e) => updateFormField("website", e.target.value)}
                       className={inputClassName}
                       placeholder="https://..."
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClassName}>Business username *</label>
+                    <input
+                      value={formData.businessUsername}
+                      onChange={(e) => updateFormField("businessUsername", e.target.value)}
+                      className={inputClassName}
+                      placeholder="მაგ: green-bistro"
+                      autoCapitalize="none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClassName}>
+                      Business password {editingRestaurant ? "(ცარიელი = უცვლელი)" : "*"}
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.businessPassword}
+                      onChange={(e) => updateFormField("businessPassword", e.target.value)}
+                      className={inputClassName}
+                      placeholder={editingRestaurant ? "ახალი პაროლი" : "პაროლი"}
+                      required={!editingRestaurant}
                     />
                   </div>
                 </div>

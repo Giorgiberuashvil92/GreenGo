@@ -58,6 +58,7 @@ export interface Restaurant {
     email?: string;
     website?: string;
   };
+  businessUsername?: string;
   cuisineType?: string;
   cuisine?: string[];
   rating?: number;
@@ -104,6 +105,8 @@ export interface CreateRestaurantPayload {
     email?: string;
     website?: string;
   };
+  businessUsername?: string;
+  businessPassword?: string;
   features?: {
     hasDelivery?: boolean;
     hasPickup?: boolean;

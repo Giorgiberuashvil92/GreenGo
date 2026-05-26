@@ -32,6 +32,12 @@ export class Restaurant {
   @Prop({ default: true })
   isActive: boolean;
 
+  @Prop({ unique: true, sparse: true, trim: true, lowercase: true })
+  businessUsername?: string;
+
+  @Prop({ select: false })
+  businessPasswordHash?: string;
+
   @Prop({
     type: {
       latitude: Number,

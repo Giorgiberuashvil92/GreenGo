@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
 import { Restaurant, RestaurantDocument } from './schemas/restaurant.schema';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
@@ -12,8 +13,26 @@ export class RestaurantsService {
     private restaurantModel: Model<RestaurantDocument>,
   ) {}
 
+  private async prepareBusinessCredentials<T extends CreateRestaurantDto | UpdateRestaurantDto>(
+    dto: T,
+  ): Promise<any> {
+    const payload: any = { ...dto };
+
+    if (payload.businessUsername) {
+      payload.businessUsername = payload.businessUsername.trim().toLowerCase();
+    }
+
+    if (payload.businessPassword) {
+      payload.businessPasswordHash = await bcrypt.hash(payload.businessPassword, 10);
+      delete payload.businessPassword;
+    }
+
+    return payload;
+  }
+
   async create(createRestaurantDto: CreateRestaurantDto): Promise<Restaurant> {
-    const createdRestaurant = new this.restaurantModel(createRestaurantDto);
+    const payload = await this.prepareBusinessCredentials(createRestaurantDto);
+    const createdRestaurant = new this.restaurantModel(payload);
     return createdRestaurant.save();
   }
 
@@ -151,8 +170,9 @@ export class RestaurantsService {
     id: string,
     updateRestaurantDto: UpdateRestaurantDto,
   ): Promise<Restaurant> {
+    const payload = await this.prepareBusinessCredentials(updateRestaurantDto);
     const updatedRestaurant = await this.restaurantModel
-      .findByIdAndUpdate(id, updateRestaurantDto, { new: true })
+      .findByIdAndUpdate(id, payload, { new: true })
       .exec();
     if (!updatedRestaurant) {
       throw new NotFoundException(`რესტორნი ID ${id} ვერ მოიძებნა`);

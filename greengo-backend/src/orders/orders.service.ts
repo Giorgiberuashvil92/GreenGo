@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CouriersService } from '../couriers/couriers.service';
@@ -514,14 +514,18 @@ export class OrdersService {
     if (order.status === 'ready' && status === 'delivering') {
       // Only allow if courier is assigned (this should be done via courier pickup action)
       if (!order.courierId) {
-        throw new Error('კურიერი ჯერ არ არის მინიჭებული შეკვეთაზე. კურიერმა უნდა აიღოს შეკვეთა.');
+        throw new BadRequestException(
+          'კურიერი ჯერ არ არის მინიჭებული შეკვეთაზე. კურიერმა უნდა აიღოს შეკვეთა.',
+        );
       }
     }
 
     // თუ სტატუსი იცვლება "preparing"-ზე, დავრწმუნდეთ რომ კურიერი მინიჭებულია
     // მზადება შეიძლება დაიწყოს მხოლოდ მაშინ, როცა კურიერი უკვე მინიჭებულია
     if (status === 'preparing' && !order.courierId && order.deliveryType === 'delivery') {
-      throw new Error('კურიერი ჯერ არ არის მინიჭებული. გთხოვთ დაელოდოთ კურიერის მინიჭებას.');
+      throw new BadRequestException(
+        'კურიერი ჯერ არ არის მინიჭებული. გთხოვთ დაელოდოთ კურიერის მინიჭებას.',
+      );
     }
 
     // თუ სტატუსი იცვლება "confirmed"-ზე ან "ready"-ზე (რესტორანის დადასტურება), დავიწყოთ კურიერის მოძიება
@@ -589,7 +593,7 @@ export class OrdersService {
     }
 
     if (order.deliveryType !== 'delivery') {
-      throw new Error('ეს შეკვეთა არ არის მიტანის ტიპის');
+      throw new BadRequestException('ეს შეკვეთა არ არის მიტანის ტიპის');
     }
 
     const restaurant = order.restaurantId as any;

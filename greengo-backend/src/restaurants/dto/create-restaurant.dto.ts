@@ -106,6 +106,14 @@ export class CreateRestaurantDto {
   @IsOptional()
   isActive?: boolean;
 
+  @IsString()
+  @IsOptional()
+  businessUsername?: string;
+
+  @IsString()
+  @IsOptional()
+  businessPassword?: string;
+
   @ValidateNested()
   @Type(() => LocationDto)
   location: LocationDto;

@@ -6,16 +6,24 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS - explicitly allow localhost and production domains
+  const normalizeOrigin = (origin: string) => origin.trim().replace(/\/$/, '');
   const configuredOrigins = process.env.CORS_ORIGINS
     ?.split(',')
-    .map((origin) => origin.trim())
+    .map(normalizeOrigin)
     .filter(Boolean) ?? [];
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
+    'http://localhost:8081',
+    'http://localhost:19006',
+    'http://127.0.0.1:8081',
+    'http://127.0.0.1:19006',
     'https://greengo.up.railway.app',
     'https://green-go-admin.vercel.app',
     ...configuredOrigins,
+  ];
+  const allowedOriginPatterns = [
+    /^https:\/\/green-go-admin(?:-[a-z0-9-]+)?\.vercel\.app$/i,
   ];
 
   app.enableCors({
@@ -24,13 +32,17 @@ async function bootstrap() {
       if (!origin) {
         return callback(null, true);
       }
+      const normalizedOrigin = normalizeOrigin(origin);
       
       // Check if origin is in allowed list
-      if (allowedOrigins.includes(origin)) {
+      if (
+        allowedOrigins.includes(normalizedOrigin) ||
+        allowedOriginPatterns.some((pattern) => pattern.test(normalizedOrigin))
+      ) {
         callback(null, true);
       } else {
         // Log for debugging
-        console.log(`⚠️ CORS blocked origin: ${origin}`);
+        console.log(`⚠️ CORS blocked origin: ${normalizedOrigin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },

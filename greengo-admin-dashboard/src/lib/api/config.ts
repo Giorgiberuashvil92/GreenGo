@@ -11,7 +11,8 @@ export const API_CONFIG = {
   },
   // Production - Direct connection to Railway
   PROD: {
-    BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'https://greengo.up.railway.app/api',
+    // Use the Vercel rewrite by default so browser requests stay same-origin.
+    BASE_URL: process.env.NEXT_PUBLIC_API_URL || '/api-proxy',
   },
 };
 

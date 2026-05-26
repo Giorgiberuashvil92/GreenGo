@@ -54,6 +54,19 @@ export class AuthController {
     return response;
   }
 
+  @Post('business-login')
+  async businessLogin(@Body() body: { username: string; password: string }) {
+    const result = await this.authService.businessLogin(
+      body.username,
+      body.password,
+    );
+
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   async getProfile(@Request() req) {
