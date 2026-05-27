@@ -5,9 +5,13 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS open: any origin allowed (reflects request Origin header)
+  const port = Number(process.env.PORT) || 3001;
+  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  const isProduction = nodeEnv === 'production';
+
+  // CORS: ლოკალური და production frontend-ებისთვის (origin: true + credentials)
   app.enableCors({
-    origin: '*',
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
@@ -26,7 +30,6 @@ async function bootstrap() {
     maxAge: 86400,
   });
 
-  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -42,19 +45,17 @@ async function bootstrap() {
     }),
   );
 
-  // API prefix
   app.setGlobalPrefix('api');
-  // 1. გამოიყენეთ ერთიანი ცვლადი
-  const port = process.env.PORT || 3000;
+
   await app.listen(port, '0.0.0.0');
 
-  // 2. ლოგებშიც სწორი პორტი გამოიტანეთ
-  console.log(`🚀 GreenGo Backend is running on port: ${port}`);
-  console.log(`🚀 GreenGo Backend is running on: http://localhost:${port}/api`);
-  console.log(`🌐 Network accessible at: http://0.0.0.0:${port}/api`);
-  console.log(
-    `📱 Make sure your device is on the same network and use your computer's IP address`,
-  );
+  const localUrl = `http://localhost:${port}/api`;
+  console.log(`🚀 GreenGo Backend [${nodeEnv}] on port ${port}`);
+  console.log(`📡 Local API:  ${localUrl}`);
+  if (!isProduction) {
+    console.log(`💡 Admin (dev): NEXT_PUBLIC_API_URL=${localUrl}`);
+    console.log(`💡 Production API: set NEXT_PUBLIC_API_MODE=production in admin .env.local`);
+  }
 }
 
 bootstrap();

@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
+const backendBase =
+  process.env.BACKEND_API_URL?.replace(/\/$/, '') ??
+  'https://greengo-production.up.railway.app';
+
 const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: '/api-proxy/:path*',
+        destination: `${backendBase}/api/:path*`,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
@@ -21,7 +33,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'greengo.up.railway.app',
+        hostname: 'greengo-production.up.railway.app',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.up.railway.app',
       },
       {
         protocol: 'https',
