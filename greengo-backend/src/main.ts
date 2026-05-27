@@ -7,7 +7,7 @@ async function bootstrap() {
 
   // CORS open: any origin allowed (reflects request Origin header)
   app.enableCors({
-    origin: true,
+    origin: '*, https://green-go-admin.vercel.app',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
