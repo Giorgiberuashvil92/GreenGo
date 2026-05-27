@@ -1,26 +1,6 @@
 import type { NextConfig } from "next";
 
-const apiProxyTarget =
-  process.env.API_PROXY_TARGET ||
-  process.env.BACKEND_API_URL ||
-  "https://greengo.up.railway.app";
-
 const nextConfig: NextConfig = {
-  /* config options here */
-  // Proxy API requests to avoid CORS issues in development
-  async rewrites() {
-    return [
-      {
-        source: '/api-proxy/:path*',
-        destination: `${apiProxyTarget.replace(/\/$/, "")}/:path*`,
-      },
-      {
-        source: '/api-local/:path*',
-        // Local backend proxy
-        destination: 'http://localhost:3001/api/:path*',
-      },
-    ];
-  },
   images: {
     remotePatterns: [
       {
@@ -56,7 +36,7 @@ const nextConfig: NextConfig = {
     });
     return config;
   },
-    
+
   turbopack: {
     root: process.cwd(),
     rules: {
@@ -66,7 +46,6 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  
 };
 
 export default nextConfig;

@@ -5,12 +5,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS - explicitly allow localhost and production domains
   const normalizeOrigin = (origin: string) => origin.trim().replace(/\/$/, '');
-  const configuredOrigins = process.env.CORS_ORIGINS
-    ?.split(',')
-    .map(normalizeOrigin)
-    .filter(Boolean) ?? [];
+  const configuredOrigins =
+    process.env.CORS_ORIGINS?.split(',').map(normalizeOrigin).filter(Boolean) ??
+    [];
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
@@ -33,7 +31,7 @@ async function bootstrap() {
         return callback(null, true);
       }
       const normalizedOrigin = normalizeOrigin(origin);
-      
+
       // Check if origin is in allowed list
       if (
         allowedOrigins.includes(normalizedOrigin) ||
@@ -69,7 +67,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, 
+      forbidNonWhitelisted: false,
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,
@@ -89,7 +87,9 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 GreenGo Backend is running on: http://localhost:${port}/api`);
   console.log(`🌐 Network accessible at: http://0.0.0.0:${port}/api`);
-  console.log(`📱 Make sure your device is on the same network and use your computer's IP address`);
+  console.log(
+    `📱 Make sure your device is on the same network and use your computer's IP address`,
+  );
 }
 
 bootstrap();
