@@ -44,9 +44,7 @@ async function bootstrap() {
 
   // API prefix
   app.setGlobalPrefix('api');
-
   const port = process.env.PORT || 3001;
-  // Listen on 0.0.0.0 to accept connections from all network interfaces (mobile devices)
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 GreenGo Backend is running on: http://localhost:${port}/api`);
   console.log(`🌐 Network accessible at: http://0.0.0.0:${port}/api`);
