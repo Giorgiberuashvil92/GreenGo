@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const apiProxyTarget =
   process.env.API_PROXY_TARGET ||
   process.env.BACKEND_API_URL ||
-  "https://greengo.up.railway.app/api";
+  "https://greengo.up.railway.app";
 
 const nextConfig: NextConfig = {
   /* config options here */

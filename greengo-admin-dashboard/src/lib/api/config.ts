@@ -7,7 +7,7 @@ export const API_CONFIG = {
     // Option 2: Next.js proxy to Railway (if Railway is running)
     PROXY: '/api-proxy',
     // Option 3: Direct Railway URL (if CORS is fixed)
-    RAILWAY: 'https://greengo.up.railway.app/api',
+    RAILWAY: 'https://greengo.up.railway.app',
   },
   // Production - Direct connection to Railway
   PROD: {
