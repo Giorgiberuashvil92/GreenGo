@@ -7,7 +7,7 @@ async function bootstrap() {
 
   // CORS open: any origin allowed (reflects request Origin header)
   app.enableCors({
-    origin: '*, https://green-go-admin.vercel.app',
+    origin: '*',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
@@ -44,8 +44,12 @@ async function bootstrap() {
 
   // API prefix
   app.setGlobalPrefix('api');
-  const port = process.env.PORT || 3001;
+  // 1. გამოიყენეთ ერთიანი ცვლადი
+  const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
+
+  // 2. ლოგებშიც სწორი პორტი გამოიტანეთ
+  console.log(`🚀 GreenGo Backend is running on port: ${port}`);
   console.log(`🚀 GreenGo Backend is running on: http://localhost:${port}/api`);
   console.log(`🌐 Network accessible at: http://0.0.0.0:${port}/api`);
   console.log(
