@@ -10,6 +10,7 @@ export interface SavedPaymentCard {
   type: PaymentCardType;
   lastFour: string;
   maskedNumber: string;
+  isPrimary?: boolean;
 }
 
 export interface CheckoutPaymentSelection {
@@ -19,32 +20,8 @@ export interface CheckoutPaymentSelection {
   lastFour?: string;
 }
 
-export const PAYMENT_CARDS: SavedPaymentCard[] = [
-  {
-    id: "1",
-    type: "amex",
-    lastFour: "7729",
-    maskedNumber: "**** 7729",
-  },
-  {
-    id: "2",
-    type: "mastercard",
-    lastFour: "1234",
-    maskedNumber: "**** 1234",
-  },
-  {
-    id: "3",
-    type: "visa",
-    lastFour: "5678",
-    maskedNumber: "**** 5678",
-  },
-];
-
 const DEFAULT_PAYMENT: CheckoutPaymentSelection = {
-  method: "card",
-  cardId: "1",
-  cardType: "amex",
-  lastFour: "7729",
+  method: "cash",
 };
 
 export async function loadCheckoutPayment(): Promise<CheckoutPaymentSelection> {
@@ -85,9 +62,6 @@ export function getPaymentDisplayLine(
   if (selection.method === "greengo_balance") {
     return "GreenGo ბალანსი";
   }
-  const lastFour =
-    selection.lastFour ||
-    PAYMENT_CARDS.find((c) => c.id === selection.cardId)?.lastFour ||
-    "7729";
+  const lastFour = selection.lastFour || "----";
   return `**** ${lastFour}`;
 }

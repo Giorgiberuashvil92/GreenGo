@@ -20,8 +20,10 @@ export class MenuItemsService {
     restaurantId?: string;
     category?: string;
     search?: string;
+    isPopular?: boolean;
   }): Promise<{ data: MenuItem[]; total: number; page: number; limit: number }> {
-    const { page = 1, limit = 10, restaurantId, category, search } = query;
+    const { page = 1, limit = 10, restaurantId, category, search, isPopular } =
+      query;
     const skip = (page - 1) * limit;
 
     const filter: any = {};
@@ -32,6 +34,10 @@ export class MenuItemsService {
 
     if (category) {
       filter.category = category;
+    }
+
+    if (isPopular === true || isPopular === false) {
+      filter.isPopular = isPopular;
     }
 
     if (search) {

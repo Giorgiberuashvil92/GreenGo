@@ -12,7 +12,5 @@ export default function CourierTipIcon({ size = 40 }: { size?: number }) {
 }
 
 const styles = StyleSheet.create({
-  icon: {
-    borderRadius: 999,
-  },
+  icon: {},
 });

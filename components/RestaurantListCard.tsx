@@ -4,6 +4,7 @@ import { BlurView } from "expo-blur";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -29,7 +30,7 @@ function useGalleryLayout() {
   const { width: screenWidth } = useWindowDimensions();
   const clipWidth = screenWidth - CARD_SIDE_PADDING;
   const designTotal = FIGMA_MAIN_W + FIGMA_GALLERY_GAP + FIGMA_THUMB_W;
-  /** ~82% thumb ჩანს, ~18% ოდნავ მოჭრილი; სრული რიგი clip-ზე გადაიჭრება (margin-ის გარეშე) */
+  /** ~82% thumb ჩანს, ~18% ოდნავ მოჭრილი; სქროლით ჩანს სრულად */
   const THUMB_PEEK_VISIBLE = 0.82;
   const hiddenThumb = FIGMA_THUMB_W * (1 - THUMB_PEEK_VISIBLE);
   const rowScale = Math.min(1.06, clipWidth / (designTotal - hiddenThumb));
@@ -94,13 +95,9 @@ function buildGalleryItems(
   fromApi: MenuPreviewItem[],
   restaurant: RestaurantListCardRestaurant,
 ): MenuPreviewItem[] {
-  const slots: MenuPreviewItem[] = [];
+  const slots: MenuPreviewItem[] = [...fromApi.slice(0, 12)];
 
-  for (let i = 0; i < 3; i++) {
-    if (fromApi[i]) {
-      slots.push(fromApi[i]);
-      continue;
-    }
+  for (let i = slots.length; i < 3; i++) {
     if (STATIC_GALLERY_ITEMS[i]) {
       slots.push({ ...STATIC_GALLERY_ITEMS[i] });
       continue;
@@ -114,6 +111,14 @@ function buildGalleryItems(
   }
 
   return slots;
+}
+
+function chunkThumbColumns(items: MenuPreviewItem[]): MenuPreviewItem[][] {
+  const columns: MenuPreviewItem[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    columns.push(items.slice(i, i + 2));
+  }
+  return columns;
 }
 
 export interface RestaurantListCardRestaurant {
@@ -192,25 +197,23 @@ export default function RestaurantListCard({
   restaurant,
   onPress,
   onDishPress,
-  tintedBackground,
 }: {
   restaurant: RestaurantListCardRestaurant;
   onPress: () => void;
   onDishPress?: (menuItemId: string) => void;
-  tintedBackground?: boolean;
 }) {
   const restaurantId = restaurant.id || restaurant._id || "";
   const [menuItems, setMenuItems] = useState<MenuPreviewItem[]>([]);
   const {
+    clipWidth,
     mainWidth,
     mainHeight,
     thumbWidth,
-    thumbHeight,
     thumbColHeight,
+    thumbHeight,
     galleryGap,
     thumbGap,
     mainPadding,
-    clipWidth,
   } = useGalleryLayout();
 
   useEffect(() => {
@@ -232,7 +235,7 @@ export default function RestaurantListCard({
             : [];
         const popular = raw.filter((item) => item.isPopular);
         const source = popular.length > 0 ? popular : raw;
-        setMenuItems(source.slice(0, 3));
+        setMenuItems(source.slice(0, 12));
       } catch {
         if (!cancelled) setMenuItems([]);
       }
@@ -253,7 +256,7 @@ export default function RestaurantListCard({
   );
 
   const mainItem = galleryItems[0];
-  const sideItems = galleryItems.slice(1, 3);
+  const thumbColumns = chunkThumbColumns(galleryItems.slice(1));
 
   const mainBadgeLabel =
     mainItem.price > 0
@@ -261,7 +264,7 @@ export default function RestaurantListCard({
       : mainItem.name;
 
   return (
-    <View style={[styles.card, tintedBackground && styles.cardTinted]}>
+    <View style={styles.card}>
       <TouchableOpacity
         style={styles.headerRow}
         activeOpacity={0.85}
@@ -310,15 +313,15 @@ export default function RestaurantListCard({
         />
       </TouchableOpacity>
 
-      <View
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator={false}
         style={[
-          styles.galleryClip,
-          {
-            width: clipWidth,
-            marginRight: -CARD_SIDE_PADDING,
-            marginLeft: 0,
-          },
+          styles.galleryScroll,
+          { width: clipWidth, marginRight: -CARD_SIDE_PADDING },
         ]}
+        contentContainerStyle={styles.galleryScrollContent}
       >
         <View style={[styles.galleryRow, { gap: galleryGap }]}>
           <TouchableOpacity
@@ -340,46 +343,49 @@ export default function RestaurantListCard({
             <MainDishBadge label={mainBadgeLabel} inset={mainPadding} />
           </TouchableOpacity>
 
-          <View
-            style={[
-              styles.thumbColumn,
-              { width: thumbWidth, height: thumbColHeight, gap: thumbGap },
-            ]}
-          >
-            {sideItems.map((item, index) => {
-              const itemId = item._id || item.id || "side-" + index;
-              return (
-                <TouchableOpacity
-                  key={itemId}
-                  style={[
-                    styles.thumb,
-                    { width: thumbWidth, height: thumbHeight },
-                  ]}
-                  activeOpacity={0.92}
-                  onPress={() => {
-                    if (itemId && !isStaticGalleryItem(itemId) && onDishPress) {
-                      onDishPress(itemId);
-                    } else {
-                      onPress();
-                    }
-                  }}
-                >
-                  <Image
-                    source={getImageSource(item.image || restaurant.image)}
-                    style={styles.thumbImage}
-                  />
-                  {item.price > 0 ? (
-                    <ThumbPriceBadge
-                      label={formatGel(item.price)}
-                      inset={mainPadding}
+          {thumbColumns.map((columnItems, columnIndex) => (
+            <View
+              key={"thumb-col-" + columnIndex}
+              style={[
+                styles.thumbColumn,
+                { width: thumbWidth, height: thumbColHeight, gap: thumbGap },
+              ]}
+            >
+              {columnItems.map((item, index) => {
+                const itemId = item._id || item.id || "side-" + columnIndex + "-" + index;
+                return (
+                  <TouchableOpacity
+                    key={itemId}
+                    style={[
+                      styles.thumb,
+                      { width: thumbWidth, height: thumbHeight },
+                    ]}
+                    activeOpacity={0.92}
+                    onPress={() => {
+                      if (itemId && !isStaticGalleryItem(itemId) && onDishPress) {
+                        onDishPress(itemId);
+                      } else {
+                        onPress();
+                      }
+                    }}
+                  >
+                    <Image
+                      source={getImageSource(item.image || restaurant.image)}
+                      style={styles.thumbImage}
                     />
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    {item.price > 0 ? (
+                      <ThumbPriceBadge
+                        label={formatGel(item.price)}
+                        inset={mainPadding}
+                      />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -392,9 +398,6 @@ const styles = StyleSheet.create({
     overflow: "visible",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#EEEEEE",
-  },
-  cardTinted: {
-    backgroundColor: "#FFF6F6",
   },
   headerRow: {
     flexDirection: "row",
@@ -456,14 +459,20 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     color: "#9E9E9E",
   },
-  galleryClip: {
+  galleryScroll: {
     marginTop: 10,
-    overflow: "hidden",
     alignSelf: "flex-start",
+  },
+  galleryScrollContent: {
+    paddingRight: CARD_SIDE_PADDING,
   },
   galleryRow: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  thumbColumn: {
+    flexDirection: "column",
+    alignItems: "flex-start",
   },
   mainDish: {
     flexDirection: "column",
@@ -476,10 +485,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
-  },
-  thumbColumn: {
-    flexDirection: "column",
-    alignItems: "flex-start",
   },
   thumb: {
     borderRadius: 10,

@@ -7,8 +7,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import RestaurantMenuManager from "@/components/restaurant/RestaurantMenuManager";
 import { MenuItem, menuItemsApi, Order, ordersApi, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
-import Image from "next/image";
+import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -70,7 +71,7 @@ function RestaurantDashboardPageContent() {
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get('restaurantId');
   
-  const [restaurant, setRestaurant] = useState<any>(null);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -254,17 +255,15 @@ function RestaurantDashboardPageContent() {
         {restaurant && (
           <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
             <div className="flex items-center gap-4">
-              {restaurant.image && (
-                <div className="h-20 w-20 overflow-hidden rounded-lg">
-                  <Image
-                    width={80}
-                    height={80}
-                    src={restaurant.image}
-                    alt={restaurant.name}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              )}
+              <div className="h-20 w-20 overflow-hidden rounded-lg">
+                <SafeRemoteImage
+                  width={80}
+                  height={80}
+                  src={restaurant.image}
+                  alt={restaurant.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
                   {restaurant.name}
@@ -543,62 +542,13 @@ function RestaurantDashboardPageContent() {
           </div>
         </div>
 
-        {/* Menu Items */}
-        <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="border-b border-gray-200 px-6 py-4 dark:border-white/[0.05]">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">მენიუს პროდუქტები</h3>
-          </div>
-          <div className="p-6">
-            {menuItems.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                მენიუს პროდუქტები ვერ მოიძებნა
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {menuItems.map((item) => (
-                  <div
-                    key={item._id}
-                    className="rounded-lg border border-gray-200 p-4 dark:border-white/[0.05]"
-                  >
-                    {item.image && (
-                      <div className="mb-3 h-32 w-full overflow-hidden rounded-lg">
-                        <Image
-                          width={200}
-                          height={200}
-                          src={item.image}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    )}
-                    <h4 className="font-semibold text-gray-800 dark:text-white/90">
-                      {item.name}
-                    </h4>
-                    {item.description && (
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="font-bold text-gray-800 dark:text-white/90">
-                        {formatPrice(item.price)}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs ${
-                          item.isAvailable
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-                        }`}
-                      >
-                        {item.isAvailable ? "ხელმისაწვდომი" : "არაა ხელმისაწვდომი"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <RestaurantMenuManager
+          restaurantId={restaurantId}
+          restaurant={restaurant}
+          menuItems={menuItems}
+          onRestaurantUpdated={setRestaurant}
+          onMenuItemsUpdated={setMenuItems}
+        />
           </>
         )}
       </div>

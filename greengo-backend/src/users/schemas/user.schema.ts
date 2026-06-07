@@ -30,6 +30,28 @@ export class User {
   balance: number;
 
   @Prop({
+    type: [
+      {
+        type: {
+          type: String,
+          enum: ['visa', 'mastercard', 'amex'],
+          required: true,
+        },
+        lastFour: { type: String, required: true },
+        maskedNumber: { type: String, required: true },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
+    default: [],
+  })
+  paymentCards: Array<{
+    type: 'visa' | 'mastercard' | 'amex';
+    lastFour: string;
+    maskedNumber: string;
+    isPrimary: boolean;
+  }>;
+
+  @Prop({
     type: {
       language: { type: String, enum: ['ka', 'en'], default: 'ka' },
       notifications: { type: Boolean, default: true },

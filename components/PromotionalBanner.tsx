@@ -12,7 +12,7 @@ import {
 import { promotionalBanners } from "../assets/data/promotionalBanners";
 
 const BANNER_ASPECT = 158 / 315;
-const BANNER_MAX_WIDTH = 315;
+const SIDE_PADDING = 16;
 const ITEM_GAP = 10;
 const BORDER_RADIUS = 16;
 
@@ -35,13 +35,12 @@ export default function PromotionalBanner() {
   const { width: screenWidth } = useWindowDimensions();
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
-  const { bannerWidth, bannerHeight, snapInterval, sidePadding } = useMemo(() => {
-    const width = Math.min(BANNER_MAX_WIDTH, screenWidth - 40);
+  const { bannerWidth, bannerHeight, snapInterval } = useMemo(() => {
+    const width = screenWidth - SIDE_PADDING * 2;
     return {
       bannerWidth: width,
       bannerHeight: width * BANNER_ASPECT,
       snapInterval: width + ITEM_GAP,
-      sidePadding: (screenWidth - width) / 2,
     };
   }, [screenWidth]);
 
@@ -71,7 +70,7 @@ export default function PromotionalBanner() {
         disableIntervalMomentum
         contentContainerStyle={[
           styles.bannerScrollContent,
-          { paddingHorizontal: sidePadding },
+          { paddingHorizontal: SIDE_PADDING },
         ]}
         onScroll={handleBannerScroll}
         onMomentumScrollEnd={handleBannerScroll}
@@ -144,7 +143,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: SIDE_PADDING,
   },
   dot: {},
 });

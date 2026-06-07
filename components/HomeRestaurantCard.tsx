@@ -1,3 +1,4 @@
+import PromosIcon from "@/components/icons/PromosIcon";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React from "react";
@@ -8,16 +9,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import PromosIcon from "@/components/icons/PromosIcon";
 import type { HomeSectionRestaurant } from "../hooks/useHomeSections";
 
 const HORIZONTAL_PADDING = 16;
 const CARD_GAP = 16;
-const IMAGE_RADIUS = 8;
-const IMAGE_HEIGHT = 80;
+const IMAGE_RADIUS = 16;
+const IMAGE_WIDTH = 200;
+const IMAGE_HEIGHT = 100;
 const BADGE_ICON_SIZE = 12;
 
-export const HOME_RESTAURANT_CARD_WIDTH = 180;
+export const HOME_RESTAURANT_CARD_WIDTH = 200;
 export const HOME_RESTAURANT_CARD_GAP = CARD_GAP;
 export const HOME_RESTAURANT_CARD_PADDING = HORIZONTAL_PADDING;
 
@@ -91,7 +92,7 @@ export default function HomeRestaurantCard({
         source={imageSource}
         resizeMode="cover"
         imageStyle={styles.imageRadius}
-        style={[styles.imageWrap, { width, height: IMAGE_HEIGHT }]}
+        style={[styles.imageWrap, { width: IMAGE_WIDTH, height: IMAGE_HEIGHT }]}
       >
         <View style={styles.badgeRow}>
           <View style={styles.timeBadge}>
@@ -144,13 +145,8 @@ export default function HomeRestaurantCard({
 
         <View style={styles.ratingInfo}>
           <Ionicons name="star" size={BADGE_ICON_SIZE} color="#F5B800" />
-          <Text style={styles.ratingValue}>
-            {restaurant.rating.toFixed(1)}
-          </Text>
-          <Text style={styles.reviewCount}>
-            {" "}
-            ({restaurant.reviewCount})
-          </Text>
+          <Text style={styles.ratingValue}>{restaurant.rating.toFixed(1)}</Text>
+          <Text style={styles.reviewCount}> ({restaurant.reviewCount})</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -211,12 +207,13 @@ const styles = StyleSheet.create({
   name: {
     color: "#181B1A",
     fontSize: 14,
-    fontFamily: fontFamily.bold,
+    fontFamily: fontFamily.semiBold,
+    textTransform: "uppercase",
     lineHeight: 20,
   },
   category: {
     color: "#9B9B9B",
-    fontSize: 8,
+    fontSize: 10,
     fontFamily: fontFamily.regular,
     lineHeight: 15,
     marginTop: 2,
@@ -237,15 +234,14 @@ const styles = StyleSheet.create({
   footerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 4,
     width: "100%",
   },
   deliveryInfo: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flexShrink: 1,
-    marginRight: 8,
+    flexShrink: 0,
   },
   priceRow: {
     flexDirection: "row",

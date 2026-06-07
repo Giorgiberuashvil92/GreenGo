@@ -2,13 +2,19 @@ import { fontFamily } from "@/constants/fonts";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import type { HomeSectionRestaurant } from "../hooks/useHomeSections";
 import HomeRestaurantCard, {
   HOME_RESTAURANT_CARD_GAP,
   HOME_RESTAURANT_CARD_PADDING,
   HOME_RESTAURANT_CARD_WIDTH,
 } from "./HomeRestaurantCard";
-import type { HomeSectionRestaurant } from "../hooks/useHomeSections";
 
 export default function HomeRestaurantCarousel({
   title,
@@ -92,9 +98,10 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#181B1A",
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: fontFamily.bold,
     lineHeight: 20,
+    textTransform: "uppercase",
   },
   seeAllButton: {
     flexDirection: "row",

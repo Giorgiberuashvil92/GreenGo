@@ -10,12 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useRestaurants } from "../hooks/useRestaurants";
 import HomeRestaurantCard, {
   HOME_RESTAURANT_CARD_GAP,
   HOME_RESTAURANT_CARD_PADDING,
   HOME_RESTAURANT_CARD_WIDTH,
 } from "./HomeRestaurantCard";
-import { useRestaurants } from "../hooks/useRestaurants";
 
 export default function PopularObjects() {
   const router = useRouter();
@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
     color: "#181B1A",
     fontSize: 14,
     fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
     lineHeight: 20,
   },
   seeAllButton: {

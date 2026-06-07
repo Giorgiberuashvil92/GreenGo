@@ -53,7 +53,7 @@ interface Order {
 const ACCENT_GREEN = "#003E20";
 const REPEAT_GREEN = "#00592D";
 const SEGMENT_BG = "#F3F4F6";
-const FEATURED_BG = "#F2FAF7";
+const FEATURED_BG = "#F1F8F9";
 const REPEAT_BTN_BG = "#F2FAF7";
 const DETAILS_BLUE = "#2563EB";
 
@@ -902,12 +902,14 @@ const styles = StyleSheet.create({
   },
   featuredTitle: {
     fontSize: 16,
-    fontFamily: fontFamily.bold,
+    fontFamily: fontFamily.semiBold,
     color: ACCENT_GREEN,
+    lineHeight: 20,
   },
   featuredSubtitle: {
-    fontSize: 14,
-    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    lineHeight: 16,
     color: "#6B7280",
   },
   orderListBlock: {
@@ -920,8 +922,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowImage: {
-    width: 60,
-    height: 60,
+    width: 57,
+    height: 45,
     borderRadius: 10,
     backgroundColor: "#F3F4F6",
   },
@@ -952,9 +954,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#E5E7EB",
-    marginLeft: 72,
+    height: 1,
+    backgroundColor: "#F0F0F0",
+    marginLeft: 69,
   },
   previousOrdersList: {
     gap: 12,

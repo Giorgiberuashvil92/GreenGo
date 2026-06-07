@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { MoreDotIcon, TrashBinIcon } from "@/icons";
 import { categoriesApi, Category } from "@/lib/api/endpoints";
-import Image from "next/image";
+import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import { useEffect, useState } from "react";
 
 export default function CategoriesPage() {
@@ -126,19 +126,13 @@ export default function CategoriesPage() {
                     <TableRow key={category._id}>
                       <TableCell className="px-5 py-4">
                         <div className="h-12 w-12 overflow-hidden rounded-md">
-                          {category.image ? (
-                            <Image
-                              width={48}
-                              height={48}
-                              src={category.image}
-                              alt={category.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gray-100 dark:bg-gray-800">
-                              <span className="text-xs text-gray-400">N/A</span>
-                            </div>
-                          )}
+                          <SafeRemoteImage
+                            width={48}
+                            height={48}
+                            src={category.image}
+                            alt={category.name}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
                       </TableCell>
                       <TableCell className="px-5 py-4">

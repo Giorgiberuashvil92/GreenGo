@@ -46,6 +46,19 @@ class ContactDto {
   website?: string;
 }
 
+class MenuCategoryDto {
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  @IsOptional()
+  order?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
+
 class FeaturesDto {
   @IsBoolean()
   @IsOptional()
@@ -135,6 +148,12 @@ export class CreateRestaurantDto {
   @IsArray()
   @IsString({ each: true })
   categories: string[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MenuCategoryDto)
+  @IsOptional()
+  menuCategories?: MenuCategoryDto[];
 
   @IsString()
   @IsOptional()

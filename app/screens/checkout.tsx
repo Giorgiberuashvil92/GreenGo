@@ -1,20 +1,19 @@
 import BackCircleIcon from "@/components/icons/BackCircleIcon";
 import CardBrandIcon from "@/components/icons/CardBrandIcon";
 import CourierTipIcon from "@/components/icons/CourierTipIcon";
+import PencilIcon from "@/components/icons/PencilIcon";
+import VoucherIcon from "@/components/icons/VoucherIcon";
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
-import { getDistance } from "@/utils/restaurantUtils";
-import { Ionicons } from "@expo/vector-icons";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
-import {
-  formatAddressStreetLine,
-  formatAddressSubLine,
-} from "@/utils/address";
+import { formatAddressStreetLine, formatAddressSubLine } from "@/utils/address";
 import {
   CheckoutPaymentSelection,
   getPaymentDisplayLine,
   loadCheckoutPayment,
 } from "@/utils/payment";
+import { getDistance } from "@/utils/restaurantUtils";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -22,6 +21,8 @@ import {
   Alert,
   Image,
   ImageSourcePropType,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -37,10 +38,26 @@ import { apiService } from "../../utils/api";
 
 const PRIMARY_GREEN = "#1D4045";
 const QTY_BG = "#EFFBF5";
-const SCREEN_BG = "#F5F5F5";
+const SCREEN_BG = "#FFFFFF";
+const SERVICE_FEE = 1.2;
+const TIP_MIN = 1;
+const TIP_MAX = 50;
+
+type TipOptionKey = "none" | "1" | "3" | "5" | "custom";
+
+const TIP_PRESETS: { key: TipOptionKey; amount: number; label: string }[] = [
+  { key: "none", amount: 0, label: "თიფსის გარეშე" },
+  { key: "1", amount: 1, label: "1₾" },
+  { key: "3", amount: 3, label: "3₾" },
+  { key: "5", amount: 5, label: "5₾" },
+];
 
 function formatGel(n: number): string {
   return `${n.toFixed(2).replace(".", ",")} ₾`;
+}
+
+function formatSummaryAmount(n: number): string {
+  return n.toFixed(2).replace(".", ",");
 }
 
 function cartImageSource(image: unknown): ImageSourcePropType {
@@ -62,7 +79,10 @@ export default function CheckoutScreen() {
   const { restaurant, loading: restaurantLoading } = useRestaurant(
     restaurantId || "",
   );
-  const [selectedTip, setSelectedTip] = useState<number>(3);
+  const [tipAmount, setTipAmount] = useState<number>(3);
+  const [activeTipKey, setActiveTipKey] = useState<TipOptionKey>("3");
+  const [showTipModal, setShowTipModal] = useState(false);
+  const [customTipInput, setCustomTipInput] = useState("");
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
     "delivery",
@@ -138,11 +158,69 @@ export default function CheckoutScreen() {
     restaurant?.deliveryFee,
   ]);
 
-  const total = useMemo(() => {
-    return subtotal + deliveryFee + selectedTip;
-  }, [subtotal, deliveryFee, selectedTip]);
+  const deliveryDistanceM = useMemo(() => {
+    if (
+      deliveryType !== "delivery" ||
+      !deliveryAddress ||
+      !restaurant?.location
+    ) {
+      return 500;
+    }
 
-  const tipOptions = [0, 1, 3, 5];
+    const distanceKm = getDistance(
+      restaurant.location.latitude,
+      restaurant.location.longitude,
+      deliveryAddress.coordinates.lat,
+      deliveryAddress.coordinates.lng,
+    );
+
+    return Math.max(100, Math.round(distanceKm * 1000));
+  }, [deliveryType, deliveryAddress, restaurant?.location]);
+
+  const total = useMemo(() => {
+    const serviceFee = restaurantCartItems.length > 0 ? SERVICE_FEE : 0;
+    const fee = deliveryType === "delivery" ? deliveryFee : 0;
+    return subtotal + fee + serviceFee + tipAmount;
+  }, [
+    subtotal,
+    deliveryFee,
+    deliveryType,
+    tipAmount,
+    restaurantCartItems.length,
+  ]);
+
+  const openCustomTipModal = () => {
+    setCustomTipInput(
+      activeTipKey === "custom" ? tipAmount.toFixed(2).replace(".", ",") : "",
+    );
+    setShowTipModal(true);
+  };
+
+  const closeCustomTipModal = () => {
+    setShowTipModal(false);
+  };
+
+  const saveCustomTip = () => {
+    const normalized = customTipInput.replace(",", ".").trim();
+    const value = parseFloat(normalized);
+
+    if (Number.isNaN(value) || value < TIP_MIN || value > TIP_MAX) {
+      Alert.alert(
+        "არასწორი თანხა",
+        `შეგიძლიათ დატოვოთ tip: ${formatGel(TIP_MIN)} - ${formatGel(TIP_MAX)}`,
+      );
+      return;
+    }
+
+    setTipAmount(value);
+    setActiveTipKey("custom");
+    setShowTipModal(false);
+  };
+
+  const selectPresetTip = (key: TipOptionKey, amount: number) => {
+    setActiveTipKey(key);
+    setTipAmount(amount);
+  };
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -286,7 +364,7 @@ export default function CheckoutScreen() {
         deliveryAddress: finalDeliveryAddress,
         estimatedDelivery: estimatedDelivery.toISOString(),
         notes: comment || undefined,
-        tip: selectedTip,
+        tip: tipAmount,
         deliveryType: deliveryType,
       };
 
@@ -401,7 +479,7 @@ export default function CheckoutScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollInner,
-          { paddingBottom: 24 + insets.bottom + 88 },
+          { paddingBottom: 24 + insets.bottom + 140 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -554,81 +632,116 @@ export default function CheckoutScreen() {
 
         <TouchableOpacity style={styles.card} activeOpacity={0.85}>
           <View style={styles.cardRow}>
-            <View style={styles.voucherBadge}>
-              <Text style={styles.voucherPct}>%</Text>
+            <View style={styles.voucherIconWrap}>
+              <VoucherIcon size={20} />
             </View>
             <Text style={styles.voucherLabel}>დაამატეთ ვაუჩერი</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </View>
         </TouchableOpacity>
 
-        <View style={[styles.card, styles.tipCard]}>
-          <View style={styles.tipHeadRow}>
-            <View style={styles.tipIconBg}>
-              <CourierTipIcon size={40} />
+        <View style={styles.tipSection}>
+          <View style={styles.tipMainRow}>
+            <View style={styles.tipIconWrap}>
+              <CourierTipIcon size={88} />
             </View>
-            <View style={styles.tipHeadText}>
+            <View style={styles.tipContent}>
               <Text style={styles.tipHeadTitle}>
                 დაუტოვებთ კურიერს დამატებით თიფს?
               </Text>
-              <Text style={styles.tipHeadSub}>კურიერი იღებს თიფის 100%-ს.</Text>
+              <Text style={styles.tipHeadSub}>
+                კურიერი იღებს თიფის 100% - ს. თიფსის გაუქმებას მოგვიანებით
+                შეძლებთ
+              </Text>
             </View>
           </View>
-          <View style={styles.tipChips}>
-            {tipOptions.map((tip) => (
-              <TouchableOpacity
-                key={tip}
-                style={[
-                  styles.tipChip,
-                  selectedTip === tip && styles.tipChipOn,
-                ]}
-                onPress={() => setSelectedTip(tip)}
-              >
-                <Text
-                  style={[
-                    styles.tipChipText,
-                    selectedTip === tip && styles.tipChipTextOn,
-                  ]}
+
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.tipChipsScroll}
+            contentContainerStyle={styles.tipChips}
+          >
+            {TIP_PRESETS.map((tip) => {
+              const isActive = activeTipKey === tip.key;
+              return (
+                <TouchableOpacity
+                  key={tip.key}
+                  style={[styles.tipChip, isActive && styles.tipChipOn]}
+                  onPress={() => selectPresetTip(tip.key, tip.amount)}
                 >
-                  {tip === 0 ? "0" : `${tip} ₾`}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <Text
+                    style={[
+                      styles.tipChipText,
+                      isActive && styles.tipChipTextOn,
+                    ]}
+                  >
+                    {tip.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity
+              style={[
+                styles.tipChip,
+                styles.tipChipIcon,
+                activeTipKey === "custom" && styles.tipChipOn,
+              ]}
+              onPress={openCustomTipModal}
+            >
+              <PencilIcon
+                size={12}
+                color={activeTipKey === "custom" ? "#181B1A" : "#8C8C8C"}
+              />
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
-        <TouchableOpacity
-          style={styles.card}
-          activeOpacity={0.85}
-          onPress={openPaymentPicker}
-        >
-          <View style={styles.cardRow}>
-            <View style={styles.payBrand}>
-              {selectedCardType ? (
-                <CardBrandIcon
-                  type={selectedCardType}
-                  width={40}
-                  height={24}
-                />
-              ) : (
-                <Ionicons
-                  name={
-                    paymentSelection.method === "cash"
-                      ? "cash-outline"
-                      : "wallet-outline"
-                  }
-                  size={22}
-                  color={PRIMARY_GREEN}
-                />
-              )}
-            </View>
-            <View style={styles.cardTextCol}>
-              <Text style={styles.paySub}>{paymentSubtitle}</Text>
-            </View>
-            <Text style={styles.payTotal}>{formatGel(total)}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        <View style={styles.summarySection}>
+          <Text style={styles.summaryTitle}>შეჯამება</Text>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>ჯამი</Text>
+            <Text style={styles.summaryValue}>
+              {formatSummaryAmount(subtotal)}
+            </Text>
           </View>
-        </TouchableOpacity>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>მომსახურების საფასური</Text>
+            <Text style={styles.summaryValue}>
+              {formatSummaryAmount(SERVICE_FEE)}
+            </Text>
+          </View>
+
+          {deliveryType === "delivery" ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                მიტანის საფასური ({deliveryDistanceM}მ)
+              </Text>
+              <Text style={styles.summaryValue}>
+                {formatSummaryAmount(deliveryFee)}
+              </Text>
+            </View>
+          ) : null}
+
+          {tipAmount > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>თიფი</Text>
+              <Text style={styles.summaryValue}>
+                {formatSummaryAmount(tipAmount)}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+            <Text style={styles.summaryTotalLabel}>სულ</Text>
+            <Text style={styles.summaryTotalValue}>
+              {formatSummaryAmount(total)}
+            </Text>
+          </View>
+        </View>
       </ScrollView>
 
       <View
@@ -639,6 +752,33 @@ export default function CheckoutScreen() {
           },
         ]}
       >
+        <TouchableOpacity
+          style={styles.footerPayRow}
+          activeOpacity={0.85}
+          onPress={openPaymentPicker}
+        >
+          <View style={styles.payBrand}>
+            {selectedCardType ? (
+              <CardBrandIcon type={selectedCardType} width={40} height={24} />
+            ) : (
+              <Ionicons
+                name={
+                  paymentSelection.method === "cash"
+                    ? "cash-outline"
+                    : "wallet-outline"
+                }
+                size={22}
+                color={PRIMARY_GREEN}
+              />
+            )}
+          </View>
+          <View style={styles.footerPayText}>
+            <Text style={styles.paySub}>{paymentSubtitle}</Text>
+            <Text style={styles.footerPayAmount}>{formatGel(total)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
           onPress={() => {
@@ -655,6 +795,51 @@ export default function CheckoutScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={showTipModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCustomTipModal}
+      >
+        <Pressable style={styles.tipModalOverlay} onPress={closeCustomTipModal}>
+          <Pressable style={styles.tipModalCard} onPress={() => {}}>
+            <Text style={styles.tipModalTitle}>შეიყვანეთ თიფსის ოდენობა</Text>
+            <Text style={styles.tipModalSub}>შეგიძლიათ დატოვოთ tip:</Text>
+            <Text style={styles.tipModalSub}>
+              {formatGel(TIP_MIN)} - {formatGel(TIP_MAX)}
+            </Text>
+            <View style={styles.tipModalInputWrap}>
+              <Text style={styles.tipModalInputLabel}>Tip-ის თანხა</Text>
+              <TextInput
+                style={styles.tipModalInput}
+                value={customTipInput}
+                onChangeText={setCustomTipInput}
+                keyboardType="decimal-pad"
+                placeholder="0,00"
+                placeholderTextColor="#9B9B9B"
+              />
+            </View>
+
+            <View style={styles.tipModalActions}>
+              <TouchableOpacity
+                style={styles.tipModalCancelBtn}
+                onPress={closeCustomTipModal}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.tipModalCancelText}>გაუქმება</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tipModalSaveBtn}
+                onPress={saveCustomTip}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.tipModalSaveText}>შენახვა</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -871,18 +1056,11 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     marginBottom: 12,
   },
-  voucherBadge: {
+  voucherIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
-  },
-  voucherPct: {
-    fontSize: 18,
-    fontFamily: fontFamily.bold,
-    color: "#FFFFFF",
   },
   voucherLabel: {
     flex: 1,
@@ -891,61 +1069,213 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.semiBold,
     color: "#111827",
   },
-  tipCard: {
-    paddingVertical: 16,
+  tipSection: {
+    marginBottom: 16,
+    paddingVertical: 4,
   },
-  tipHeadRow: {
+  tipMainRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    marginBottom: 14,
   },
-  tipIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: "hidden",
+  tipIconWrap: {
+    width: 88,
+    height: 88,
     alignItems: "center",
     justifyContent: "center",
   },
-  tipHeadText: {
+  tipContent: {
     flex: 1,
+    minWidth: 0,
   },
   tipHeadTitle: {
     fontSize: 14,
     lineHeight: 20,
-    textTransform: "uppercase",
     fontFamily: fontFamily.bold,
-    color: "#111827",
+    textTransform: "uppercase",
+    color: "#181B1A",
   },
   tipHeadSub: {
     fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#6B7280",
+    color: "#9B9B9B",
     marginTop: 4,
     lineHeight: 18,
   },
+  tipChipsScroll: {
+    marginTop: 10,
+    marginHorizontal: -16,
+  },
   tipChips: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 10,
+    paddingHorizontal: 16,
   },
   tipChip: {
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipChipIcon: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   tipChipOn: {
-    backgroundColor: PRIMARY_GREEN,
+    borderWidth: 1.5,
+    borderColor: "#181B1A",
+    backgroundColor: "#FFFFFF",
   },
   tipChipText: {
-    fontSize: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: fontFamily.semiBold,
-    color: "#374151",
+    color: "#757575",
   },
   tipChipTextOn: {
+    color: "#181B1A",
+    fontFamily: fontFamily.bold,
+  },
+  tipModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  tipModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  tipModalTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
+    color: "#181B1A",
+  },
+  tipModalSub: {
+    marginTop: 8,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    textTransform: "uppercase",
+    color: "#9B9B9B",
+  },
+  tipModalInputWrap: {
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: "#181B1A",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  tipModalInputLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#9B9B9B",
+    marginBottom: 4,
+  },
+  tipModalInput: {
+    fontSize: 24,
+    lineHeight: 28,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
+    padding: 0,
+  },
+  tipModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  tipModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipModalCancelText: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+  },
+  tipModalSaveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: PRIMARY_GREEN,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipModalSaveText: {
+    fontSize: 15,
+    fontFamily: fontFamily.semiBold,
     color: "#FFFFFF",
+  },
+  summarySection: {
+    marginTop: 4,
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
+  summaryTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontFamily: fontFamily.bold,
+    textTransform: "uppercase",
+    color: "#181B1A",
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.regular,
+    textTransform: "uppercase",
+    color: "#9B9B9B",
+    flex: 1,
+    marginRight: 12,
+  },
+  summaryValue: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    color: "#181B1A",
+  },
+  summaryTotalRow: {
+    marginTop: 4,
+    marginBottom: 0,
+  },
+  summaryTotalLabel: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
+  },
+  summaryTotalValue: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
   },
   payBrand: {
     minWidth: 48,
@@ -959,13 +1289,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.medium,
     color: "#111827",
   },
-  payTotal: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: fontFamily.semiBold,
-    color: "#111827",
-    marginRight: 4,
-  },
   footer: {
     position: "absolute",
     left: 0,
@@ -973,11 +1296,34 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: SCREEN_BG,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  footerPayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  footerPayText: {
+    flex: 1,
+    gap: 2,
+  },
+  footerPayAmount: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
   },
   confirmBtn: {
     backgroundColor: PRIMARY_GREEN,
-    borderRadius: 12,
+    borderRadius: 26,
     height: 52,
     alignItems: "center",
     justifyContent: "center",

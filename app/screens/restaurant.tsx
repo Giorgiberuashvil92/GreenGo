@@ -18,6 +18,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CartBottomBar from "../../components/CartBottomBar";
 import BackCircleIcon from "../../components/icons/BackCircleIcon";
 import HeartCircleIcon from "../../components/icons/HeartCircleIcon";
+import PopularMenuCard, {
+  POPULAR_MENU_CARD_GAP,
+} from "../../components/PopularMenuCard";
+import ProductModal from "../../components/ProductModal";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 
@@ -27,12 +31,11 @@ const DETAILS_TEXT_COLOR = "#1D4045";
 
 /** სექციის სათაურები — 16/20 extraBold uppercase */
 const SECTION_TITLE: TextStyle = {
-  fontSize: 16,
+  fontSize: 14,
   lineHeight: 20,
   fontFamily: fontFamily.semiBold,
   color: "#181B1A",
   textAlign: "center",
-  textTransform: "uppercase",
 };
 
 interface MenuItem {
@@ -58,7 +61,10 @@ function deliveryTimeMain(time?: string): string {
 }
 
 export default function RestaurantScreen() {
-  const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
+  const { restaurantId, menuItemId } = useLocalSearchParams<{
+    restaurantId: string;
+    menuItemId?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { restaurant, loading: restaurantLoading } = useRestaurant(
@@ -68,6 +74,7 @@ export default function RestaurantScreen() {
   const [loadingMenuItems, setLoadingMenuItems] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
   const fetchMenuItems = async () => {
     try {
@@ -96,8 +103,14 @@ export default function RestaurantScreen() {
   }, [restaurantId]);
 
   useEffect(() => {
-    if (menuItems.length > 0 && !selectedCategory) {
-      const categories = [
+    if (!selectedCategory) {
+      const adminCats =
+        restaurant?.menuCategories
+          ?.filter((c) => c.isActive !== false)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((c) => c.name) || [];
+
+      const derivedCats = [
         ...new Set(
           menuItems
             .map((item) => item.category)
@@ -106,11 +119,19 @@ export default function RestaurantScreen() {
             ),
         ),
       ];
-      if (categories.length > 0) {
-        setSelectedCategory(categories[0]);
+
+      const initial = adminCats.length > 0 ? adminCats : derivedCats;
+      if (initial.length > 0) {
+        setSelectedCategory(initial[0]);
       }
     }
-  }, [menuItems, selectedCategory]);
+  }, [menuItems, restaurant, selectedCategory]);
+
+  useEffect(() => {
+    if (menuItemId) {
+      setActiveProductId(menuItemId);
+    }
+  }, [menuItemId]);
 
   const getImageSource = (image: string | undefined) => {
     if (!image) return undefined;
@@ -154,25 +175,37 @@ export default function RestaurantScreen() {
     "";
 
   const popularItems = menuItems.filter((item) => item.isPopular);
-  const categories = [
+
+  const adminMenuCategories =
+    (
+      restaurant as {
+        menuCategories?: { name: string; isActive?: boolean; order?: number }[];
+      }
+    ).menuCategories
+      ?.filter((c) => c.isActive !== false)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((c) => c.name) || [];
+
+  const derivedCategories = [
     ...new Set(
       menuItems
         .map((item) => item.category)
         .filter((category) => category && category !== "ყველაზე პოპულარული"),
     ),
   ];
+
+  const categories =
+    adminMenuCategories.length > 0 ? adminMenuCategories : derivedCategories;
   const categoryItems = menuItems.filter(
     (item) => item.category === selectedCategory,
   );
 
-  const navigateToProduct = (itemId: string) => {
-    router.push({
-      pathname: "/screens/product",
-      params: {
-        productId: itemId,
-        restaurantId: rid,
-      },
-    });
+  const openProduct = (itemId: string) => {
+    setActiveProductId(itemId);
+  };
+
+  const closeProduct = () => {
+    setActiveProductId(null);
   };
 
   const onShare = async () => {
@@ -314,30 +347,24 @@ export default function RestaurantScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.popularScrollInner}
             >
-              {popularItems.map((item) => (
-                <TouchableOpacity
+              {popularItems.map((item, index) => (
+                <View
                   key={item._id || item.id}
-                  style={styles.popularCard}
-                  activeOpacity={0.9}
-                  onPress={() => navigateToProduct(item._id || item.id || "")}
+                  style={
+                    index < popularItems.length - 1
+                      ? { marginRight: POPULAR_MENU_CARD_GAP }
+                      : undefined
+                  }
                 >
-                  {item.image ? (
-                    <Image
-                      source={getImageSource(item.image)!}
-                      style={styles.popularImage}
-                    />
-                  ) : (
-                    <View style={styles.popularImage} />
-                  )}
-                  <View style={styles.popularTextBlock}>
-                    <Text style={styles.popularPrice}>
-                      {formatPriceGel(item.price)}
-                    </Text>
-                    <Text style={styles.popularName} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  <PopularMenuCard
+                    name={item.name}
+                    price={item.price}
+                    imageUri={
+                      typeof item.image === "string" ? item.image : undefined
+                    }
+                    onPress={() => openProduct(item._id || item.id || "")}
+                  />
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -374,9 +401,6 @@ export default function RestaurantScreen() {
         ) : null}
 
         <View style={styles.menuBlock}>
-          <Text style={styles.menuSectionTitle}>
-            {selectedCategory || "მენიუ"}
-          </Text>
           {categoryItems.map((item, index) => (
             <TouchableOpacity
               key={item._id || item.id}
@@ -385,7 +409,7 @@ export default function RestaurantScreen() {
                 index < categoryItems.length - 1 && styles.menuRowBorder,
               ]}
               activeOpacity={0.75}
-              onPress={() => navigateToProduct(item._id || item.id || "")}
+              onPress={() => openProduct(item._id || item.id || "")}
             >
               <View style={styles.menuRowText}>
                 <Text style={styles.menuName}>{item.name}</Text>
@@ -414,6 +438,14 @@ export default function RestaurantScreen() {
       </ScrollView>
 
       <CartBottomBar restaurantId={rid} />
+
+      <ProductModal
+        visible={!!activeProductId}
+        productId={activeProductId}
+        restaurantId={rid}
+        restaurantName={restaurant.name}
+        onClose={closeProduct}
+      />
     </View>
   );
 }
@@ -572,45 +604,7 @@ const styles = StyleSheet.create({
   popularScrollInner: {
     paddingRight: 16,
     flexDirection: "row",
-  },
-  popularCard: {
-    width: 140,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#F5F5F5",
-    backgroundColor: "#FFFFFF",
-    overflow: "hidden",
-    paddingBottom: 8,
-    marginRight: 16,
-  },
-  popularImage: {
-    width: 140,
-    height: 80,
-    resizeMode: "cover",
-    backgroundColor: "#F3F4F6",
-    marginBottom: 8,
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-  },
-  popularTextBlock: {
-    paddingHorizontal: 8,
-    alignItems: "center",
-    width: "100%",
-  },
-  popularPrice: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: fontFamily.bold,
-    color: "#003E20",
-    marginBottom: 4,
-    alignSelf: "flex-start",
-  },
-  popularName: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: fontFamily.bold,
-    color: "#666666",
-    alignSelf: "flex-start",
+    alignItems: "flex-start",
   },
   tabsOuter: {
     marginBottom: 12,
@@ -628,11 +622,13 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     lineHeight: 20,
-    fontFamily: fontFamily.regular,
+    fontFamily: fontFamily.medium,
     color: "#666666",
     marginBottom: 7,
   },
   tabTextActive: {
+    fontSize: 16,
+    lineHeight: 20,
     color: "#181B1A",
     fontFamily: fontFamily.bold,
   },
@@ -645,13 +641,6 @@ const styles = StyleSheet.create({
   menuBlock: {
     paddingHorizontal: 16,
     marginBottom: 12,
-  },
-  menuSectionTitle: {
-    ...SECTION_TITLE,
-    textAlign: "left",
-    alignSelf: "flex-start",
-    marginBottom: 12,
-    paddingVertical: 1,
   },
   menuRow: {
     position: "relative",
@@ -669,25 +658,25 @@ const styles = StyleSheet.create({
     minWidth: 0,
     marginRight: 8,
     paddingRight: 90,
+    gap: 4,
   },
   menuName: {
     ...SECTION_TITLE,
     textAlign: "left",
     textTransform: "none",
-    marginBottom: 2,
   },
   menuDesc: {
-    fontSize: 8,
-    lineHeight: 12,
-    fontFamily: fontFamily.regular,
-    color: "#9B9B9B",
-    marginBottom: 2,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: fontFamily.medium,
+    color: "#666666",
   },
   menuPrice: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: fontFamily.regular,
-    color: DETAILS_TEXT_COLOR,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.bold,
+    color: "#1D4045",
+    letterSpacing: 1,
   },
   menuThumb: {
     position: "absolute",

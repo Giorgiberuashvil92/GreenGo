@@ -3,10 +3,10 @@ import ListScreenLayout from "@/components/layout/ListScreenLayout";
 import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { useGreenGoBalance } from "@/hooks/useGreenGoBalance";
+import apiService from "@/utils/api";
 import {
   CheckoutPaymentSelection,
   loadCheckoutPayment,
-  PAYMENT_CARDS,
   saveCheckoutPayment,
   SavedPaymentCard,
 } from "@/utils/payment";
@@ -14,6 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   Modal,
   StatusBar,
@@ -30,7 +32,8 @@ export default function PaymentMethodsScreen() {
   const isSelectMode = select === "1";
   const { formattedBalance } = useGreenGoBalance();
 
-  const [primaryCardId, setPrimaryCardId] = useState<string>("1");
+  const [cards, setCards] = useState<SavedPaymentCard[]>([]);
+  const [loadingCards, setLoadingCards] = useState(true);
   const [checkoutSelection, setCheckoutSelection] =
     useState<CheckoutPaymentSelection | null>(null);
   const [showCardModal, setShowCardModal] = useState<boolean>(false);
@@ -38,19 +41,40 @@ export default function PaymentMethodsScreen() {
     null,
   );
 
+  const primaryCardId =
+    cards.find((card) => card.isPrimary)?.id ?? cards[0]?.id ?? null;
+
+  const fetchCards = useCallback(async () => {
+    try {
+      setLoadingCards(true);
+      const response = await apiService.getPaymentCards();
+      if (response.success && Array.isArray(response.data)) {
+        setCards(response.data as SavedPaymentCard[]);
+      } else {
+        setCards([]);
+      }
+    } catch {
+      setCards([]);
+    } finally {
+      setLoadingCards(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      if (!isSelectMode) return;
       let cancelled = false;
       const load = async () => {
-        const saved = await loadCheckoutPayment();
-        if (!cancelled) setCheckoutSelection(saved);
+        await fetchCards();
+        if (isSelectMode && !cancelled) {
+          const saved = await loadCheckoutPayment();
+          if (!cancelled) setCheckoutSelection(saved);
+        }
       };
       void load();
       return () => {
         cancelled = true;
       };
-    }, [isSelectMode]),
+    }, [fetchCards, isSelectMode]),
   );
 
   const selectCardForCheckout = async (card: SavedPaymentCard) => {
@@ -96,21 +120,39 @@ export default function PaymentMethodsScreen() {
     setShowCardModal(true);
   };
 
-  const handleMakePrimary = () => {
-    if (selectedCard) {
-      setPrimaryCardId(selectedCard.id);
+  const handleMakePrimary = async () => {
+    if (!selectedCard) return;
+    try {
+      const response = await apiService.setPrimaryPaymentCard(selectedCard.id);
+      if (response.success && Array.isArray(response.data)) {
+        setCards(response.data as SavedPaymentCard[]);
+      } else {
+        await fetchCards();
+      }
       setShowCardModal(false);
+    } catch {
+      Alert.alert("შეცდომა", "ძირითადი ბარათის დაყენება ვერ მოხერხდა");
     }
   };
 
-  const handleDeleteCard = () => {
-    if (selectedCard) {
+  const handleDeleteCard = async () => {
+    if (!selectedCard) return;
+    try {
+      const response = await apiService.deletePaymentCard(selectedCard.id);
+      if (response.success) {
+        setCards((prev) => prev.filter((c) => c.id !== selectedCard.id));
+      } else {
+        await fetchCards();
+      }
       setShowCardModal(false);
+      setSelectedCard(null);
+    } catch {
+      Alert.alert("შეცდომა", "ბარათის წაშლა ვერ მოხერხდა");
     }
   };
 
   const handleAddCardPress = () => {
-    console.log("ბარათის დამატება შესაძლებელი იქნება ფლიტის მიერ");
+    router.push("/screens/addCard");
   };
 
   const handleCashPaymentPress = () => {
@@ -168,48 +210,87 @@ export default function PaymentMethodsScreen() {
             ) : null}
           </TouchableOpacity>
 
+          {!loadingCards && cards.length === 0 ? (
+            <View style={styles.cardsEmptyContainer}>
+              <Ionicons
+                name="card-outline"
+                size={32}
+                color="#CCCCCC"
+                style={styles.emptyIcon}
+              />
+              <Text style={styles.emptyCardText}>
+                ბარათი არ გაქვთ დამატებული
+              </Text>
+              <Text style={styles.emptyCardHint}>
+                გადახდისთვის დაამატეთ ბარათი
+              </Text>
+              {!isSelectMode ? (
+                <TouchableOpacity
+                  style={styles.addCardButtonInEmpty}
+                  onPress={handleAddCardPress}
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.addCardButtonInner}>
+                    <Ionicons name="add" size={16} color="#1D4045" />
+                    <Text style={styles.addCardTextInEmpty}>
+                      ახალი ბარათის დამატება
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={styles.methodsList}>
-            {PAYMENT_CARDS.map((card, index) => (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.methodRow,
-                  index < PAYMENT_CARDS.length - 1 && styles.methodRowBorder,
-                ]}
-                onPress={() => handleCardPress(card)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.methodRowLeft}>
-                  {isSelectMode && isCardSelected(card) ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={LIST_ACCENT_GREEN}
-                      style={styles.rowCheck}
-                    />
+            {loadingCards ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color={BRAND_GREEN} />
+              </View>
+            ) : (
+              cards.map((card, index) => (
+                <TouchableOpacity
+                  key={card.id}
+                  style={[
+                    styles.methodRow,
+                    index < cards.length - 1 && styles.methodRowBorder,
+                  ]}
+                  onPress={() => handleCardPress(card)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.methodRowLeft}>
+                    {isSelectMode && isCardSelected(card) ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={LIST_ACCENT_GREEN}
+                        style={styles.rowCheck}
+                      />
+                    ) : null}
+                    <View style={styles.cardIconWrap}>
+                      <CardBrandIcon type={card.type} width={32} height={21} />
+                    </View>
+                    <View style={styles.cardTextBlock}>
+                      <Text style={styles.cardLabel}>
+                        Card{card.isPrimary ? " · ძირითადი" : ""}
+                      </Text>
+                      <Text style={styles.cardNumber}>{card.maskedNumber}</Text>
+                    </View>
+                  </View>
+                  {!isSelectMode ? (
+                    <TouchableOpacity
+                      onPress={() => handleCardOptionsPress(card)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons
+                        name="ellipsis-vertical"
+                        size={20}
+                        color="#666666"
+                      />
+                    </TouchableOpacity>
                   ) : null}
-                  <View style={styles.cardIconWrap}>
-                    <CardBrandIcon type={card.type} width={32} height={21} />
-                  </View>
-                  <View style={styles.cardTextBlock}>
-                    <Text style={styles.cardLabel}>Card</Text>
-                    <Text style={styles.cardNumber}>{card.maskedNumber}</Text>
-                  </View>
-                </View>
-                {!isSelectMode ? (
-                  <TouchableOpacity
-                    onPress={() => handleCardOptionsPress(card)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons
-                      name="ellipsis-vertical"
-                      size={20}
-                      color="#666666"
-                    />
-                  </TouchableOpacity>
-                ) : null}
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              ))
+            )}
 
             <TouchableOpacity
               style={[styles.methodRow, styles.methodRowLast]}
@@ -249,7 +330,7 @@ export default function PaymentMethodsScreen() {
             </TouchableOpacity>
           </View>
 
-          {!isSelectMode ? (
+          {!isSelectMode && !loadingCards && cards.length > 0 ? (
             <TouchableOpacity
               style={styles.addCardButton}
               onPress={handleAddCardPress}
@@ -272,18 +353,21 @@ export default function PaymentMethodsScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Card</Text>
 
+            {selectedCard && !selectedCard.isPrimary ? (
+              <>
+                <TouchableOpacity
+                  style={styles.modalOption}
+                  onPress={() => void handleMakePrimary()}
+                >
+                  <Text style={styles.makePrimaryText}>გახადე ძირითადი</Text>
+                </TouchableOpacity>
+                <View style={styles.modalSeparator} />
+              </>
+            ) : null}
+
             <TouchableOpacity
               style={styles.modalOption}
-              onPress={handleMakePrimary}
-            >
-              <Text style={styles.makePrimaryText}>გახადე ძირითადი</Text>
-            </TouchableOpacity>
-
-            <View style={styles.modalSeparator} />
-
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={handleDeleteCard}
+              onPress={() => void handleDeleteCard()}
             >
               <Text style={styles.deleteText}>წაშლა</Text>
             </TouchableOpacity>
@@ -357,6 +441,38 @@ const styles = StyleSheet.create({
   methodsList: {
     marginBottom: 19,
   },
+  loadingWrap: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  cardsEmptyContainer: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    alignItems: "center",
+    paddingTop: 24,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  emptyIcon: {
+    marginBottom: 12,
+  },
+  emptyCardText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  emptyCardHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
+    textAlign: "center",
+    marginBottom: 16,
+  },
   methodRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -426,6 +542,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     height: 36,
+  },
+  addCardButtonInEmpty: {
+    alignSelf: "stretch",
+    backgroundColor: "#F1F8F9",
+    borderRadius: 8,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addCardButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  addCardTextInEmpty: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#1D4045",
+    textTransform: "uppercase",
   },
   addCardText: {
     flex: 1,

@@ -1,7 +1,10 @@
+import { apiService } from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,14 +17,51 @@ import {
 } from "react-native";
 
 export default function AddCardScreen() {
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleAddCard = () => {
-    // Here you would typically validate the card and add it
-    console.log("Adding card");
+  const formatCardNumber = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+  };
 
-    // Show success screen
-    setShowSuccess(true);
+  const formatExpiry = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  };
+
+  const handleAddCard = async () => {
+    const digits = cardNumber.replace(/\D/g, "");
+    if (digits.length < 13) {
+      Alert.alert("შეცდომა", "შეიყვანეთ სწორი ბარათის ნომერი");
+      return;
+    }
+    if (expiry.length < 5) {
+      Alert.alert("შეცდომა", "შეიყვანეთ ბარათის ვადა");
+      return;
+    }
+    if (cvv.length < 3) {
+      Alert.alert("შეცდომა", "შეიყვანეთ უსაფრთხოების კოდი");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const response = await apiService.addPaymentCard(digits);
+      if (response.success) {
+        setShowSuccess(true);
+      } else {
+        Alert.alert("შეცდომა", "ბარათის დამატება ვერ მოხერხდა");
+      }
+    } catch {
+      Alert.alert("შეცდომა", "ბარათის დამატება ვერ მოხერხდა");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSuccessContinue = () => {
@@ -99,7 +139,9 @@ export default function AddCardScreen() {
               placeholder="ბარათის ნომერი"
               placeholderTextColor="#999"
               keyboardType="numeric"
-              maxLength={19} // 16 digits + 3 spaces
+              maxLength={19}
+              value={cardNumber}
+              onChangeText={(text) => setCardNumber(formatCardNumber(text))}
             />
 
             <View style={styles.bottomInputsRow}>
@@ -108,7 +150,9 @@ export default function AddCardScreen() {
                 placeholder="ბარათის ვადა"
                 placeholderTextColor="#999"
                 keyboardType="numeric"
-                maxLength={5} // MM/YY
+                maxLength={5}
+                value={expiry}
+                onChangeText={(text) => setExpiry(formatExpiry(text))}
               />
 
               <TextInput
@@ -118,6 +162,10 @@ export default function AddCardScreen() {
                 keyboardType="numeric"
                 maxLength={4}
                 secureTextEntry
+                value={cvv}
+                onChangeText={(text) =>
+                  setCvv(text.replace(/\D/g, "").slice(0, 4))
+                }
               />
             </View>
           </View>
@@ -130,8 +178,16 @@ export default function AddCardScreen() {
         </Text>
 
         {/* Add Card Button */}
-        <TouchableOpacity style={styles.addCardButton} onPress={handleAddCard}>
-          <Text style={styles.addCardButtonText}>ბარათის დამატება</Text>
+        <TouchableOpacity
+          style={[styles.addCardButton, submitting && styles.addCardButtonDisabled]}
+          onPress={() => void handleAddCard()}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.addCardButtonText}>ბარათის დამატება</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -225,6 +281,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     alignItems: "center",
     marginBottom: 40,
+    minHeight: 52,
+    justifyContent: "center",
+  },
+  addCardButtonDisabled: {
+    opacity: 0.7,
   },
   addCardButtonText: {
     color: "#FFFFFF",

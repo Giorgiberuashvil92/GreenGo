@@ -118,6 +118,24 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="screens/support"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="screens/supportTopic"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="screens/supportArticle"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="screens/languageSelection"
               options={{
                 headerShown: false,

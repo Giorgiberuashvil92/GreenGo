@@ -238,12 +238,11 @@ const RestaurantsScreen = () => {
             colors={[LIST_ACCENT_GREEN]}
           />
         }
-        renderItem={({ item, index }) => {
+        renderItem={({ item }) => {
           const rid = item.id || item._id || "";
 
           return (
             <RestaurantListCard
-              tintedBackground={index % 2 === 1}
               restaurant={item}
               onPress={() =>
                 router.push({

@@ -51,10 +51,11 @@ export default function HomeAllObjects({
   );
 }
 
+const SECTION_SIDE_PADDING = 16;
+
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 40,
-    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   title: {
     fontSize: 14,
@@ -62,9 +63,10 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     lineHeight: 20,
     color: "#181B1A",
-    marginBottom: 16,
+    marginBottom: 8,
+    marginHorizontal: SECTION_SIDE_PADDING,
   },
   list: {
-    gap: 16,
+    gap: 0,
   },
 });

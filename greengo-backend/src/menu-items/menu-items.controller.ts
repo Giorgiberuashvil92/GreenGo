@@ -28,13 +28,19 @@ export class MenuItemsController {
     @Query('restaurantId') restaurantId?: string,
     @Query('category') category?: string,
     @Query('search') search?: string,
+    @Query('isPopular') isPopular?: string,
   ) {
+    let isPopularBool: boolean | undefined;
+    if (isPopular === 'true') isPopularBool = true;
+    if (isPopular === 'false') isPopularBool = false;
+
     return this.menuItemsService.findAll({
       page,
       limit,
       restaurantId,
       category,
       search,
+      isPopular: isPopularBool,
     });
   }
 

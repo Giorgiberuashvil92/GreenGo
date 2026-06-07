@@ -96,6 +96,23 @@ export class Restaurant {
   @Prop({ type: [String], default: [] })
   categories: string[];
 
+  /** მენიუს კატეგორიები (ტაბები რესტორნის გვერდზე) */
+  @Prop({
+    type: [
+      {
+        name: { type: String, required: true },
+        order: { type: Number, default: 0 },
+        isActive: { type: Boolean, default: true },
+      },
+    ],
+    default: [],
+  })
+  menuCategories: Array<{
+    name: string;
+    order: number;
+    isActive: boolean;
+  }>;
+
   @Prop({ enum: ['€', '€€', '€€€', '€€€€'], default: '€€' })
   priceRange: string;
 

@@ -132,10 +132,6 @@ export default function SearchScreen() {
     });
   };
 
-  const openTabSearch = () => {
-    router.push("/(tabs)/search");
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <View style={styles.screenPadding}>
@@ -154,7 +150,6 @@ export default function SearchScreen() {
             placeholderTextColor="#9E9E9E"
             value={searchQuery}
             onChangeText={setSearchQuery}
-            onSubmitEditing={openTabSearch}
             returnKeyType="search"
           />
           <TouchableOpacity
@@ -345,7 +340,7 @@ const styles = StyleSheet.create({
   categoriesTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
     gap: 10,
   },
   categoriesHeaderTitle: {
@@ -445,8 +440,9 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     flex: 1,
-    fontSize: 14,
-    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    fontFamily: fontFamily.semiBold,
+    lineHeight: 20,
     color: "#181B1A",
     marginLeft: 6,
     textTransform: "uppercase",

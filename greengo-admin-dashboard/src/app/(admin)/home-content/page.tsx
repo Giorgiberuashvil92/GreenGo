@@ -8,7 +8,7 @@ import {
   homeSectionsApi,
   restaurantsApi,
 } from "@/lib/api/endpoints";
-import Image from "next/image";
+import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import { useEffect, useMemo, useState } from "react";
 
 const LAYOUT_LABELS: Record<HomeSection["layout"], string> = {
@@ -234,15 +234,13 @@ export default function HomeContentPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 overflow-hidden rounded-md bg-gray-100">
-                                  {restaurant.image ? (
-                                    <Image
-                                      src={restaurant.image}
-                                      alt={restaurant.name}
-                                      width={40}
-                                      height={40}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : null}
+                                  <SafeRemoteImage
+                                    src={restaurant.image}
+                                    alt={restaurant.name}
+                                    width={40}
+                                    height={40}
+                                    className="h-full w-full object-cover"
+                                  />
                                 </div>
                                 <div>
                                   <p className="text-sm font-medium text-gray-800 dark:text-white/90">

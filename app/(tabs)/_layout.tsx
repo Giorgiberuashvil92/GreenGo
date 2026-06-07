@@ -6,8 +6,7 @@ import {
   TabHomeIcon,
   TabOrdersIcon,
   TabProfileIcon,
-  TabRestaurantIcon,
-  TabSearchIcon,
+  TabRestaurantIcon
 } from "../../components/icons/TabBarIcons";
 
 const TAB_ACTIVE = "#003E20";
@@ -53,13 +52,6 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: "ძიება",
-          tabBarIcon: ({ color }) => <TabSearchIcon color={color} size={22} />,
-        }}
-      />
       <Tabs.Screen
         name="orders"
         options={{

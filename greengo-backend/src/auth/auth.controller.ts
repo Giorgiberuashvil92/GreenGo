@@ -2,7 +2,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
+  Patch,
   Post,
   Request,
   UseGuards,
@@ -82,6 +85,13 @@ export class AuthController {
         email: user.email,
         isVerified: user.isVerified,
         balance: user.balance ?? 0,
+        paymentCards: (user.paymentCards || []).map((card) => ({
+          id: (card as any)._id?.toString(),
+          type: card.type,
+          lastFour: card.lastFour,
+          maskedNumber: card.maskedNumber,
+          isPrimary: !!card.isPrimary,
+        })),
       },
     };
   }
@@ -101,8 +111,61 @@ export class AuthController {
         email: user.email,
         isVerified: user.isVerified,
         balance: user.balance ?? 0,
+        paymentCards: (user.paymentCards || []).map((card) => ({
+          id: (card as any)._id?.toString(),
+          type: card.type,
+          lastFour: card.lastFour,
+          maskedNumber: card.maskedNumber,
+          isPrimary: !!card.isPrimary,
+        })),
       },
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('payment-cards')
+  async getPaymentCards(@Request() req) {
+    const cards = await this.usersService.getPaymentCards(req.user.userId);
+    return { success: true, data: cards };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('payment-cards')
+  async addPaymentCard(
+    @Request() req,
+    @Body() body: { cardNumber: string },
+  ) {
+    if (!body.cardNumber?.trim()) {
+      throw new BadRequestException('ბარათის ნომერი სავალდებულოა');
+    }
+    const card = await this.usersService.addPaymentCard(
+      req.user.userId,
+      body.cardNumber,
+    );
+    return { success: true, data: card };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('payment-cards/:cardId')
+  async deletePaymentCard(
+    @Request() req,
+    @Param('cardId') cardId: string,
+  ) {
+    await this.usersService.deletePaymentCard(req.user.userId, cardId);
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('payment-cards/:cardId/primary')
+  async setPrimaryPaymentCard(
+    @Request() req,
+    @Param('cardId') cardId: string,
+  ) {
+    const cards = await this.usersService.setPrimaryPaymentCard(
+      req.user.userId,
+      cardId,
+    );
+    return { success: true, data: cards };
   }
 
   @UseGuards(JwtAuthGuard)

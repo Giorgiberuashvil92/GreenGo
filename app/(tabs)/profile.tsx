@@ -73,7 +73,27 @@ export default function ProfileScreen() {
   } | null>(null);
 
   const fetchPrimaryCard = async () => {
-    setPrimaryCard(null);
+    try {
+      const response = await apiService.getPaymentCards();
+      if (response.success && Array.isArray(response.data)) {
+        const cards = response.data as {
+          maskedNumber: string;
+          type: string;
+          isPrimary?: boolean;
+        }[];
+        const primary =
+          cards.find((card) => card.isPrimary) || cards[0] || null;
+        setPrimaryCard(
+          primary
+            ? { maskedNumber: primary.maskedNumber, type: primary.type }
+            : null,
+        );
+      } else {
+        setPrimaryCard(null);
+      }
+    } catch {
+      setPrimaryCard(null);
+    }
   };
 
   useEffect(() => {
@@ -133,8 +153,6 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const cardMask = primaryCard?.maskedNumber || "1234 56** **** 1234";
-
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <ScrollView
@@ -160,22 +178,32 @@ export default function ProfileScreen() {
           <View style={styles.cardRow}>
             <View style={styles.cardRowLeft}>
               <Ionicons name="card-outline" size={21} color="#181B1A" />
-              <View style={styles.cardTextBlock}>
-                <Text style={styles.cardLabel}>Card</Text>
-                <Text style={styles.cardNumber}>{cardMask}</Text>
-              </View>
+              {primaryCard ? (
+                <View style={styles.cardTextBlock}>
+                  <Text style={styles.cardLabel}>Card</Text>
+                  <Text style={styles.cardNumber}>
+                    {primaryCard.maskedNumber}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.emptyCardMessage}>
+                  ბარათი არ გაქვთ დამატებული
+                </Text>
+              )}
             </View>
-            <TouchableOpacity
-              onPress={() => router.push("/screens/paymentMethods")}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.changeText}>შეცვლა</Text>
-            </TouchableOpacity>
+            {primaryCard ? (
+              <TouchableOpacity
+                onPress={() => router.push("/screens/paymentMethods")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.changeText}>შეცვლა</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           <TouchableOpacity
             style={styles.addCardButton}
-            onPress={() => router.push("/screens/paymentMethods")}
+            onPress={() => router.push("/screens/addCard")}
             activeOpacity={0.88}
           >
             <Ionicons name="add" size={16} color={BRAND_GREEN} />
@@ -231,7 +259,7 @@ export default function ProfileScreen() {
               <ProfileRow
                 icon="help-circle-outline"
                 label="მხარდაჭერა"
-                onPress={() => Alert.alert("მხარდაჭერა", "მალე დაემატება")}
+                onPress={() => router.push("/screens/support")}
               />
             </View>
           </View>
@@ -359,6 +387,14 @@ const styles = StyleSheet.create({
   cardNumber: {
     fontSize: 8,
     lineHeight: 12,
+    fontFamily: fontFamily.regular,
+    color: "#666666",
+  },
+  emptyCardMessage: {
+    marginLeft: 12,
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: fontFamily.regular,
     color: "#666666",
   },

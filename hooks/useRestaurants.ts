@@ -38,6 +38,11 @@ interface Restaurant {
     isWheelchairAccessible: boolean;
   };
   categories: string[];
+  menuCategories?: Array<{
+    name: string;
+    order: number;
+    isActive: boolean;
+  }>;
   priceRange?: '€' | '€€' | '€€€' | '€€€€';
   cuisine?: string[];
   allergens?: string[];

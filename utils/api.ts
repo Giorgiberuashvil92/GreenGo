@@ -406,6 +406,29 @@ class ApiService {
       body: JSON.stringify(updateData),
     });
   }
+
+  async getPaymentCards() {
+    return this.request('/auth/payment-cards');
+  }
+
+  async addPaymentCard(cardNumber: string) {
+    return this.request('/auth/payment-cards', {
+      method: 'POST',
+      body: JSON.stringify({ cardNumber }),
+    });
+  }
+
+  async deletePaymentCard(cardId: string) {
+    return this.request(`/auth/payment-cards/${cardId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setPrimaryPaymentCard(cardId: string) {
+    return this.request(`/auth/payment-cards/${cardId}/primary`, {
+      method: 'PATCH',
+    });
+  }
 }
 
 export const apiService = new ApiService();

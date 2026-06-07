@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { MoreDotIcon, TrashBinIcon } from "@/icons";
 import { bannersApi, Banner } from "@/lib/api/endpoints";
-import Image from "next/image";
+import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import { useEffect, useState } from "react";
 
 export default function BannersPage() {
@@ -156,19 +156,13 @@ export default function BannersPage() {
                     <TableRow key={banner._id}>
                       <TableCell className="px-5 py-4">
                         <div className="h-20 w-32 overflow-hidden rounded-md">
-                          {banner.image ? (
-                            <Image
-                              width={128}
-                              height={80}
-                              src={banner.image}
-                              alt={banner.title}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gray-100 dark:bg-gray-800">
-                              <span className="text-xs text-gray-400">N/A</span>
-                            </div>
-                          )}
+                          <SafeRemoteImage
+                            width={128}
+                            height={80}
+                            src={banner.image}
+                            alt={banner.title}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
                       </TableCell>
                       <TableCell className="px-5 py-4">

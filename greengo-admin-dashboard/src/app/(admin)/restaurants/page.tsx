@@ -1,5 +1,6 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import Badge from "@/components/ui/badge/Badge";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { MoreDotIcon, PencilIcon, PlusIcon, TrashBinIcon } from "@/icons";
 import { CreateRestaurantPayload, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
-import Image from "next/image";
+import { getImageUrlValidationError } from "@/lib/imageUrl";
 import { useRouter } from "next/navigation";
 import { FormEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -302,6 +303,20 @@ export default function RestaurantsPage() {
       return;
     }
 
+    const imageError = getImageUrlValidationError(formData.image, { required: true });
+    if (imageError) {
+      alert(imageError);
+      return;
+    }
+
+    if (formData.heroImage.trim()) {
+      const heroImageError = getImageUrlValidationError(formData.heroImage);
+      if (heroImageError) {
+        alert(`Hero სურათი: ${heroImageError}`);
+        return;
+      }
+    }
+
     const contact: CreateRestaurantPayload["contact"] = {};
     if (formData.phone.trim()) contact.phone = formData.phone.trim();
     if (formData.email.trim()) contact.email = formData.email.trim();
@@ -526,19 +541,13 @@ export default function RestaurantsPage() {
                     <TableRow key={restaurant._id}>
                       <TableCell className="px-5 py-4">
                         <div className="h-12 w-12 overflow-hidden rounded-md">
-                          {restaurant.image ? (
-                            <Image
-                              width={48}
-                              height={48}
-                              src={restaurant.image}
-                              alt={restaurant.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gray-100 dark:bg-gray-800">
-                              <span className="text-xs text-gray-400">N/A</span>
-                            </div>
-                          )}
+                          <SafeRemoteImage
+                            width={48}
+                            height={48}
+                            src={restaurant.image}
+                            alt={restaurant.name}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
                       </TableCell>
                       <TableCell className="px-5 py-4">
@@ -767,7 +776,7 @@ export default function RestaurantsPage() {
                     />
                   </div>
                   <div>
-                    <label className={labelClassName}>ფასის დიაპაზონი</label>
+                    <label className={labelClassName}>ფასის გამოთვლა</label>
                     <select
                       value={formData.priceRange}
                       onChange={(e) =>
@@ -873,9 +882,12 @@ export default function RestaurantsPage() {
                       value={formData.image}
                       onChange={(e) => updateFormField("image", e.target.value)}
                       className={inputClassName}
-                      placeholder="https://..."
+                      placeholder="https://example.com/image.jpg"
                       required
                     />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      გამოიყენეთ პირდაპირი სურათის ბმული (.jpg, .png). Google ძებნის ბმული არ მუშაობს.
+                    </p>
                   </div>
                   <div>
                     <label className={labelClassName}>Hero სურათის URL</label>

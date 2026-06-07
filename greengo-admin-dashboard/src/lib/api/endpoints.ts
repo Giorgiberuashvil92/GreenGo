@@ -68,6 +68,7 @@ export interface Restaurant {
   minimumOrder?: number;
   isActive: boolean;
   categories?: string[];
+  menuCategories?: RestaurantMenuCategory[];
   priceRange?: '€' | '€€' | '€€€' | '€€€€';
   features?: {
     hasDelivery?: boolean;
@@ -116,6 +117,7 @@ export interface CreateRestaurantPayload {
     isWheelchairAccessible?: boolean;
   };
   categories: string[];
+  menuCategories?: RestaurantMenuCategory[];
   priceRange?: '€' | '€€' | '€€€' | '€€€€';
   cuisine?: string[];
   allergens?: string[];
@@ -134,6 +136,12 @@ export interface User {
   updatedAt: string;
 }
 
+export interface RestaurantMenuCategory {
+  name: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface MenuItem {
   _id: string;
   restaurantId: string;
@@ -141,7 +149,9 @@ export interface MenuItem {
   description?: string;
   price: number;
   image?: string;
+  heroImage?: string;
   category: string;
+  isPopular?: boolean;
   isAvailable: boolean;
   createdAt: string;
   updatedAt: string;
@@ -331,6 +341,7 @@ export const menuItemsApi = {
     restaurantId?: string;
     category?: string;
     search?: string;
+    isPopular?: boolean;
   }) => apiClient.get<{ data: MenuItem[]; total: number; page: number; limit: number }>('/menu-items', params),
   
   getById: (id: string) => apiClient.get<MenuItem>(`/menu-items/${id}`),
