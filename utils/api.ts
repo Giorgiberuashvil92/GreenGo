@@ -176,6 +176,10 @@ class ApiService {
     return this.request(endpoint);
   }
 
+  async getHomeSections() {
+    return this.request('/home-sections/active');
+  }
+
   // Restaurants API
   async getRestaurants(params?: {
     page?: number;

@@ -66,6 +66,11 @@ const navItems: NavItem[] = [
     path: "/banners",
   },
   {
+    icon: <PageIcon />,
+    name: "მთავარი გვერდი",
+    path: "/home-content",
+  },
+  {
     icon: <CalenderIcon />,
     name: "Calendar",
     path: "/calendar",

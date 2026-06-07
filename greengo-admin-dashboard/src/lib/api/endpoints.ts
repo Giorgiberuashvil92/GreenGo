@@ -397,6 +397,41 @@ export interface Banner {
   updatedAt: string;
 }
 
+// Home section type
+export interface HomeSection {
+  _id: string;
+  slug: string;
+  title: string;
+  layout: 'carousel' | 'list' | 'banner';
+  isActive: boolean;
+  order: number;
+  showSeeAll: boolean;
+  restaurantIds: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const homeSectionsApi = {
+  getAll: () => apiClient.get<HomeSection[]>('/home-sections'),
+
+  getActive: () => apiClient.get<HomeSection[]>('/home-sections/active'),
+
+  getById: (id: string) => apiClient.get<HomeSection>(`/home-sections/${id}`),
+
+  update: (id: string, data: Partial<HomeSection>) =>
+    apiClient.patch<HomeSection>(`/home-sections/${id}`, data),
+
+  addRestaurant: (sectionId: string, restaurantId: string) =>
+    apiClient.post<HomeSection>(`/home-sections/${sectionId}/restaurants`, {
+      restaurantId,
+    }),
+
+  removeRestaurant: (sectionId: string, restaurantId: string) =>
+    apiClient.delete<HomeSection>(
+      `/home-sections/${sectionId}/restaurants/${restaurantId}`,
+    ),
+};
+
 // Banners API
 export const bannersApi = {
   getAll: () => apiClient.get<Banner[]>('/banners'),

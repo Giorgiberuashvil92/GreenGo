@@ -2,25 +2,27 @@ import { fontFamily } from "@/constants/fonts";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import HomeRestaurantCard, {
   HOME_RESTAURANT_CARD_GAP,
   HOME_RESTAURANT_CARD_PADDING,
   HOME_RESTAURANT_CARD_WIDTH,
 } from "./HomeRestaurantCard";
-import { useRestaurants } from "../hooks/useRestaurants";
+import type { HomeSectionRestaurant } from "../hooks/useHomeSections";
 
-export default function PopularObjects() {
+export default function HomeRestaurantCarousel({
+  title,
+  restaurants,
+  showSeeAll = true,
+}: {
+  title: string;
+  restaurants: HomeSectionRestaurant[];
+  showSeeAll?: boolean;
+}) {
   const router = useRouter();
   const cardWidth = HOME_RESTAURANT_CARD_WIDTH;
-  const { restaurants, loading } = useRestaurants({ limit: 10 });
+
+  if (!restaurants.length) return null;
 
   const navigateToRestaurant = (restaurantId: string) => {
     router.push({
@@ -29,35 +31,19 @@ export default function PopularObjects() {
     });
   };
 
-  const popularRestaurants = restaurants
-    .filter((r) => r.isActive)
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, 10);
-
-  if (loading) {
-    return (
-      <View style={styles.section}>
-        <View style={styles.header}>
-          <Text style={styles.title}>პოპულარული ობიექტები</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#4CAF50" />
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <Text style={styles.title}>პოპულარული ობიექტები</Text>
-        <TouchableOpacity
-          style={styles.seeAllButton}
-          onPress={() => router.push("/(tabs)/restaurants")}
-        >
-          <Text style={styles.seeAllText}>სრულად </Text>
-          <Feather name="chevron-right" size={12} color="#1D4045" />
-        </TouchableOpacity>
+        <Text style={styles.title}>{title}</Text>
+        {showSeeAll ? (
+          <TouchableOpacity
+            style={styles.seeAllButton}
+            onPress={() => router.push("/(tabs)/restaurants")}
+          >
+            <Text style={styles.seeAllText}>სრულად </Text>
+            <Feather name="chevron-right" size={12} color="#1D4045" />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <ScrollView
@@ -65,7 +51,7 @@ export default function PopularObjects() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {popularRestaurants.map((restaurant, index) => {
+        {restaurants.map((restaurant, index) => {
           const id = restaurant._id || restaurant.id || "";
           return (
             <View
@@ -73,7 +59,7 @@ export default function PopularObjects() {
               style={[
                 styles.cardWrap,
                 { width: cardWidth },
-                index < popularRestaurants.length - 1 && {
+                index < restaurants.length - 1 && {
                   marginRight: HOME_RESTAURANT_CARD_GAP,
                 },
               ]}
@@ -127,8 +113,4 @@ const styles = StyleSheet.create({
     paddingRight: HOME_RESTAURANT_CARD_PADDING,
   },
   cardWrap: {},
-  loadingContainer: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
 });
