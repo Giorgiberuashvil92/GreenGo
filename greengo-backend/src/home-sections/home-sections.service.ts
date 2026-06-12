@@ -19,11 +19,11 @@ const DEFAULT_SECTIONS: Array<{
   showSeeAll: boolean;
 }> = [
   {
-    slug: 'popular',
-    title: 'პოპულარული ობიექტები',
-    layout: 'carousel',
+    slug: 'promo-banner',
+    title: 'პრომო ბანერი',
+    layout: 'banner',
     order: 1,
-    showSeeAll: true,
+    showSeeAll: false,
   },
   {
     slug: 'nearby',
@@ -33,11 +33,11 @@ const DEFAULT_SECTIONS: Array<{
     showSeeAll: true,
   },
   {
-    slug: 'promo-banner',
-    title: 'პრომო ბანერი',
-    layout: 'banner',
+    slug: 'popular',
+    title: 'პოპულარული ობიექტები',
+    layout: 'carousel',
     order: 3,
-    showSeeAll: false,
+    showSeeAll: true,
   },
   {
     slug: 'highest-rated',
@@ -93,7 +93,10 @@ export class HomeSectionsService implements OnModuleInit {
     for (const section of DEFAULT_SECTIONS) {
       await this.homeSectionModel.updateOne(
         { slug: section.slug },
-        { $setOnInsert: { ...section, isActive: true, restaurantIds: [] } },
+        {
+          $set: { order: section.order },
+          $setOnInsert: { ...section, isActive: true, restaurantIds: [] },
+        },
         { upsert: true },
       );
     }
