@@ -28,6 +28,14 @@ export interface HomeSection {
   restaurants: HomeSectionRestaurant[];
 }
 
+function sortHomeSections(sections: HomeSection[]): HomeSection[] {
+  return [...sections].sort((a, b) => {
+    if (a.layout === "banner" && b.layout !== "banner") return -1;
+    if (a.layout !== "banner" && b.layout === "banner") return 1;
+    return a.order - b.order;
+  });
+}
+
 export function useHomeSections() {
   const [sections, setSections] = useState<HomeSection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,15 +49,14 @@ export function useHomeSections() {
 
       if (response.success && response.data) {
         const data = Array.isArray(response.data) ? response.data : [];
-        setSections(
-          data.map((section: HomeSection) => ({
-            ...section,
-            restaurants: (section.restaurants ?? []).map((r) => ({
-              ...r,
-              id: r._id || r.id,
-            })),
+        const mapped = data.map((section: HomeSection) => ({
+          ...section,
+          restaurants: (section.restaurants ?? []).map((r) => ({
+            ...r,
+            id: r._id || r.id,
           })),
-        );
+        }));
+        setSections(sortHomeSections(mapped));
       } else {
         setError(response.error?.details || "სექციების ჩატვირთვა ვერ მოხერხდა");
       }

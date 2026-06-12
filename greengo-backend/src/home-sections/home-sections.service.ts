@@ -91,11 +91,19 @@ export class HomeSectionsService implements OnModuleInit {
 
   async ensureDefaults(): Promise<void> {
     for (const section of DEFAULT_SECTIONS) {
+      const { order, slug, title, layout, showSeeAll } = section;
       await this.homeSectionModel.updateOne(
-        { slug: section.slug },
+        { slug },
         {
-          $set: { order: section.order },
-          $setOnInsert: { ...section, isActive: true, restaurantIds: [] },
+          $set: { order },
+          $setOnInsert: {
+            slug,
+            title,
+            layout,
+            showSeeAll,
+            isActive: true,
+            restaurantIds: [],
+          },
         },
         { upsert: true },
       );
