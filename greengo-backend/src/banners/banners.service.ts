@@ -65,7 +65,7 @@ export class BannersService {
       restaurantId: banner.restaurantId
         ? banner.restaurantId.toString()
         : undefined,
-    }));
+    })) as Banner[];
   }
 
   async findOne(id: string): Promise<Banner> {
