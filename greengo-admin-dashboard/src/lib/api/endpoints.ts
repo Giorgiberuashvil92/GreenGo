@@ -400,8 +400,10 @@ export interface Banner {
   image: string;
   description?: string;
   link?: string;
+  restaurantId?: string | { _id: string; name?: string } | null;
   isActive: boolean;
   order: number;
+  placement?: 'top' | 'mid';
   startDate?: string;
   endDate?: string;
   createdAt: string;
@@ -447,7 +449,11 @@ export const homeSectionsApi = {
 export const bannersApi = {
   getAll: () => apiClient.get<Banner[]>('/banners'),
   
-  getActive: () => apiClient.get<Banner[]>('/banners/active'),
+  getActive: (placement?: 'top' | 'mid') =>
+    apiClient.get<Banner[]>(
+      '/banners/active',
+      placement ? { placement } : undefined,
+    ),
   
   getById: (id: string) => apiClient.get<Banner>(`/banners/${id}`),
   
@@ -457,4 +463,45 @@ export const bannersApi = {
     apiClient.patch<Banner>(`/banners/${id}`, data),
   
   delete: (id: string) => apiClient.delete(`/banners/${id}`),
+};
+
+export interface PromoCode {
+  _id: string;
+  code: string;
+  description?: string;
+  discountType: 'percentage' | 'free_delivery' | 'fixed_total' | 'fixed';
+  discountValue: number;
+  minOrderAmount?: number;
+  maxDiscount?: number;
+  startsAt?: string;
+  expiresAt?: string;
+  isActive: boolean;
+  usageLimit?: number;
+  usedCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const promoCodesApi = {
+  getAll: () => apiClient.get<PromoCode[]>('/promo-codes'),
+
+  getById: (id: string) => apiClient.get<PromoCode>(`/promo-codes/${id}`),
+
+  create: (data: Partial<PromoCode>) =>
+    apiClient.post<PromoCode>('/promo-codes', data),
+
+  update: (id: string, data: Partial<PromoCode>) =>
+    apiClient.patch<PromoCode>(`/promo-codes/${id}`, data),
+
+  delete: (id: string) => apiClient.delete(`/promo-codes/${id}`),
+
+  validate: (code: string, subtotal: number, deliveryFee?: number, serviceFee?: number) =>
+    apiClient.post<{
+      valid: true;
+      code: string;
+      discountType: 'percentage' | 'free_delivery' | 'fixed_total';
+      discountValue: number;
+      discountAmount: number;
+      freeDelivery?: boolean;
+    }>('/promo-codes/validate', { code, subtotal, deliveryFee, serviceFee }),
 };

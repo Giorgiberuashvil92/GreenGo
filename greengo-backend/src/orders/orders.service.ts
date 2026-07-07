@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CouriersService } from '../couriers/couriers.service';
+import { PromoCodesService } from '../promo-codes/promo-codes.service';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
@@ -12,6 +13,7 @@ export class OrdersService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Restaurant.name) private restaurantModel: Model<RestaurantDocument>,
     private couriersService: CouriersService,
+    private promoCodesService: PromoCodesService,
   ) {}
 
   /**
@@ -86,14 +88,49 @@ export class OrdersService {
         (sum, item) => sum + item.price * item.quantity,
         0,
       );
-      const newTotalAmount = itemsTotal + calculatedDeliveryFee + (createOrderDto.tip || 0);
+
+      let discountAmount = 0;
+      let promoCode: string | undefined;
+      let finalDeliveryFee = calculatedDeliveryFee;
+      let newTotalAmount = Math.max(
+        0,
+        itemsTotal + calculatedDeliveryFee + (createOrderDto.tip || 0),
+      );
+
+      if (createOrderDto.promoCode?.trim()) {
+        const promoValidation = await this.promoCodesService.validate(
+          createOrderDto.promoCode,
+          itemsTotal,
+          calculatedDeliveryFee,
+        );
+        const promoCodeDoc = await this.promoCodesService.findOne(
+          promoValidation.promoId,
+        );
+        const priced = this.promoCodesService.calculateOrderTotal(
+          promoCodeDoc,
+          {
+            subtotal: itemsTotal,
+            deliveryFee: calculatedDeliveryFee,
+            serviceFee: 0,
+          },
+          createOrderDto.tip || 0,
+        );
+
+        discountAmount = priced.discountAmount;
+        finalDeliveryFee = priced.deliveryFee;
+        promoCode = promoValidation.code;
+        newTotalAmount = priced.totalAmount;
+        await this.promoCodesService.incrementUsage(promoValidation.promoId);
+      }
 
       console.log(`📏 Distance: ${distanceKm.toFixed(2)} km, Base fee: ${baseDeliveryFee}, Calculated fee: ${calculatedDeliveryFee.toFixed(2)}`);
-      console.log(`💰 Items total: ${itemsTotal.toFixed(2)}, New total: ${newTotalAmount.toFixed(2)}`);
+      console.log(`💰 Items total: ${itemsTotal.toFixed(2)}, Discount: ${discountAmount.toFixed(2)}, New total: ${newTotalAmount.toFixed(2)}`);
       
       const createdOrder = new this.orderModel({
         ...createOrderDto,
-        deliveryFee: calculatedDeliveryFee,
+        promoCode,
+        discountAmount,
+        deliveryFee: finalDeliveryFee,
         totalAmount: newTotalAmount,
         orderDate: new Date(),
         estimatedDelivery: new Date(createOrderDto.estimatedDelivery),

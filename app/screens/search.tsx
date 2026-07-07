@@ -1,4 +1,8 @@
-import { homeCategories, resolveCategoryIcon } from "@/assets/data/categories";
+import {
+  getRestaurantsRouteForCategory,
+  homeCategories,
+  resolveCategoryIcon,
+} from "@/assets/data/categories";
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -117,19 +121,13 @@ export default function SearchScreen() {
     });
   };
 
-  const handleCategoryPress = (category: { name: string; link?: string }) => {
-    if (category.link) {
-      router.push(category.link as "/screens/food");
+  const handleCategoryPress = (category: (typeof homeCategories)[number]) => {
+    const route = getRestaurantsRouteForCategory(category);
+    if (typeof route === "string") {
+      router.push(route);
       return;
     }
-    if (category.name === "ყველა") {
-      router.push("/(tabs)/restaurants");
-      return;
-    }
-    router.push({
-      pathname: "/(tabs)/restaurants",
-      params: { category: category.name },
-    });
+    router.push(route);
   };
 
   return (

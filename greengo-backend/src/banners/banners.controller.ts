@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { BannersService } from './banners.service';
 import { CreateBannerDto } from './dto/create-banner.dto';
@@ -26,8 +27,8 @@ export class BannersController {
   }
 
   @Get('active')
-  findActive() {
-    return this.bannersService.findActive();
+  findActive(@Query('placement') placement?: 'top' | 'mid') {
+    return this.bannersService.findActive(placement);
   }
 
   @Get(':id')

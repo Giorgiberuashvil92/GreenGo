@@ -113,12 +113,13 @@ function buildGalleryItems(
   return slots;
 }
 
-function chunkThumbColumns(items: MenuPreviewItem[]): MenuPreviewItem[][] {
-  const columns: MenuPreviewItem[][] = [];
-  for (let i = 0; i < items.length; i += 2) {
-    columns.push(items.slice(i, i + 2));
+function chunkGalleryBlocks(items: MenuPreviewItem[]): MenuPreviewItem[][] {
+  const blocks: MenuPreviewItem[][] = [];
+  for (let i = 0; i < items.length; i += 3) {
+    const block = items.slice(i, i + 3);
+    if (block.length > 0) blocks.push(block);
   }
-  return columns;
+  return blocks;
 }
 
 export interface RestaurantListCardRestaurant {
@@ -255,13 +256,10 @@ export default function RestaurantListCard({
     [menuItems, restaurant],
   );
 
-  const mainItem = galleryItems[0];
-  const thumbColumns = chunkThumbColumns(galleryItems.slice(1));
-
-  const mainBadgeLabel =
-    mainItem.price > 0
-      ? mainItem.name + " \u2022 " + formatGel(mainItem.price)
-      : mainItem.name;
+  const galleryBlocks = useMemo(
+    () => chunkGalleryBlocks(galleryItems),
+    [galleryItems],
+  );
 
   return (
     <View style={styles.card}>
@@ -323,68 +321,99 @@ export default function RestaurantListCard({
         ]}
         contentContainerStyle={styles.galleryScrollContent}
       >
-        <View style={[styles.galleryRow, { gap: galleryGap }]}>
-          <TouchableOpacity
-            style={[styles.mainDish, { width: mainWidth, height: mainHeight }]}
-            activeOpacity={0.92}
-            onPress={() => {
-              const id = mainItem._id || mainItem.id;
-              if (id && !isStaticGalleryItem(id) && onDishPress) {
-                onDishPress(id);
-              } else {
-                onPress();
-              }
-            }}
-          >
-            <Image
-              source={getImageSource(mainItem.image || restaurant.image)}
-              style={styles.mainImage}
-            />
-            <MainDishBadge label={mainBadgeLabel} inset={mainPadding} />
-          </TouchableOpacity>
+        {galleryBlocks.map((block, blockIndex) => {
+          const mainItem = block[0];
+          const thumbItems = block.slice(1);
+          const mainBadgeLabel =
+            mainItem.price > 0
+              ? mainItem.name + " \u2022 " + formatGel(mainItem.price)
+              : mainItem.name;
 
-          {thumbColumns.map((columnItems, columnIndex) => (
+          return (
             <View
-              key={"thumb-col-" + columnIndex}
+              key={"gallery-block-" + blockIndex}
               style={[
-                styles.thumbColumn,
-                { width: thumbWidth, height: thumbColHeight, gap: thumbGap },
+                styles.galleryRow,
+                { gap: galleryGap },
+                blockIndex < galleryBlocks.length - 1 && {
+                  marginRight: galleryGap,
+                },
               ]}
             >
-              {columnItems.map((item, index) => {
-                const itemId = item._id || item.id || "side-" + columnIndex + "-" + index;
-                return (
-                  <TouchableOpacity
-                    key={itemId}
-                    style={[
-                      styles.thumb,
-                      { width: thumbWidth, height: thumbHeight },
-                    ]}
-                    activeOpacity={0.92}
-                    onPress={() => {
-                      if (itemId && !isStaticGalleryItem(itemId) && onDishPress) {
-                        onDishPress(itemId);
-                      } else {
-                        onPress();
-                      }
-                    }}
-                  >
-                    <Image
-                      source={getImageSource(item.image || restaurant.image)}
-                      style={styles.thumbImage}
-                    />
-                    {item.price > 0 ? (
-                      <ThumbPriceBadge
-                        label={formatGel(item.price)}
-                        inset={mainPadding}
-                      />
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              })}
+              <TouchableOpacity
+                style={[
+                  styles.mainDish,
+                  { width: mainWidth, height: mainHeight },
+                ]}
+                activeOpacity={0.92}
+                onPress={() => {
+                  const id = mainItem._id || mainItem.id;
+                  if (id && !isStaticGalleryItem(id) && onDishPress) {
+                    onDishPress(id);
+                  } else {
+                    onPress();
+                  }
+                }}
+              >
+                <Image
+                  source={getImageSource(mainItem.image || restaurant.image)}
+                  style={styles.mainImage}
+                />
+                <MainDishBadge label={mainBadgeLabel} inset={mainPadding} />
+              </TouchableOpacity>
+
+              {thumbItems.length > 0 ? (
+                <View
+                  style={[
+                    styles.thumbColumn,
+                    {
+                      width: thumbWidth,
+                      height: thumbColHeight,
+                      gap: thumbGap,
+                    },
+                  ]}
+                >
+                  {thumbItems.map((item, index) => {
+                    const itemId =
+                      item._id || item.id || "side-" + blockIndex + "-" + index;
+                    return (
+                      <TouchableOpacity
+                        key={itemId}
+                        style={[
+                          styles.thumb,
+                          { width: thumbWidth, height: thumbHeight },
+                        ]}
+                        activeOpacity={0.92}
+                        onPress={() => {
+                          if (
+                            itemId &&
+                            !isStaticGalleryItem(itemId) &&
+                            onDishPress
+                          ) {
+                            onDishPress(itemId);
+                          } else {
+                            onPress();
+                          }
+                        }}
+                      >
+                        <Image
+                          source={getImageSource(item.image || restaurant.image)}
+                          style={styles.thumbImage}
+                        />
+                        {item.price > 0 ? (
+                          <ThumbPriceBadge
+                            label={formatGel(item.price)}
+                            inset={mainPadding}
+                          />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
-          ))}
-        </View>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -464,6 +493,8 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   galleryScrollContent: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingRight: CARD_SIDE_PADDING,
   },
   galleryRow: {

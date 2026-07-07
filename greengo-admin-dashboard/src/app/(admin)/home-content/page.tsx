@@ -168,7 +168,9 @@ export default function HomeContentPage() {
                         </div>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {isBanner
-                            ? "ბანერები მართეთ „ბანერები“ გვერდზე"
+                            ? section.slug === "promo-banner-mid"
+                              ? "შუა ბანერები — „ბანერები“ გვერდზე (განთავსება: შუა)"
+                              : "ზედა ბანერები — „ბანერები“ გვერდზე (განთავსება: ზედა)"
                             : `${assigned.length} რესტორანი`}
                         </p>
                       </button>

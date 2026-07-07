@@ -9,14 +9,19 @@ import HomeAllObjects from "../../components/HomeAllObjects";
 import HomeRestaurantCarousel from "../../components/HomeRestaurantCarousel";
 import PopularObjects from "../../components/PopularObjects";
 import PromotionalBanner from "../../components/PromotionalBanner";
-import { useHomeSections } from "../../hooks/useHomeSections";
+import { getBannerPlacement, useHomeSections } from "../../hooks/useHomeSections";
 
 export default function HomeScreen() {
   const { sections, loading } = useHomeSections();
 
   const renderSection = (section: (typeof sections)[number]) => {
     if (section.layout === "banner") {
-      return <PromotionalBanner key={section._id} />;
+      return (
+        <PromotionalBanner
+          key={section._id}
+          placement={getBannerPlacement(section.slug)}
+        />
+      );
     }
 
     if (section.layout === "list") {

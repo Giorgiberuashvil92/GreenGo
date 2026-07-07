@@ -88,6 +88,9 @@ export class Order {
   @Prop()
   promoCode?: string;
 
+  @Prop({ default: 0, min: 0 })
+  discountAmount?: number;
+
   @Prop()
   notes?: string;
 

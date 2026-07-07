@@ -67,6 +67,11 @@ const navItems: NavItem[] = [
   },
   {
     icon: <PageIcon />,
+    name: "პრომო კოდები",
+    path: "/promo-codes",
+  },
+  {
+    icon: <PageIcon />,
     name: "მთავარი გვერდი",
     path: "/home-content",
   },

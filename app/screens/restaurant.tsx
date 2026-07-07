@@ -1,8 +1,8 @@
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -60,6 +60,41 @@ function deliveryTimeMain(time?: string): string {
   return t.replace(/\s*წუთ.*$/i, "").trim() || t;
 }
 
+function normalizeCategoryName(name: string): string {
+  return name.trim().toLocaleLowerCase("ka");
+}
+
+function categoryMatches(itemCategory: string, tabCategory: string): boolean {
+  return (
+    normalizeCategoryName(itemCategory) === normalizeCategoryName(tabCategory)
+  );
+}
+
+function buildCategoryList(
+  menuItems: MenuItem[],
+  menuCategories?: { name: string; isActive?: boolean; order?: number }[],
+): string[] {
+  const adminCategories =
+    menuCategories
+      ?.filter((category) => category.isActive !== false)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((category) => category.name) || [];
+
+  if (adminCategories.length > 0) {
+    return adminCategories;
+  }
+
+  return [
+    ...new Set(
+      menuItems
+        .map((item) => item.category)
+        .filter(
+          (category) => category && category !== "ყველაზე პოპულარული",
+        ),
+    ),
+  ];
+}
+
 export default function RestaurantScreen() {
   const { restaurantId, menuItemId } = useLocalSearchParams<{
     restaurantId: string;
@@ -77,61 +112,101 @@ export default function RestaurantScreen() {
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
   const fetchMenuItems = async () => {
+    if (!restaurantId) return;
+
     try {
       setLoadingMenuItems(true);
       const response = await apiService.getMenuItems({
-        restaurantId: restaurantId || "",
+        restaurantId,
+        limit: 500,
       });
       if (response.success && response.data) {
         const items = Array.isArray(response.data)
           ? response.data
           : (response.data as { data?: MenuItem[] })?.data || [];
         setMenuItems(items);
+      } else {
+        setMenuItems([]);
       }
     } catch (error) {
       console.error("Error fetching menu items:", error);
+      setMenuItems([]);
     } finally {
       setLoadingMenuItems(false);
     }
   };
 
   useEffect(() => {
+    setMenuItems([]);
+    setSelectedCategory("");
+    setActiveProductId(menuItemId ?? null);
+
     if (restaurantId) {
-      fetchMenuItems();
+      void fetchMenuItems();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
+  const categories = useMemo(
+    () =>
+      buildCategoryList(
+        menuItems,
+        (
+          restaurant as {
+            menuCategories?: {
+              name: string;
+              isActive?: boolean;
+              order?: number;
+            }[];
+          } | null
+        )?.menuCategories,
+      ),
+    [menuItems, restaurant],
+  );
+
   useEffect(() => {
-    if (!selectedCategory) {
-      const adminCats =
-        restaurant?.menuCategories
-          ?.filter((c) => c.isActive !== false)
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-          .map((c) => c.name) || [];
-
-      const derivedCats = [
-        ...new Set(
-          menuItems
-            .map((item) => item.category)
-            .filter(
-              (category) => category && category !== "ყველაზე პოპულარული",
-            ),
-        ),
-      ];
-
-      const initial = adminCats.length > 0 ? adminCats : derivedCats;
-      if (initial.length > 0) {
-        setSelectedCategory(initial[0]);
-      }
+    if (categories.length === 0) {
+      setSelectedCategory("");
+      return;
     }
-  }, [menuItems, restaurant, selectedCategory]);
+
+    const selectedHasItems = menuItems.some((item) =>
+      categoryMatches(item.category, selectedCategory),
+    );
+    const selectedExists = categories.some(
+      (category) => categoryMatches(category, selectedCategory),
+    );
+
+    if (selectedCategory && selectedExists && selectedHasItems) {
+      return;
+    }
+
+    const firstCategoryWithItems =
+      categories.find((category) =>
+        menuItems.some((item) => categoryMatches(item.category, category)),
+      ) ?? categories[0];
+
+    setSelectedCategory(firstCategoryWithItems);
+  }, [categories, menuItems, selectedCategory]);
 
   useEffect(() => {
     if (menuItemId) {
       setActiveProductId(menuItemId);
     }
   }, [menuItemId]);
+
+  const popularItems = useMemo(
+    () => menuItems.filter((item) => item.isPopular),
+    [menuItems],
+  );
+
+  const categoryItems = useMemo(
+    () =>
+      menuItems.filter((item) =>
+        categoryMatches(item.category, selectedCategory),
+      ),
+    [menuItems, selectedCategory],
+  );
 
   const getImageSource = (image: string | undefined) => {
     if (!image) return undefined;
@@ -141,7 +216,10 @@ export default function RestaurantScreen() {
     return image;
   };
 
-  if (restaurantLoading || loadingMenuItems) {
+  if (
+    (restaurantLoading && !restaurant) ||
+    (loadingMenuItems && menuItems.length === 0)
+  ) {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -173,32 +251,6 @@ export default function RestaurantScreen() {
     (typeof restaurant.heroImage === "string" && restaurant.heroImage) ||
     (typeof restaurant.image === "string" && restaurant.image) ||
     "";
-
-  const popularItems = menuItems.filter((item) => item.isPopular);
-
-  const adminMenuCategories =
-    (
-      restaurant as {
-        menuCategories?: { name: string; isActive?: boolean; order?: number }[];
-      }
-    ).menuCategories
-      ?.filter((c) => c.isActive !== false)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map((c) => c.name) || [];
-
-  const derivedCategories = [
-    ...new Set(
-      menuItems
-        .map((item) => item.category)
-        .filter((category) => category && category !== "ყველაზე პოპულარული"),
-    ),
-  ];
-
-  const categories =
-    adminMenuCategories.length > 0 ? adminMenuCategories : derivedCategories;
-  const categoryItems = menuItems.filter(
-    (item) => item.category === selectedCategory,
-  );
 
   const openProduct = (itemId: string) => {
     setActiveProductId(itemId);
@@ -291,15 +343,17 @@ export default function RestaurantScreen() {
               </View>
               <Text style={styles.statLabel}>რეიტინგი</Text>
             </View>
+            <View style={styles.statDivider} />
             <View style={styles.statCell}>
               <View style={styles.statValueRow}>
-                <Ionicons name="bicycle-outline" size={16} color="#181B1A" />
+                <MaterialIcons name="two-wheeler" size={16} color="#181B1A" />
                 <Text style={styles.statValue}>
                   {formatPriceGel(restaurant.deliveryFee)}
                 </Text>
               </View>
               <Text style={styles.statLabel}>მიტანა</Text>
             </View>
+            <View style={styles.statDivider} />
             <View style={styles.statCell}>
               <View style={styles.statValueRow}>
                 <Ionicons name="time-outline" size={16} color="#181B1A" />
@@ -378,7 +432,7 @@ export default function RestaurantScreen() {
               contentContainerStyle={styles.tabsScrollInner}
             >
               {categories.map((cat) => {
-                const active = selectedCategory === cat;
+                const active = categoryMatches(cat, selectedCategory);
                 return (
                   <TouchableOpacity
                     key={cat}
@@ -533,14 +587,20 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
-    paddingHorizontal: 8,
+    alignSelf: "stretch",
+    width: "100%",
+    marginBottom: 16,
   },
   statCell: {
+    flex: 1,
     alignItems: "center",
-    minWidth: 72,
+  },
+  statDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    backgroundColor: "#F0F0F0",
+    flexShrink: 0,
   },
   statValueRow: {
     flexDirection: "row",
@@ -559,21 +619,23 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: fontFamily.regular,
     color: "#9B9B9B",
+    textAlign: "center",
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
     marginBottom: 4,
   },
   detailsBtn: {
-    height: 32,
     flex: 1,
-    backgroundColor: "#F1F8F9",
-    borderRadius: 12,
-    alignItems: "center",
+    flexDirection: "row",
+    paddingVertical: 8,
+    paddingHorizontal: 24,
     justifyContent: "center",
-    paddingHorizontal: 12,
-    marginRight: 16,
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: "#F1F8F9",
   },
   detailsBtnText: {
     fontSize: 14,
@@ -583,12 +645,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   shareBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "#F1F8F9",
+    flexDirection: "row",
+    padding: 8,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#F1F8F9",
   },
   popularBlock: {
     marginTop: 20,
@@ -668,7 +730,7 @@ const styles = StyleSheet.create({
   menuDesc: {
     fontSize: 10,
     lineHeight: 14,
-    fontFamily: fontFamily.medium,
+    fontFamily: fontFamily.regular,
     color: "#666666",
   },
   menuPrice: {

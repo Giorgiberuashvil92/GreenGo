@@ -1,6 +1,7 @@
 import PromosIcon from "@/components/icons/PromosIcon";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import React from "react";
 import {
   ImageBackground,
@@ -17,6 +18,33 @@ const IMAGE_RADIUS = 16;
 const IMAGE_WIDTH = 200;
 const IMAGE_HEIGHT = 100;
 const BADGE_ICON_SIZE = 12;
+const BADGE_INSET = 8;
+
+function DeliveryTimeBadge({ label }: { label: string }) {
+  return (
+    <View style={styles.timeBadge}>
+      <BlurView intensity={15} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={styles.timeBadgeOverlay} />
+      <View style={styles.badgeContent}>
+        <Ionicons name="time-outline" size={BADGE_ICON_SIZE} color="#FFFFFF" />
+        <Text style={styles.badgeText}>{label}</Text>
+      </View>
+    </View>
+  );
+}
+
+function PromoBadge({ label }: { label: string }) {
+  return (
+    <View style={styles.promoBadge}>
+      <BlurView intensity={15} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={styles.promoBadgeOverlay} />
+      <View style={styles.badgeContent}>
+        <PromosIcon />
+        <Text style={styles.badgeText}>{label}</Text>
+      </View>
+    </View>
+  );
+}
 
 export const HOME_RESTAURANT_CARD_WIDTH = 200;
 export const HOME_RESTAURANT_CARD_GAP = CARD_GAP;
@@ -95,23 +123,11 @@ export default function HomeRestaurantCard({
         style={[styles.imageWrap, { width: IMAGE_WIDTH, height: IMAGE_HEIGHT }]}
       >
         <View style={styles.badgeRow}>
-          <View style={styles.timeBadge}>
-            <Ionicons
-              name="time-outline"
-              size={BADGE_ICON_SIZE}
-              color="#FFFFFF"
-            />
-            <Text style={styles.badgeText}>
-              {formatDeliveryTimeLabel(restaurant.deliveryTime)}
-            </Text>
-          </View>
+          <DeliveryTimeBadge
+            label={formatDeliveryTimeLabel(restaurant.deliveryTime)}
+          />
 
-          {promoLabel ? (
-            <View style={styles.promoBadge}>
-              <PromosIcon />
-              <Text style={styles.badgeText}>{promoLabel}</Text>
-            </View>
-          ) : null}
+          {promoLabel ? <PromoBadge label={promoLabel} /> : null}
         </View>
       </ImageBackground>
 
@@ -166,31 +182,42 @@ const styles = StyleSheet.create({
   imageRadius: {
     borderRadius: IMAGE_RADIUS,
   },
+
   badgeRow: {
+    position: "absolute",
+    left: BADGE_INSET,
+    top: BADGE_INSET,
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingTop: 4,
-    paddingHorizontal: 4,
-    width: "100%",
+    alignItems: "center",
+    gap: 4,
+    zIndex: 3,
   },
   timeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#00000033",
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    gap: 4,
+    height: 20,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  timeBadgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   promoBadge: {
+    height: 20,
+    borderRadius: 16,
+    overflow: "hidden",
+    zIndex: 4,
+  },
+  promoBadgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(235, 0, 0, 0.7)",
+  },
+  badgeContent: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EB000080",
-    borderRadius: 12,
     paddingVertical: 4,
     paddingHorizontal: 8,
     gap: 4,
+    height: 20,
   },
   badgeText: {
     color: "#FFFFFF",

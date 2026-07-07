@@ -1,6 +1,24 @@
+import {
+  getHomeBannerLayout,
+  HOME_BANNER_BORDER_RADIUS,
+  HOME_BANNER_GAP,
+  HOME_BANNER_SIDE_PADDING,
+} from "@/constants/homeBanner";
+import {
+  useBanners,
+  type AppBanner,
+  type BannerPlacement,
+} from "@/hooks/useBanners";
+import {
+  getBannerRestaurantId,
+  hasBannerAction,
+} from "@/utils/bannerActions";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
+  Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -9,12 +27,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { promotionalBanners } from "../assets/data/promotionalBanners";
-
-const BANNER_ASPECT = 158 / 315;
-const SIDE_PADDING = 16;
-const ITEM_GAP = 10;
-const BORDER_RADIUS = 16;
 
 function getDotSize(distance: number): number {
   if (distance === 0) return 8;
@@ -31,25 +43,29 @@ function getDotColor(distance: number): string {
   return "#C4C4C4";
 }
 
-export default function PromotionalBanner() {
+export default function PromotionalBanner({
+  placement = "top",
+}: {
+  placement?: BannerPlacement;
+}) {
+  const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
+  const { banners, loading } = useBanners(placement);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
   const { bannerWidth, bannerHeight, snapInterval } = useMemo(() => {
-    const width = screenWidth - SIDE_PADDING * 2;
+    const layout = getHomeBannerLayout(screenWidth);
     return {
-      bannerWidth: width,
-      bannerHeight: width * BANNER_ASPECT,
-      snapInterval: width + ITEM_GAP,
+      bannerWidth: layout.width,
+      bannerHeight: layout.height,
+      snapInterval: layout.snapInterval,
     };
   }, [screenWidth]);
 
   const updateIndex = (scrollX: number) => {
+    if (banners.length === 0) return;
     const index = Math.round(scrollX / snapInterval);
-    const clamped = Math.max(
-      0,
-      Math.min(index, promotionalBanners.length - 1),
-    );
+    const clamped = Math.max(0, Math.min(index, banners.length - 1));
     setCurrentBannerIndex(clamped);
   };
 
@@ -58,6 +74,38 @@ export default function PromotionalBanner() {
   ) => {
     updateIndex(event.nativeEvent.contentOffset.x);
   };
+
+  const handleBannerPress = async (banner: AppBanner) => {
+    const restaurantId = getBannerRestaurantId(banner);
+
+    if (restaurantId) {
+      router.push({
+        pathname: "/screens/restaurant",
+        params: { restaurantId },
+      });
+      return;
+    }
+
+    const link = banner.link?.trim();
+    if (!link) return;
+
+    try {
+      const canOpen = await Linking.canOpenURL(link);
+      if (canOpen) await Linking.openURL(link);
+    } catch {
+      // ignore invalid links
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.loadingWrap, { height: bannerHeight + 32 }]}>
+        <ActivityIndicator size="small" color="#1D4045" />
+      </View>
+    );
+  }
+
+  if (banners.length === 0) return null;
 
   return (
     <View style={styles.bannerWrapper}>
@@ -70,53 +118,59 @@ export default function PromotionalBanner() {
         disableIntervalMomentum
         contentContainerStyle={[
           styles.bannerScrollContent,
-          { paddingHorizontal: SIDE_PADDING },
+          { paddingHorizontal: HOME_BANNER_SIDE_PADDING },
         ]}
         onScroll={handleBannerScroll}
         onMomentumScrollEnd={handleBannerScroll}
         scrollEventThrottle={16}
       >
-        {promotionalBanners.map((banner, index) => (
-          <TouchableOpacity
-            key={banner.id}
-            activeOpacity={0.95}
-            style={[
-              styles.bannerContainer,
-              {
-                width: bannerWidth,
-                height: bannerHeight,
-                marginRight:
-                  index < promotionalBanners.length - 1 ? ITEM_GAP : 0,
-              },
-            ]}
-          >
-            <Image source={banner.image} style={styles.bannerImage} />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+        {banners.map((banner, index) => {
+          const isActionable = hasBannerAction(banner);
 
-      {promotionalBanners.length > 1 ? (
-      <View style={styles.dotsContainer}>
-        {promotionalBanners.map((_, index) => {
-          const distance = Math.abs(index - currentBannerIndex);
-          const size = getDotSize(distance);
           return (
-            <View
-              key={index}
+            <TouchableOpacity
+              key={banner.id}
+              activeOpacity={isActionable ? 0.95 : 1}
+              disabled={!isActionable}
               style={[
-                styles.dot,
+                styles.bannerContainer,
                 {
-                  width: size,
-                  height: size,
-                  borderRadius: size / 2,
-                  backgroundColor: getDotColor(distance),
-                  marginHorizontal: distance === 0 ? 5 : 4,
+                  width: bannerWidth,
+                  height: bannerHeight,
+                  marginRight:
+                    index < banners.length - 1 ? HOME_BANNER_GAP : 0,
                 },
               ]}
-            />
+              onPress={() => void handleBannerPress(banner)}
+            >
+              <Image source={banner.source} style={styles.bannerImage} />
+            </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
+
+      {banners.length > 1 ? (
+        <View style={styles.dotsContainer}>
+          {banners.map((banner, index) => {
+            const distance = Math.abs(index - currentBannerIndex);
+            const size = getDotSize(distance);
+            return (
+              <View
+                key={banner.id}
+                style={[
+                  styles.dot,
+                  {
+                    width: size,
+                    height: size,
+                    borderRadius: size / 2,
+                    backgroundColor: getDotColor(distance),
+                    marginHorizontal: distance === 0 ? 5 : 4,
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
       ) : null}
     </View>
   );
@@ -126,12 +180,18 @@ const styles = StyleSheet.create({
   bannerWrapper: {
     marginBottom: 20,
   },
+  loadingWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
   bannerScrollContent: {
     alignItems: "center",
   },
   bannerContainer: {
-    borderRadius: BORDER_RADIUS,
+    borderRadius: HOME_BANNER_BORDER_RADIUS,
     overflow: "hidden",
+    backgroundColor: "#F3F4F6",
   },
   bannerImage: {
     width: "100%",
@@ -143,7 +203,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 12,
-    paddingHorizontal: SIDE_PADDING,
+    paddingHorizontal: HOME_BANNER_SIDE_PADDING,
   },
   dot: {},
 });

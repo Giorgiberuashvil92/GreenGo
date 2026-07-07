@@ -1,4 +1,4 @@
-import { homeCategories } from "@/assets/data/categories";
+import { getRestaurantsRouteForCategory, homeCategories } from "@/assets/data/categories";
 import { fontFamily } from "@/constants/fonts";
 import { router } from "expo-router";
 import React from "react";
@@ -27,18 +27,12 @@ export default function CategoryTabs() {
               { backgroundColor: category.bgColor },
             ]}
             onPress={() => {
-              if (category.link) {
-                router.push(category.link as "/screens/food");
+              const route = getRestaurantsRouteForCategory(category);
+              if (typeof route === "string") {
+                router.push(route);
                 return;
               }
-              if (category.name === "ყველა") {
-                router.push("/(tabs)/restaurants");
-                return;
-              }
-              router.push({
-                pathname: "/(tabs)/restaurants",
-                params: { category: category.name },
-              });
+              router.push(route);
             }}
           >
             <Image source={category.icon} style={styles.categoryIcon} />

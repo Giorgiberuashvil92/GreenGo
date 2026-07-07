@@ -180,6 +180,11 @@ class ApiService {
     return this.request('/home-sections/active');
   }
 
+  async getActiveBanners(placement?: "top" | "mid") {
+    const query = placement ? `?placement=${placement}` : "";
+    return this.request(`/banners/active${query}`);
+  }
+
   // Restaurants API
   async getRestaurants(params?: {
     page?: number;
@@ -237,7 +242,6 @@ class ApiService {
     return this.request(`/menu-items/${id}`);
   }
 
-  // Orders API
   async createOrder(orderData: {
     userId: string;
     restaurantId: string;
@@ -264,6 +268,28 @@ class ApiService {
     return this.request('/orders', {
       method: 'POST',
       body: JSON.stringify(orderData),
+    });
+  }
+
+  async validatePromoCode(
+    code: string,
+    subtotal: number,
+    deliveryFee = 0,
+    serviceFee = 0,
+  ) {
+    return this.request<{
+      valid: true;
+      code: string;
+      discountType: 'percentage' | 'free_delivery' | 'fixed_total';
+      discountValue: number;
+      maxDiscount?: number;
+      minOrderAmount: number;
+      discountAmount: number;
+      freeDelivery?: boolean;
+      description?: string;
+    }>('/promo-codes/validate', {
+      method: 'POST',
+      body: JSON.stringify({ code, subtotal, deliveryFee, serviceFee }),
     });
   }
 

@@ -21,7 +21,6 @@ export const homeCategories: HomeCategory[] = [
     name: "კვება",
     bgColor: "#FCF5ED",
     icon: require("@/assets/images/categories/food.png"),
-    link: "/screens/food",
   },
   {
     id: "flowers",
@@ -36,6 +35,46 @@ export const homeCategories: HomeCategory[] = [
     icon: require("@/assets/images/categories/all.png"),
   },
 ];
+
+const HOME_CATEGORY_MATCH_TERMS: Record<string, string[]> = {
+  კვება: ["კვება", "სწრაფი კვება", "food", "fast food"],
+  ყვავილები: ["ყვავილ", "flowers", "flower"],
+  ზოომაღაზია: ["ზოო", "zoo", "pet", "ზოომაღაზია"],
+};
+
+export function getHomeCategoryMatchTerms(categoryName: string): string[] {
+  return HOME_CATEGORY_MATCH_TERMS[categoryName] ?? [categoryName];
+}
+
+export function restaurantMatchesHomeCategory(
+  restaurant: { categories?: string[]; cuisine?: string[] },
+  categoryName: string,
+): boolean {
+  const terms = getHomeCategoryMatchTerms(categoryName);
+  const values = [...(restaurant.categories ?? []), ...(restaurant.cuisine ?? [])];
+
+  return terms.some((term) => {
+    const normalizedTerm = term.trim().toLocaleLowerCase("ka");
+    return values.some((value) => {
+      const normalizedValue = value.trim().toLocaleLowerCase("ka");
+      return (
+        normalizedValue.includes(normalizedTerm) ||
+        normalizedTerm.includes(normalizedValue)
+      );
+    });
+  });
+}
+
+export function getRestaurantsRouteForCategory(category: HomeCategory) {
+  if (category.name === "ყველა") {
+    return "/(tabs)/restaurants" as const;
+  }
+
+  return {
+    pathname: "/(tabs)/restaurants" as const,
+    params: { category: category.name },
+  };
+}
 
 export function resolveCategoryIcon(
   categoryName: string,

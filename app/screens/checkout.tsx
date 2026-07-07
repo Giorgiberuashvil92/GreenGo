@@ -8,6 +8,12 @@ import { fontFamily } from "@/constants/fonts";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { formatAddressStreetLine, formatAddressSubLine } from "@/utils/address";
 import {
+  calculateCheckoutTotal,
+  calculatePromoSavings,
+  formatPromoDiscountLabel,
+  type ValidatedPromoCode,
+} from "@/utils/promoCode";
+import {
   CheckoutPaymentSelection,
   getPaymentDisplayLine,
   loadCheckoutPayment,
@@ -15,7 +21,7 @@ import {
 import { getDistance } from "@/utils/restaurantUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -82,7 +88,13 @@ export default function CheckoutScreen() {
   const [tipAmount, setTipAmount] = useState<number>(3);
   const [activeTipKey, setActiveTipKey] = useState<TipOptionKey>("3");
   const [showTipModal, setShowTipModal] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
   const [customTipInput, setCustomTipInput] = useState("");
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<ValidatedPromoCode | null>(
+    null,
+  );
+  const [applyingPromo, setApplyingPromo] = useState(false);
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
     "delivery",
@@ -177,16 +189,69 @@ export default function CheckoutScreen() {
     return Math.max(100, Math.round(distanceKm * 1000));
   }, [deliveryType, deliveryAddress, restaurant?.location]);
 
+  const serviceFee = restaurantCartItems.length > 0 ? SERVICE_FEE : 0;
+  const activeDeliveryFee = deliveryType === "delivery" ? deliveryFee : 0;
+
+  const promoSavings = useMemo(() => {
+    if (!appliedPromo) {
+      return {
+        productDiscount: 0,
+        orderDiscount: 0,
+        deliveryDiscount: 0,
+        totalSavings: 0,
+        effectiveDeliveryFee: activeDeliveryFee,
+        freeDelivery: false,
+      };
+    }
+
+    return calculatePromoSavings(appliedPromo, {
+      subtotal,
+      deliveryFee: activeDeliveryFee,
+      serviceFee,
+    });
+  }, [appliedPromo, subtotal, activeDeliveryFee, serviceFee]);
+
+  useEffect(() => {
+    if (!appliedPromo) return;
+
+    const minOrderAmount = appliedPromo.minOrderAmount ?? 0;
+    if (subtotal < minOrderAmount) {
+      setAppliedPromo(null);
+      Alert.alert(
+        "პრომო კოდი",
+        `ამ კოდისთვის მინიმალური შეკვეთა არის ${minOrderAmount.toFixed(2).replace(".", ",")} ₾`,
+      );
+      return;
+    }
+
+    if (
+      appliedPromo.discountType === "free_delivery" &&
+      deliveryType === "pickup"
+    ) {
+      setAppliedPromo(null);
+      Alert.alert(
+        "პრომო კოდი",
+        "უფასო მიტანის კოდი მხოლოდ მიტანის შეკვეთებისთვისაა",
+      );
+    }
+  }, [subtotal, appliedPromo, deliveryType]);
+
   const total = useMemo(() => {
-    const serviceFee = restaurantCartItems.length > 0 ? SERVICE_FEE : 0;
-    const fee = deliveryType === "delivery" ? deliveryFee : 0;
-    return subtotal + fee + serviceFee + tipAmount;
+    return calculateCheckoutTotal(
+      {
+        subtotal,
+        deliveryFee: activeDeliveryFee,
+        serviceFee,
+      },
+      appliedPromo,
+      tipAmount,
+    );
   }, [
     subtotal,
-    deliveryFee,
-    deliveryType,
+    activeDeliveryFee,
+    serviceFee,
+    appliedPromo,
     tipAmount,
-    restaurantCartItems.length,
   ]);
 
   const openCustomTipModal = () => {
@@ -217,6 +282,53 @@ export default function CheckoutScreen() {
     setShowTipModal(false);
   };
 
+  const openPromoModal = () => {
+    setPromoCodeInput(appliedPromo?.code ?? "");
+    setShowPromoModal(true);
+  };
+
+  const closePromoModal = () => {
+    setShowPromoModal(false);
+  };
+
+  const applyPromoCode = async () => {
+    const code = promoCodeInput.trim().toUpperCase();
+    if (!code) {
+      Alert.alert("შეცდომა", "გთხოვთ შეიყვანოთ პრომო კოდი");
+      return;
+    }
+
+    setApplyingPromo(true);
+    try {
+      const response = await apiService.validatePromoCode(
+        code,
+        subtotal,
+        activeDeliveryFee,
+        serviceFee,
+      );
+      if (!response.success || !response.data) {
+        Alert.alert(
+          "შეცდომა",
+          response.error?.details || "პრომო კოდი არასწორია",
+        );
+        return;
+      }
+
+      setAppliedPromo(response.data);
+      setShowPromoModal(false);
+    } catch {
+      Alert.alert("შეცდომა", "პრომო კოდის შემოწმება ვერ მოხერხდა");
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
+
+  const removePromoCode = () => {
+    setAppliedPromo(null);
+    setPromoCodeInput("");
+    setShowPromoModal(false);
+  };
+
   const selectPresetTip = (key: TipOptionKey, amount: number) => {
     setActiveTipKey(key);
     setTipAmount(amount);
@@ -245,6 +357,11 @@ export default function CheckoutScreen() {
     if (restaurantCartItems.length === 0) {
       console.log("❌ Cart is empty");
       Alert.alert("შეცდომა", "კალათა ცარიელია");
+      return;
+    }
+
+    if (appliedPromo && promoSavings.totalSavings <= 0) {
+      Alert.alert("შეცდომა", "პრომო კოდი ამ შეკვეთაზე ვერ გამოიყენება");
       return;
     }
 
@@ -364,6 +481,7 @@ export default function CheckoutScreen() {
         deliveryAddress: finalDeliveryAddress,
         estimatedDelivery: estimatedDelivery.toISOString(),
         notes: comment || undefined,
+        promoCode: appliedPromo?.code || undefined,
         tip: tipAmount,
         deliveryType: deliveryType,
       };
@@ -630,12 +748,25 @@ export default function CheckoutScreen() {
           multiline
         />
 
-        <TouchableOpacity style={styles.card} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.85}
+          onPress={openPromoModal}
+        >
           <View style={styles.cardRow}>
             <View style={styles.voucherIconWrap}>
               <VoucherIcon size={20} />
             </View>
-            <Text style={styles.voucherLabel}>დაამატეთ ვაუჩერი</Text>
+            <View style={styles.cardTextCol}>
+              <Text style={styles.voucherLabel} numberOfLines={1}>
+                {appliedPromo?.code ?? "დაამატეთ ვაუჩერი"}
+              </Text>
+              {appliedPromo ? (
+                <Text style={styles.voucherAppliedSub} numberOfLines={1}>
+                  {formatPromoDiscountLabel(appliedPromo)} ფასდაკლება
+                </Text>
+              ) : null}
+            </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </View>
         </TouchableOpacity>
@@ -721,7 +852,20 @@ export default function CheckoutScreen() {
                 მიტანის საფასური ({deliveryDistanceM}მ)
               </Text>
               <Text style={styles.summaryValue}>
-                {formatSummaryAmount(deliveryFee)}
+                {formatSummaryAmount(promoSavings.effectiveDeliveryFee)}
+              </Text>
+            </View>
+          ) : null}
+
+          {promoSavings.totalSavings > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryDiscountLabel}>
+                {appliedPromo?.discountType === "free_delivery"
+                  ? `უფასო მიტანა (${appliedPromo?.code})`
+                  : `პრომო კოდი (${appliedPromo?.code})`}
+              </Text>
+              <Text style={styles.summaryDiscountValue}>
+                -{formatSummaryAmount(promoSavings.totalSavings)}
               </Text>
             </View>
           ) : null}
@@ -835,6 +979,68 @@ export default function CheckoutScreen() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.tipModalSaveText}>შენახვა</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showPromoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closePromoModal}
+      >
+        <Pressable style={styles.tipModalOverlay} onPress={closePromoModal}>
+          <Pressable style={styles.tipModalCard} onPress={() => {}}>
+            <Text style={styles.tipModalTitle}>პრომო კოდი</Text>
+            <Text style={styles.tipModalSub}>შეიყვანეთ ვაუჩერის კოდი</Text>
+            <View style={styles.tipModalInputWrap}>
+              <Text style={styles.tipModalInputLabel}>პრომო კოდი</Text>
+              <TextInput
+                style={[styles.tipModalInput, styles.promoModalInput]}
+                value={promoCodeInput}
+                onChangeText={setPromoCodeInput}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                placeholder="მაგ: SAVE10"
+                placeholderTextColor="#9B9B9B"
+              />
+            </View>
+
+            {appliedPromo ? (
+              <TouchableOpacity
+                style={styles.promoRemoveBtn}
+                onPress={removePromoCode}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.promoRemoveBtnText}>პრომო კოდის წაშლა</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <View style={styles.tipModalActions}>
+              <TouchableOpacity
+                style={styles.tipModalCancelBtn}
+                onPress={closePromoModal}
+                activeOpacity={0.85}
+                disabled={applyingPromo}
+              >
+                <Text style={styles.tipModalCancelText}>გაუქმება</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tipModalSaveBtn,
+                  applyingPromo && styles.confirmBtnDisabled,
+                ]}
+                onPress={() => void applyPromoCode()}
+                activeOpacity={0.85}
+                disabled={applyingPromo}
+              >
+                {applyingPromo ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.tipModalSaveText}>გამოყენება</Text>
+                )}
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -1063,11 +1269,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   voucherLabel: {
-    flex: 1,
     fontSize: 14,
     lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
+  },
+  voucherAppliedSub: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: LIST_ACCENT_GREEN,
+  },
+  promoModalInput: {
+    fontSize: 18,
+    lineHeight: 22,
+    letterSpacing: 1,
+  },
+  promoRemoveBtn: {
+    marginTop: 16,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  promoRemoveBtnText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: fontFamily.medium,
+    color: "#EF4444",
   },
   tipSection: {
     marginBottom: 16,
@@ -1260,6 +1488,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: fontFamily.medium,
     color: "#181B1A",
+  },
+  summaryDiscountLabel: {
+    flex: 1,
+    marginRight: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.medium,
+    color: LIST_ACCENT_GREEN,
+  },
+  summaryDiscountValue: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: LIST_ACCENT_GREEN,
   },
   summaryTotalRow: {
     marginTop: 4,

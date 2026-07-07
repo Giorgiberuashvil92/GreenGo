@@ -1,3 +1,4 @@
+import { restaurantMatchesHomeCategory } from "@/assets/data/categories";
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
@@ -53,7 +54,6 @@ const RestaurantsScreen = () => {
   });
 
   const { restaurants, loading, error, refetch } = useRestaurants({
-    category: category,
     limit: 100,
     categories: filters.categories.length > 0 ? filters.categories : undefined,
     priceRange: filters.priceRange || undefined,
@@ -61,6 +61,8 @@ const RestaurantsScreen = () => {
     deliveryTime: filters.deliveryTime || undefined,
     sortBy: filters.sortBy || undefined,
   });
+
+  const activeHomeCategory = category?.trim() || "";
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -75,6 +77,12 @@ const RestaurantsScreen = () => {
 
   const filteredRestaurants = useMemo(() => {
     let result = restaurants.filter((r) => r.isActive);
+
+    if (activeHomeCategory) {
+      result = result.filter((restaurant) =>
+        restaurantMatchesHomeCategory(restaurant, activeHomeCategory),
+      );
+    }
 
     if (filters.priceRange) {
       result = result.filter((r) => r.priceRange === filters.priceRange);
@@ -161,7 +169,9 @@ const RestaurantsScreen = () => {
     }
 
     return result;
-  }, [restaurants, filters]);
+  }, [restaurants, filters, activeHomeCategory]);
+
+  const pageTitle = activeHomeCategory || "რესტორნები";
 
   const citySubtitle = addressLoading
     ? "..."
@@ -180,7 +190,7 @@ const RestaurantsScreen = () => {
           <Ionicons name="chevron-back" size={22} color={NAV_ARROW} />
         </TouchableOpacity>
         <View style={styles.titleBlock}>
-          <Text style={styles.pageTitle}>რესტორნები</Text>
+          <Text style={styles.pageTitle}>{pageTitle}</Text>
           <Text style={styles.pageSubtitle} numberOfLines={1}>
             {citySubtitle}
           </Text>
@@ -266,7 +276,8 @@ const RestaurantsScreen = () => {
               filters.priceRange ||
               filters.rating ||
               filters.deliveryTime ||
-              filters.categories.length > 0
+              filters.categories.length > 0 ||
+              activeHomeCategory
                 ? "ფილტრის შედეგები ვერ მოიძებნა"
                 : "რესტორნები ვერ მოიძებნა"}
             </Text>

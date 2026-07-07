@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiService } from "../utils/api";
+import type { BannerPlacement } from "./useBanners";
 
 export interface HomeSectionRestaurant {
   _id: string;
@@ -29,11 +30,11 @@ export interface HomeSection {
 }
 
 function sortHomeSections(sections: HomeSection[]): HomeSection[] {
-  return [...sections].sort((a, b) => {
-    if (a.layout === "banner" && b.layout !== "banner") return -1;
-    if (a.layout !== "banner" && b.layout === "banner") return 1;
-    return a.order - b.order;
-  });
+  return [...sections].sort((a, b) => a.order - b.order);
+}
+
+export function getBannerPlacement(sectionSlug: string): BannerPlacement {
+  return sectionSlug === "promo-banner-mid" ? "mid" : "top";
 }
 
 export function useHomeSections() {
