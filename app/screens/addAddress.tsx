@@ -1,4 +1,5 @@
 import BackCircleIcon from "@/components/icons/BackCircleIcon";
+import MapAddressPin from "@/components/MapAddressPin";
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import {
@@ -33,7 +34,6 @@ import {
 import MapView, { Marker, Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const MARKER_COLOR = "#3B82F6";
 const DEFAULT_REGION: Region = {
   latitude: 41.7151,
   longitude: 44.8271,
@@ -58,6 +58,10 @@ export default function AddAddressScreen() {
   const [resolvingPlace, setResolvingPlace] = useState(false);
   const [sessionToken, setSessionToken] = useState(createSessionToken);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [pinCoordinate, setPinCoordinate] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const hasGooglePlaces = Boolean(getGoogleMapsApiKey());
   const skipNextSearch = useRef(false);
 
@@ -71,6 +75,10 @@ export default function AddAddressScreen() {
       longitudeDelta: 0.008,
     });
     setSuggestions([]);
+    setPinCoordinate({
+      lat: next.coordinates.lat,
+      lng: next.coordinates.lng,
+    });
   };
 
   const applyCoords = async (latitude: number, longitude: number) => {
@@ -169,10 +177,19 @@ export default function AddAddressScreen() {
     };
   }, []);
 
-  const handleMapPress = (event: {
+  const handleMarkerDrag = (event: {
     nativeEvent: { coordinate: { latitude: number; longitude: number } };
   }) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
+    setPinCoordinate({ lat: latitude, lng: longitude });
+  };
+
+  const handleMarkerDragEnd = (event: {
+    nativeEvent: { coordinate: { latitude: number; longitude: number } };
+  }) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    Keyboard.dismiss();
+    setPinCoordinate({ lat: latitude, lng: longitude });
     setSessionToken(createSessionToken());
     void applyCoords(latitude, longitude);
   };
@@ -266,19 +283,22 @@ export default function AddAddressScreen() {
         <MapView
           style={StyleSheet.absoluteFill}
           region={region}
-          onPress={handleMapPress}
           showsUserLocation
           showsMyLocationButton={false}
         >
-          {address ? (
+          {pinCoordinate ? (
             <Marker
               coordinate={{
-                latitude: address.coordinates.lat,
-                longitude: address.coordinates.lng,
+                latitude: pinCoordinate.lat,
+                longitude: pinCoordinate.lng,
               }}
               anchor={{ x: 0.5, y: 1 }}
+              draggable
+              tracksViewChanges={false}
+              onDrag={handleMarkerDrag}
+              onDragEnd={handleMarkerDragEnd}
             >
-              <Ionicons name="location" size={44} color={MARKER_COLOR} />
+              <MapAddressPin size={48} />
             </Marker>
           ) : null}
         </MapView>
@@ -381,8 +401,8 @@ export default function AddAddressScreen() {
 
         {keyboardHeight === 0 ? (
           <Text style={styles.hint}>
-            მიუთითეთ თქვენი მისამართი სწორად, რათა ჩვენმა კურიერმა მარტივად
-            გიპოვოთ.
+            პინი ხელით გადაიტანეთ რუკაზე ან ჩაწერეთ მისამართი, რათა კურიერმა
+            მარტივად გიპოვოთ.
           </Text>
         ) : null}
 

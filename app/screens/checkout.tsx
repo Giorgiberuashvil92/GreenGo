@@ -8,6 +8,11 @@ import { fontFamily } from "@/constants/fonts";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { formatAddressStreetLine, formatAddressSubLine } from "@/utils/address";
 import {
+  calculateDeliveryPricing,
+  DEFAULT_SERVICE_FEE,
+  formatDeliveryDistance,
+} from "@/utils/deliveryFee";
+import {
   calculateCheckoutTotal,
   calculatePromoSavings,
   formatPromoDiscountLabel,
@@ -45,7 +50,6 @@ import { apiService } from "../../utils/api";
 const PRIMARY_GREEN = "#1D4045";
 const QTY_BG = "#EFFBF5";
 const SCREEN_BG = "#FFFFFF";
-const SERVICE_FEE = 1.2;
 const TIP_MIN = 1;
 const TIP_MAX = 50;
 
@@ -135,61 +139,47 @@ export default function CheckoutScreen() {
     0,
   );
 
-  // Calculate delivery fee based on distance
-  const deliveryFee = useMemo(() => {
+  const deliveryPricing = useMemo(() => {
+    const fallbackServiceFee =
+      restaurantCartItems.length > 0 ? DEFAULT_SERVICE_FEE : 0;
+
     if (
       deliveryType !== "delivery" ||
       !deliveryAddress ||
       !restaurant?.location
     ) {
-      return 0;
+      return {
+        distanceKm: 0,
+        deliveryFee: 0,
+        serviceFee: fallbackServiceFee,
+        isShortDistanceBundle: false,
+        distanceLabel: "",
+      };
     }
 
-    const baseFee = restaurant.deliveryFee || 4.99;
+    const result = calculateDeliveryPricing({
+      baseFee: restaurant.deliveryFee || 4.99,
+      restaurantLat: restaurant.location.latitude,
+      restaurantLng: restaurant.location.longitude,
+      deliveryLat: deliveryAddress.coordinates.lat,
+      deliveryLng: deliveryAddress.coordinates.lng,
+    });
 
-    // Calculate distance between restaurant and delivery address
-    const distanceKm = getDistance(
-      restaurant.location.latitude,
-      restaurant.location.longitude,
-      deliveryAddress.coordinates.lat,
-      deliveryAddress.coordinates.lng,
-    );
-
-    // If distance > 10 km, add 1.20 GEL per additional kilometer
-    if (distanceKm <= 10) {
-      return baseFee;
-    }
-
-    const additionalKm = distanceKm - 10;
-    const additionalFee = additionalKm * 1.2;
-    return baseFee + additionalFee;
+    return {
+      ...result,
+      serviceFee: restaurantCartItems.length > 0 ? result.serviceFee : 0,
+      distanceLabel: formatDeliveryDistance(result.distanceKm),
+    };
   }, [
     deliveryType,
     deliveryAddress,
     restaurant?.location,
     restaurant?.deliveryFee,
+    restaurantCartItems.length,
   ]);
 
-  const deliveryDistanceM = useMemo(() => {
-    if (
-      deliveryType !== "delivery" ||
-      !deliveryAddress ||
-      !restaurant?.location
-    ) {
-      return 500;
-    }
-
-    const distanceKm = getDistance(
-      restaurant.location.latitude,
-      restaurant.location.longitude,
-      deliveryAddress.coordinates.lat,
-      deliveryAddress.coordinates.lng,
-    );
-
-    return Math.max(100, Math.round(distanceKm * 1000));
-  }, [deliveryType, deliveryAddress, restaurant?.location]);
-
-  const serviceFee = restaurantCartItems.length > 0 ? SERVICE_FEE : 0;
+  const deliveryFee = deliveryPricing.deliveryFee;
+  const serviceFee = deliveryPricing.serviceFee;
   const activeDeliveryFee = deliveryType === "delivery" ? deliveryFee : 0;
 
   const promoSavings = useMemo(() => {
@@ -842,14 +832,14 @@ export default function CheckoutScreen() {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>მომსახურების საფასური</Text>
             <Text style={styles.summaryValue}>
-              {formatSummaryAmount(SERVICE_FEE)}
+              {formatSummaryAmount(serviceFee)}
             </Text>
           </View>
 
           {deliveryType === "delivery" ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
-                მიტანის საფასური ({deliveryDistanceM}მ)
+                მიტანის საფასური ({deliveryPricing.distanceLabel})
               </Text>
               <Text style={styles.summaryValue}>
                 {formatSummaryAmount(promoSavings.effectiveDeliveryFee)}
@@ -924,7 +914,10 @@ export default function CheckoutScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
+          style={[
+            styles.confirmBtn,
+            isSubmitting && styles.confirmBtnDisabled,
+          ]}
           onPress={() => {
             console.log("🔘 Confirm button pressed");
             handleConfirmOrder();

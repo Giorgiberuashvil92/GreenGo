@@ -1,10 +1,21 @@
 import BackCircleIcon from "@/components/icons/BackCircleIcon";
+import CardBrandIcon from "@/components/icons/CardBrandIcon";
 import TrackingDeliveryIcon from "@/components/icons/TrackingDeliveryIcon";
 import TrackingOrderReceivedIcon from "@/components/icons/TrackingOrderReceivedIcon";
 import TrackingPreparingIcon from "@/components/icons/TrackingPreparingIcon";
 import TrackingReadyIcon from "@/components/icons/TrackingReadyIcon";
 import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
+import {
+  DEFAULT_SERVICE_FEE,
+  formatDeliveryDistance,
+  getDeliveryDistanceKm,
+} from "@/utils/deliveryFee";
+import {
+  CheckoutPaymentSelection,
+  getCardBrandLabel,
+  loadCheckoutPayment,
+} from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,17 +23,22 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
+  PanResponder,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiService } from "../../utils/api";
 
+const PRIMARY_GREEN = "#1D4045";
+const SHEET_PEEK_HEIGHT = 228;
+
 const PROGRESS_GREEN = "#7BC99A";
-const PROGRESS_ACTIVE = LIST_ACCENT_GREEN;
 const MARKER_BG = "#111827";
 
 interface Courier {
@@ -68,6 +84,7 @@ interface OrderTracking {
     }[];
     totalAmount?: number;
     deliveryFee?: number;
+    discountAmount?: number;
     tip?: number;
     paymentMethod?: string;
   };
@@ -94,6 +111,8 @@ function formatRestaurantHeader(name?: string) {
 function getStatusMessage(status: string, restaurantName?: string) {
   const name = restaurantName?.trim() || "რესტორანი";
   switch (status) {
+    case "confirmed":
+      return `რესტორანი '${name}' დათანხმდა თქვენს შეკვეთას`;
     case "preparing":
       return `რესტორანი '${name}' ამზადებს თქვენს შეკვეთას`;
     case "ready":
@@ -107,13 +126,34 @@ function getStatusMessage(status: string, restaurantName?: string) {
   }
 }
 
+function formatSummaryAmount(n: number): string {
+  return n.toFixed(2).replace(".", ",");
+}
+
+function formatPaymentMethodLabel(
+  method?: string,
+  paymentSelection?: CheckoutPaymentSelection | null,
+): string {
+  if (method === "cash") return "ნაღდი";
+  if (method === "greengo_balance") return "GreenGo";
+  if (paymentSelection?.cardType) {
+    return getCardBrandLabel(paymentSelection.cardType);
+  }
+  return "ბარათი";
+}
+
 export default function OrderTrackingScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const [tracking, setTracking] = useState<OrderTracking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentSelection, setPaymentSelection] =
+    useState<CheckoutPaymentSelection | null>(null);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>({
     latitude: 41.7151,
     longitude: 44.8271,
@@ -131,6 +171,77 @@ export default function OrderTrackingScreen() {
   const [showDeliveredModal, setShowDeliveredModal] = useState(false);
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const modalOpacityAnim = useRef(new Animated.Value(0)).current;
+
+  const sheetExpandedHeight = useMemo(
+    () => Math.min(screenHeight * 0.88, screenHeight - insets.top - 40),
+    [screenHeight, insets.top],
+  );
+  const sheetHeight = useRef(new Animated.Value(SHEET_PEEK_HEIGHT)).current;
+  const dragStartHeightRef = useRef(SHEET_PEEK_HEIGHT);
+
+  useEffect(() => {
+    sheetHeight.setValue(SHEET_PEEK_HEIGHT);
+    setIsSheetExpanded(false);
+    setShowOrderDetails(false);
+  }, [sheetExpandedHeight, sheetHeight]);
+
+  useEffect(() => {
+    const listenerId = sheetHeight.addListener(({ value }) => {
+      setShowOrderDetails(value > SHEET_PEEK_HEIGHT + 12);
+    });
+
+    return () => {
+      sheetHeight.removeListener(listenerId);
+    };
+  }, [sheetHeight]);
+
+  const snapSheet = useCallback(
+    (expand: boolean) => {
+      const toValue = expand ? sheetExpandedHeight : SHEET_PEEK_HEIGHT;
+      setIsSheetExpanded(expand);
+      setShowOrderDetails(expand);
+      Animated.spring(sheetHeight, {
+        toValue,
+        useNativeDriver: false,
+        tension: 68,
+        friction: 12,
+      }).start();
+    },
+    [sheetExpandedHeight, sheetHeight],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dy) > 6,
+        onPanResponderGrant: () => {
+          sheetHeight.stopAnimation((value) => {
+            dragStartHeightRef.current = value;
+          });
+        },
+        onPanResponderMove: (_, gesture) => {
+          const next = Math.max(
+            SHEET_PEEK_HEIGHT,
+            Math.min(
+              sheetExpandedHeight,
+              dragStartHeightRef.current - gesture.dy,
+            ),
+          );
+          sheetHeight.setValue(next);
+        },
+        onPanResponderRelease: (_, gesture) => {
+          sheetHeight.stopAnimation((value) => {
+            const midpoint = (SHEET_PEEK_HEIGHT + sheetExpandedHeight) / 2;
+            const shouldExpand =
+              gesture.vy < -0.35 || value > midpoint;
+            snapSheet(shouldExpand);
+          });
+        },
+      }),
+    [sheetExpandedHeight, sheetHeight, snapSheet],
+  );
   
   const getCurrentStageIndex = useCallback((status: string): number => {
     if (status === "pending" || status === "confirmed") return 0;
@@ -299,6 +410,10 @@ export default function OrderTrackingScreen() {
   }, [orderId]);
 
   useEffect(() => {
+    loadCheckoutPayment().then(setPaymentSelection);
+  }, []);
+
+  useEffect(() => {
     if (tracking) {
       const currentStageIndex = getCurrentStageIndex(tracking.order.status);
       TRACKING_STAGES.forEach((_, index) => {
@@ -393,6 +508,54 @@ export default function OrderTrackingScreen() {
     };
   }, [tracking?.order?.deliveryAddress?.coordinates]);
 
+  const orderPricing = useMemo(() => {
+    if (!tracking?.order) return null;
+
+    const items = tracking.order.items ?? [];
+    const subtotal = items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
+    const deliveryFee = tracking.order.deliveryFee ?? 0;
+    const tip = tracking.order.tip ?? 0;
+    const serviceFee = deliveryFee > 0 ? DEFAULT_SERVICE_FEE : 0;
+    const discountAmount =
+      tracking.order.discountAmount ??
+      Math.max(
+        0,
+        Math.round(
+          (subtotal + deliveryFee + serviceFee + tip -
+            (tracking.order.totalAmount ?? 0)) *
+            100,
+        ) / 100,
+      );
+    const grandTotal =
+      tracking.order.totalAmount ??
+      Math.max(0, subtotal + deliveryFee + serviceFee + tip - discountAmount);
+
+    let deliveryDistanceLabel = "";
+    if (restaurantLocation && deliveryLocation && deliveryFee > 0) {
+      const distanceKm = getDeliveryDistanceKm(
+        restaurantLocation.latitude,
+        restaurantLocation.longitude,
+        deliveryLocation.latitude,
+        deliveryLocation.longitude,
+      );
+      deliveryDistanceLabel = formatDeliveryDistance(distanceKm);
+    }
+
+    return {
+      items,
+      subtotal,
+      deliveryFee,
+      serviceFee,
+      tip,
+      discountAmount,
+      grandTotal,
+      deliveryDistanceLabel,
+    };
+  }, [tracking?.order, restaurantLocation, deliveryLocation]);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -471,7 +634,7 @@ export default function OrderTrackingScreen() {
               coordinate={restaurantLocation}
               tracksViewChanges={false}
             >
-              <View style={styles.mapMarker}>
+              <View style={[styles.mapMarker, styles.restaurantMarker]}>
                 <Ionicons name="storefront" size={18} color="#FFFFFF" />
               </View>
             </Marker>
@@ -503,65 +666,223 @@ export default function OrderTrackingScreen() {
         </MapView>
       </View>
 
-      <View
+      <Animated.View
         style={[
-          styles.bottomCard,
-          { paddingBottom: Math.max(insets.bottom, 20) },
+          styles.bottomSheet,
+          {
+            height: sheetHeight,
+            paddingBottom: Math.max(insets.bottom, 12),
+          },
         ]}
       >
-        <View style={styles.cardHandle} />
+        <View style={styles.sheetInner}>
+          <View {...panResponder.panHandlers} style={styles.sheetPeekSection}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => snapSheet(!isSheetExpanded)}
+            >
+              <View style={styles.cardHandle} />
+            </TouchableOpacity>
 
-        {estimatedTime ? (
-          <View style={styles.deliveryTimeContainer}>
-            <Text style={styles.deliveryTimeLabel}>
-              მიწოდების სავარაუდო დრო
-            </Text>
-            <Text style={styles.deliveryTimeValue}>{estimatedTime}</Text>
+            {estimatedTime ? (
+              <View style={styles.deliveryTimeContainer}>
+                <Text style={styles.deliveryTimeLabel}>
+                  მიწოდების სავარაუდო დრო
+                </Text>
+                <Text style={styles.deliveryTimeValue}>{estimatedTime}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.progressContainer}>
+              {TRACKING_STAGES.map((stage, index) => {
+                const isReached = index <= currentStageIndex;
+                const isCompleted = index < currentStageIndex;
+                const isCurrent = index === currentStageIndex;
+                const StageIcon = stage.Icon;
+
+                const scale = stageAnimations[index].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.85, 1],
+                });
+
+                return (
+                  <React.Fragment key={stage.key}>
+                    <Animated.View
+                      style={[
+                        styles.stageIconWrap,
+                        !isReached && styles.stageIconDimmed,
+                        {
+                          transform: [
+                            { scale: isCurrent ? pulseAnim : scale },
+                          ],
+                        },
+                      ]}
+                    >
+                      <StageIcon size={32} active={isCurrent} />
+                    </Animated.View>
+                    {index < TRACKING_STAGES.length - 1 ? (
+                      <View
+                        style={[
+                          styles.stageConnector,
+                          isCompleted && styles.stageConnectorActive,
+                        ]}
+                      />
+                    ) : null}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+
+            <Text style={styles.statusMessage}>{statusMessage}</Text>
           </View>
-        ) : null}
 
-        <View style={styles.progressContainer}>
-          {TRACKING_STAGES.map((stage, index) => {
-            const isReached = index <= currentStageIndex;
-            const isCompleted = index < currentStageIndex;
-            const isCurrent = index === currentStageIndex;
-            const StageIcon = stage.Icon;
+          {showOrderDetails ? (
+            <ScrollView
+              style={styles.sheetScroll}
+              contentContainerStyle={styles.sheetScrollContent}
+              showsVerticalScrollIndicator={false}
+              scrollEnabled={isSheetExpanded}
+              bounces={isSheetExpanded}
+            >
+            <View style={styles.sheetSection}>
+              <Text style={styles.sectionTitle}>
+                შეკვეთა #{tracking.order.id?.slice(-6) || "—"}
+              </Text>
 
-            const scale = stageAnimations[index].interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.85, 1],
-            });
+              {orderPricing?.items.map((item, index) => (
+                <View key={`${item.name}-${index}`} style={styles.orderItemBlock}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel} numberOfLines={2}>
+                      {item.quantity} x {item.name}
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      {formatSummaryAmount(item.price * item.quantity)}
+                    </Text>
+                  </View>
+                  {item.specialInstructions ? (
+                    <View style={styles.instructionRow}>
+                      <Text style={styles.instructionText}>
+                        {item.specialInstructions}
+                      </Text>
+                      <Ionicons name="close" size={14} color="#FF4D4F" />
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </View>
 
-            return (
-              <React.Fragment key={stage.key}>
-                <Animated.View
-                  style={[
-                    styles.stageIconWrap,
-                    !isReached && styles.stageIconDimmed,
-                    {
-                      transform: [
-                        { scale: isCurrent ? pulseAnim : scale },
-                      ],
-                    },
-                  ]}
-                >
-                  <StageIcon size={32} />
-                </Animated.View>
-                {index < TRACKING_STAGES.length - 1 ? (
-                  <View
-                    style={[
-                      styles.stageConnector,
-                      isCompleted && styles.stageConnectorActive,
-                    ]}
-                  />
+            {orderPricing ? (
+              <View style={styles.sheetSection}>
+                <Text style={styles.sectionTitle}>შეჯამება</Text>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>სულ</Text>
+                  <Text style={styles.summaryValue}>
+                    {formatSummaryAmount(orderPricing.subtotal)}
+                  </Text>
+                </View>
+
+                {orderPricing.discountAmount > 0 ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>ფასდაკლება</Text>
+                    <Text style={styles.summaryValue}>
+                      -{formatSummaryAmount(orderPricing.discountAmount)}
+                    </Text>
+                  </View>
                 ) : null}
-              </React.Fragment>
-            );
-          })}
-        </View>
 
-        <Text style={styles.statusMessage}>{statusMessage}</Text>
-      </View>
+                {orderPricing.serviceFee > 0 ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      მომსახურების საფასური
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      {formatSummaryAmount(orderPricing.serviceFee)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {orderPricing.deliveryFee > 0 ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      მიტანის საფასური
+                      {orderPricing.deliveryDistanceLabel
+                        ? ` (${orderPricing.deliveryDistanceLabel})`
+                        : ""}
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      {formatSummaryAmount(orderPricing.deliveryFee)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {orderPricing.tip > 0 ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>ჩაი</Text>
+                    <Text style={styles.summaryValue}>
+                      {formatSummaryAmount(orderPricing.tip)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {orderPricing ? (
+              <View style={styles.sheetFooter}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.totalLabel}>ჯამი</Text>
+                  <Text style={styles.totalValue}>
+                    {formatSummaryAmount(orderPricing.grandTotal)}
+                  </Text>
+                </View>
+
+                <View style={styles.paymentRow}>
+                  <View style={styles.paymentMethod}>
+                    {tracking.order.paymentMethod === "card" &&
+                    paymentSelection?.cardType ? (
+                      <CardBrandIcon
+                        type={paymentSelection.cardType}
+                        width={32}
+                        height={21}
+                      />
+                    ) : (
+                      <View style={styles.paymentMethodFallback}>
+                        <Ionicons
+                          name={
+                            tracking.order.paymentMethod === "cash"
+                              ? "cash-outline"
+                              : "wallet-outline"
+                          }
+                          size={18}
+                          color={PRIMARY_GREEN}
+                        />
+                      </View>
+                    )}
+                    <Text style={styles.paymentMethodLabel}>
+                      {formatPaymentMethodLabel(
+                        tracking.order.paymentMethod,
+                        paymentSelection,
+                      )}
+                    </Text>
+                  </View>
+                  <Text style={styles.paymentAmount}>
+                    {formatSummaryAmount(orderPricing.grandTotal)}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.helpButton}
+                  activeOpacity={0.85}
+                  onPress={() => router.push("/screens/support")}
+                >
+                  <Text style={styles.helpButtonText}>დახმარება</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            </ScrollView>
+          ) : null}
+        </View>
+      </Animated.View>
 
       {/* Success Modal */}
       <Modal
@@ -709,10 +1030,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },
+  restaurantMarker: {
+    backgroundColor: BRAND_GREEN,
+  },
   courierMarker: {
     backgroundColor: BRAND_GREEN,
   },
-  bottomCard: {
+  bottomSheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
@@ -720,48 +1044,164 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowOffset: { width: 0, height: -19 },
+    shadowOpacity: 0.04,
+    shadowRadius: 61,
+    elevation: 16,
     zIndex: 100,
+    overflow: "hidden",
+  },
+  sheetInner: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  sheetPeekSection: {
+    gap: 12,
   },
   cardHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#D1D5DB",
+    width: 60,
+    height: 2,
+    backgroundColor: "#666666",
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 8,
+    marginTop: 4,
   },
-  deliveryTimeContainer: {
-    marginBottom: 20,
+  sheetScroll: {
+    flex: 1,
+  },
+  sheetScrollContent: {
+    gap: 20,
+    paddingBottom: 8,
+  },
+  sheetSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F5F5F5",
+    paddingBottom: 12,
+    gap: 12,
+  },
+  sectionTitle: {
+    fontFamily: fontFamily.bold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: "#181B1A",
+  },
+  orderItemBlock: {
+    gap: 4,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    gap: 24,
   },
-  deliveryTimeLabel: {
+  summaryLabel: {
+    flex: 1,
     fontFamily: fontFamily.medium,
     fontSize: 14,
     lineHeight: 20,
-    color: "#6B7280",
-    marginBottom: 6,
+    color: "#666666",
+  },
+  summaryValue: {
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#181B1A",
+  },
+  instructionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  instructionText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#666666",
+  },
+  sheetFooter: {
+    gap: 12,
+  },
+  totalLabel: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    lineHeight: 24,
+    color: "#181B1A",
+  },
+  totalValue: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    lineHeight: 24,
+    color: PRIMARY_GREEN,
+  },
+  paymentRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  paymentMethod: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  paymentMethodFallback: {
+    width: 32,
+    height: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paymentMethodLabel: {
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#181B1A",
+  },
+  paymentAmount: {
+    fontFamily: fontFamily.medium,
+    fontSize: 16,
+    lineHeight: 20,
+    color: PRIMARY_GREEN,
+  },
+  helpButton: {
+    backgroundColor: "#EFFBF5",
+    borderRadius: 60,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  helpButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: PRIMARY_GREEN,
+  },
+  deliveryTimeContainer: {
+    alignItems: "center",
+    gap: 4,
+  },
+  deliveryTimeLabel: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#666666",
     textAlign: "center",
   },
   deliveryTimeValue: {
     fontFamily: fontFamily.semiBold,
-    fontSize: 28,
-    lineHeight: 34,
-    color: "#111827",
-    letterSpacing: -0.5,
+    fontSize: 36,
+    lineHeight: 40,
+    color: "#181B1A",
+    letterSpacing: 1,
     textAlign: "center",
   },
   progressContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
   },
   stageIconWrap: {
     width: 32,
@@ -781,15 +1221,15 @@ const styles = StyleSheet.create({
   },
   stageConnectorActive: {
     borderStyle: "solid",
-    borderColor: PROGRESS_ACTIVE,
+    borderColor: BRAND_GREEN,
   },
   statusMessage: {
-    fontFamily: fontFamily.medium,
-    fontSize: 14,
-    lineHeight: 20,
-    color: BRAND_GREEN,
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#666666",
     textAlign: "center",
-    marginBottom: 4,
+    paddingHorizontal: 16,
   },
   modalOverlay: {
     flex: 1,

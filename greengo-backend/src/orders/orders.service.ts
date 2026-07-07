@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CouriersService } from '../couriers/couriers.service';
+import { calculateDeliveryFeeFromDistance } from '../common/delivery-fee.util';
 import { PromoCodesService } from '../promo-codes/promo-codes.service';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -40,16 +41,11 @@ export class OrdersService {
   }
 
   /**
-   * Calculate delivery fee based on distance
-   * If distance > 10 km, add 1.20 GEL per additional kilometer
+   * Up to 2 km: bundled delivery portion (2.80 GEL).
+   * Above 2 km: 2.80 + 0.70 GEL per extra km.
    */
   private calculateDeliveryFee(baseFee: number, distanceKm: number): number {
-    if (distanceKm <= 10) {
-      return baseFee;
-    }
-    const additionalKm = distanceKm - 10;
-    const additionalFee = additionalKm * 1.20;
-    return baseFee + additionalFee;
+    return calculateDeliveryFeeFromDistance(baseFee, distanceKm);
   }
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -413,6 +409,7 @@ export class OrdersService {
         items: order.items,
         totalAmount: order.totalAmount,
         deliveryFee: order.deliveryFee,
+        discountAmount: order.discountAmount ?? 0,
         tip: order.tip,
         paymentMethod: order.paymentMethod,
       },

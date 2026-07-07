@@ -17,7 +17,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CartBottomBar from "../../components/CartBottomBar";
 import BackCircleIcon from "../../components/icons/BackCircleIcon";
-import HeartCircleIcon from "../../components/icons/HeartCircleIcon";
 import PopularMenuCard, {
   POPULAR_MENU_CARD_GAP,
 } from "../../components/PopularMenuCard";
@@ -107,7 +106,6 @@ export default function RestaurantScreen() {
   );
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenuItems, setLoadingMenuItems] = useState(true);
-  const [isLiked, setIsLiked] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
@@ -306,15 +304,6 @@ export default function RestaurantScreen() {
             accessibilityLabel="უკან"
           >
             <BackCircleIcon size={32} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.circleBtn, { top: overlayTop, right: 16 }]}
-            onPress={() => setIsLiked((v) => !v)}
-            activeOpacity={0.85}
-            accessibilityLabel="რჩეული"
-          >
-            <HeartCircleIcon size={32} liked={isLiked} />
           </TouchableOpacity>
         </View>
 
