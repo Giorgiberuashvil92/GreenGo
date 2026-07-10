@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { MenuItem, MenuItemDocument } from './schemas/menu-item.schema';
 
 @Injectable()
@@ -9,9 +9,35 @@ export class MenuItemsService {
     @InjectModel(MenuItem.name) private menuItemModel: Model<MenuItemDocument>,
   ) {}
 
+  private buildRestaurantIdFilter(restaurantId: string) {
+    if (Types.ObjectId.isValid(restaurantId)) {
+      return {
+        $in: [restaurantId, new Types.ObjectId(restaurantId)],
+      };
+    }
+
+    return restaurantId;
+  }
+
   async create(createMenuItemDto: any): Promise<MenuItem> {
     const createdMenuItem = new this.menuItemModel(createMenuItemDto);
     return createdMenuItem.save();
+  }
+
+  async bulkCreate(items: any[]): Promise<any[]> {
+    if (items.length === 0) {
+      return [];
+    }
+
+    return this.menuItemModel.insertMany(items);
+  }
+
+  async deleteByRestaurant(restaurantId: string): Promise<number> {
+    const result = await this.menuItemModel
+      .deleteMany({ restaurantId: this.buildRestaurantIdFilter(restaurantId) })
+      .exec();
+
+    return result.deletedCount ?? 0;
   }
 
   async findAll(query: {
@@ -29,7 +55,7 @@ export class MenuItemsService {
     const filter: any = {};
 
     if (restaurantId) {
-      filter.restaurantId = restaurantId;
+      filter.restaurantId = this.buildRestaurantIdFilter(restaurantId);
     }
 
     if (category) {
@@ -68,7 +94,7 @@ export class MenuItemsService {
 
   async findByRestaurant(restaurantId: string): Promise<MenuItem[]> {
     return this.menuItemModel
-      .find({ restaurantId })
+      .find({ restaurantId: this.buildRestaurantIdFilter(restaurantId) })
       .sort({ category: 1, createdAt: -1 })
       .exec();
   }

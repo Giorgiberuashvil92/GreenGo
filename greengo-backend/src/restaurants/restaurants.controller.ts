@@ -11,6 +11,8 @@ import {
   Query
 } from '@nestjs/common';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
+import { CopyMenuDto } from './dto/copy-menu.dto';
+import { DuplicateRestaurantDto } from './dto/duplicate-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 import { RestaurantsService } from './restaurants.service';
 
@@ -77,6 +79,19 @@ export class RestaurantsController {
       maxDeliveryTime: maxDeliveryTimeNum,
       sortBy,
     });
+  }
+
+  @Post(':id/duplicate')
+  duplicate(
+    @Param('id') id: string,
+    @Body() duplicateRestaurantDto: DuplicateRestaurantDto,
+  ) {
+    return this.restaurantsService.duplicate(id, duplicateRestaurantDto);
+  }
+
+  @Post(':id/copy-menu')
+  copyMenu(@Param('id') id: string, @Body() copyMenuDto: CopyMenuDto) {
+    return this.restaurantsService.copyMenu(id, copyMenuDto.sourceRestaurantId);
   }
 
   @Get(':id')

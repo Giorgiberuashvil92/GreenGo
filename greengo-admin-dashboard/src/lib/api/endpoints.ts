@@ -124,6 +124,26 @@ export interface CreateRestaurantPayload {
   paymentMethods?: string[];
 }
 
+export interface DuplicateRestaurantPayload {
+  name?: string;
+  businessUsername: string;
+  businessPassword: string;
+  isActive?: boolean;
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+    city?: string;
+    district?: string;
+    postalCode?: string;
+  };
+}
+
+export interface DuplicateRestaurantResponse {
+  restaurant: Restaurant;
+  menuItemsCount: number;
+}
+
 export interface User {
   _id: string;
   phoneNumber: string;
@@ -319,6 +339,14 @@ export const restaurantsApi = {
     apiClient.patch<Restaurant>(`/restaurants/${id}`, data),
   
   delete: (id: string) => apiClient.delete(`/restaurants/${id}`),
+
+  duplicate: (id: string, data: DuplicateRestaurantPayload) =>
+    apiClient.post<DuplicateRestaurantResponse>(`/restaurants/${id}/duplicate`, data),
+
+  copyMenu: (id: string, sourceRestaurantId: string) =>
+    apiClient.post<{ menuItemsCount: number }>(`/restaurants/${id}/copy-menu`, {
+      sourceRestaurantId,
+    }),
 };
 
 // Users API

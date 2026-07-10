@@ -87,6 +87,8 @@ function RestaurantDashboardPageContent() {
     totalRevenue: 0,
     menuItemsCount: 0,
   });
+  const [copySourceRestaurantId, setCopySourceRestaurantId] = useState("");
+  const [copyingMenu, setCopyingMenu] = useState(false);
 
   const limit = 10;
 
@@ -138,11 +140,43 @@ function RestaurantDashboardPageContent() {
   const fetchMenuItems = async () => {
     if (!restaurantId) return;
     try {
-      const response = await menuItemsApi.getAll({ restaurantId, limit: 100 });
-      setMenuItems(response.data || []);
-      setStats(prev => ({ ...prev, menuItemsCount: response.data?.length || 0 }));
+      const items = await menuItemsApi.getByRestaurant(restaurantId);
+      setMenuItems(items || []);
+      setStats((prev) => ({ ...prev, menuItemsCount: items?.length || 0 }));
     } catch (error) {
       console.error("Error fetching menu items:", error);
+    }
+  };
+
+  const handleCopyMenu = async () => {
+    if (!restaurantId || !copySourceRestaurantId) {
+      alert("აირჩიეთ რესტორანი, საიდანაც პროდუქტები გადმოვა");
+      return;
+    }
+
+    if (
+      !confirm(
+        "დარწმუნებული ხართ, რომ გსურთ ამ რესტორნის პროდუქტების სრული კოპირება?",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setCopyingMenu(true);
+      const response = await restaurantsApi.copyMenu(
+        restaurantId,
+        copySourceRestaurantId,
+      );
+      await fetchMenuItems();
+      alert(`წარმატებით დაკოპირდა ${response.menuItemsCount} პროდუქტი`);
+    } catch (error) {
+      console.error("Error copying menu:", error);
+      alert(
+        `პროდუქტების კოპირება ვერ მოხერხდა: ${error instanceof Error ? error.message : "უცნობი შეცდომა"}`,
+      );
+    } finally {
+      setCopyingMenu(false);
     }
   };
 
@@ -541,6 +575,47 @@ function RestaurantDashboardPageContent() {
             )}
           </div>
         </div>
+
+        {menuItems.length === 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
+              პროდუქტები არ არის
+            </h3>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+              თუ ეს დუბლირებული ფილიალია, შეგიძლია სხვა რესტორანიდან მთელი მენიუ
+              ერთი ღილაკით გადმოიტანო.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  საწყისი რესტორანი
+                </label>
+                <select
+                  value={copySourceRestaurantId}
+                  onChange={(e) => setCopySourceRestaurantId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+                >
+                  <option value="">აირჩიეთ რესტორანი</option>
+                  {allRestaurants
+                    .filter((item) => item._id !== restaurantId)
+                    .map((item) => (
+                      <option key={item._id} value={item._id}>
+                        {item.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyMenu}
+                disabled={copyingMenu || !copySourceRestaurantId}
+                className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {copyingMenu ? "იკოპირება..." : "პროდუქტების კოპირება"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <RestaurantMenuManager
           restaurantId={restaurantId}

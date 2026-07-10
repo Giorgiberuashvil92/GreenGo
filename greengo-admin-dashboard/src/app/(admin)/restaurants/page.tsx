@@ -10,8 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MoreDotIcon, PencilIcon, PlusIcon, TrashBinIcon } from "@/icons";
-import { CreateRestaurantPayload, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
+import { MoreDotIcon, PencilIcon, PlusIcon, TrashBinIcon, CopyIcon } from "@/icons";
+import {
+  CreateRestaurantPayload,
+  DuplicateRestaurantPayload,
+  Restaurant,
+  restaurantsApi,
+} from "@/lib/api/endpoints";
 import { getImageUrlValidationError } from "@/lib/imageUrl";
 import { useRouter } from "next/navigation";
 import { FormEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -44,6 +49,28 @@ type RestaurantFormState = {
   hasDineIn: boolean;
   acceptsOnlineOrders: boolean;
 };
+
+type DuplicateFormState = {
+  name: string;
+  businessUsername: string;
+  businessPassword: string;
+  address: string;
+  city: string;
+  latitude: string;
+  longitude: string;
+  isActive: boolean;
+};
+
+const createInitialDuplicateForm = (): DuplicateFormState => ({
+  name: "",
+  businessUsername: "",
+  businessPassword: "",
+  address: "",
+  city: "თბილისი",
+  latitude: "",
+  longitude: "",
+  isActive: false,
+});
 
 const createInitialRestaurantForm = (): RestaurantFormState => ({
   name: "",
@@ -125,6 +152,12 @@ export default function RestaurantsPage() {
   const [formData, setFormData] = useState<RestaurantFormState>(createInitialRestaurantForm);
   const [saving, setSaving] = useState(false);
   const [togglingRestaurantId, setTogglingRestaurantId] = useState<string | null>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicatingRestaurant, setDuplicatingRestaurant] = useState<Restaurant | null>(null);
+  const [duplicateFormData, setDuplicateFormData] = useState<DuplicateFormState>(
+    createInitialDuplicateForm,
+  );
+  const [duplicating, setDuplicating] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
   const fetchRestaurants = useCallback(async () => {
@@ -387,18 +420,139 @@ export default function RestaurantsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ რესტორნის წაშლა?")) {
+  const handleDelete = async (restaurant: Restaurant) => {
+    if (
+      !confirm(
+        `დარწმუნებული ხართ, რომ გსურთ „${restaurant.name}" რესტორანის წაშლა? მხოლოდ ეს ფილიალი წაიშლება.`,
+      )
+    ) {
       closeActionMenu();
       return;
     }
+
     try {
-      await restaurantsApi.delete(id);
-      fetchRestaurants();
+      await restaurantsApi.delete(restaurant._id);
+      setRestaurants((current) =>
+        current.filter((item) => item._id !== restaurant._id),
+      );
+      setTotal((current) => Math.max(0, current - 1));
       closeActionMenu();
     } catch (error) {
       console.error("Error deleting restaurant:", error);
       alert("წაშლა ვერ მოხერხდა");
+      fetchRestaurants();
+    }
+  };
+
+  const handleOpenDuplicate = (restaurant: Restaurant) => {
+    setDuplicatingRestaurant(restaurant);
+    setDuplicateFormData({
+      name: `${restaurant.name} (კოპია)`,
+      businessUsername: "",
+      businessPassword: "",
+      address: restaurant.location?.address || restaurant.address?.street || "",
+      city: restaurant.location?.city || restaurant.address?.city || "თბილისი",
+      latitude:
+        restaurant.location?.latitude?.toString() ||
+        restaurant.address?.coordinates?.latitude?.toString() ||
+        "",
+      longitude:
+        restaurant.location?.longitude?.toString() ||
+        restaurant.address?.coordinates?.longitude?.toString() ||
+        "",
+      isActive: false,
+    });
+    setShowDuplicateModal(true);
+    closeActionMenu();
+  };
+
+  const handleCloseDuplicateModal = () => {
+    if (duplicating) {
+      return;
+    }
+
+    setShowDuplicateModal(false);
+    setDuplicatingRestaurant(null);
+    setDuplicateFormData(createInitialDuplicateForm());
+  };
+
+  const updateDuplicateField = <K extends keyof DuplicateFormState>(
+    field: K,
+    value: DuplicateFormState[K],
+  ) => {
+    setDuplicateFormData((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleDuplicateRestaurant = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!duplicatingRestaurant) {
+      return;
+    }
+
+    if (
+      !duplicateFormData.name.trim() ||
+      !duplicateFormData.businessUsername.trim() ||
+      !duplicateFormData.businessPassword.trim()
+    ) {
+      alert("გთხოვთ შეავსოთ სახელი, business username და password");
+      return;
+    }
+
+    const latitude = Number(duplicateFormData.latitude);
+    const longitude = Number(duplicateFormData.longitude);
+    const payload: DuplicateRestaurantPayload = {
+      name: duplicateFormData.name.trim(),
+      businessUsername: duplicateFormData.businessUsername.trim(),
+      businessPassword: duplicateFormData.businessPassword.trim(),
+      isActive: duplicateFormData.isActive,
+    };
+
+    if (
+      duplicateFormData.address.trim() ||
+      duplicateFormData.city.trim() ||
+      !Number.isNaN(latitude) ||
+      !Number.isNaN(longitude)
+    ) {
+      payload.location = {
+        address: duplicateFormData.address.trim() || undefined,
+        city: duplicateFormData.city.trim() || undefined,
+        latitude: Number.isNaN(latitude) ? undefined : latitude,
+        longitude: Number.isNaN(longitude) ? undefined : longitude,
+      };
+    }
+
+    try {
+      setDuplicating(true);
+      const response = await restaurantsApi.duplicate(
+        duplicatingRestaurant._id,
+        payload,
+      );
+
+      setShowDuplicateModal(false);
+      setDuplicatingRestaurant(null);
+      setDuplicateFormData(createInitialDuplicateForm());
+      await fetchRestaurants();
+
+      const shouldOpen = confirm(
+        `რესტორანი დუბლირდა ${response.menuItemsCount} პროდუქტით. გსურთ ახალი რესტორანის მართვა?`,
+      );
+
+      if (shouldOpen) {
+        router.push(
+          `/restaurant-dashboard?restaurantId=${response.restaurant._id}`,
+        );
+      }
+    } catch (error) {
+      console.error("Error duplicating restaurant:", error);
+      alert(
+        `დუბლირება ვერ მოხერხდა: ${error instanceof Error ? error.message : "უცნობი შეცდომა"}`,
+      );
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -695,7 +849,23 @@ export default function RestaurantsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(selectedActionRestaurant._id)}
+                onClick={() => {
+                  if (selectedActionRestaurant) {
+                    handleOpenDuplicate(selectedActionRestaurant);
+                  }
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <CopyIcon className="h-4 w-4" />
+                დუბლირება
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedActionRestaurant) {
+                    handleDelete(selectedActionRestaurant);
+                  }
+                }}
                 className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-normal text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
               >
                 <TrashBinIcon className="h-4 w-4" />
@@ -994,6 +1164,137 @@ export default function RestaurantsPage() {
                     : editingRestaurant
                       ? "ცვლილებების შენახვა"
                       : "რესტორნის დამატება"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={showDuplicateModal}
+          onClose={handleCloseDuplicateModal}
+          className="m-4 max-w-[640px]"
+        >
+          <div className="rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+            <div className="mb-6 pr-12">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+                რესტორანის დუბლირება
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {duplicatingRestaurant
+                  ? `„${duplicatingRestaurant.name}"-ის კოპია ყველა პროდუქტით და მენიუს კატეგორიებით.`
+                  : "შეავსეთ ახალი რესტორანის მონაცემები."}
+              </p>
+            </div>
+
+            <form onSubmit={handleDuplicateRestaurant} className="space-y-5">
+              <div>
+                <label className={labelClassName}>ახალი სახელი *</label>
+                <input
+                  value={duplicateFormData.name}
+                  onChange={(e) => updateDuplicateField("name", e.target.value)}
+                  className={inputClassName}
+                  placeholder="მაგ: Magnolia - ვაკე"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClassName}>Business username *</label>
+                  <input
+                    value={duplicateFormData.businessUsername}
+                    onChange={(e) =>
+                      updateDuplicateField("businessUsername", e.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="magnolia-vake"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className={labelClassName}>Business password *</label>
+                  <input
+                    type="password"
+                    value={duplicateFormData.businessPassword}
+                    onChange={(e) =>
+                      updateDuplicateField("businessPassword", e.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="********"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
+                  მისამართი (არასავალდებულო)
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className={labelClassName}>მისამართი</label>
+                    <input
+                      value={duplicateFormData.address}
+                      onChange={(e) => updateDuplicateField("address", e.target.value)}
+                      className={inputClassName}
+                      placeholder="ქუჩა, ნომერი"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClassName}>ქალაქი</label>
+                    <input
+                      value={duplicateFormData.city}
+                      onChange={(e) => updateDuplicateField("city", e.target.value)}
+                      className={inputClassName}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClassName}>განედი</label>
+                    <input
+                      value={duplicateFormData.latitude}
+                      onChange={(e) => updateDuplicateField("latitude", e.target.value)}
+                      className={inputClassName}
+                      placeholder="41.7151"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClassName}>გრძედობა</label>
+                    <input
+                      value={duplicateFormData.longitude}
+                      onChange={(e) => updateDuplicateField("longitude", e.target.value)}
+                      className={inputClassName}
+                      placeholder="44.8271"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={duplicateFormData.isActive}
+                  onChange={(e) => updateDuplicateField("isActive", e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                დუბლირებული რესტორანი დაუყოვნებლივ აქტიური იყოს
+              </label>
+
+              <div className="flex justify-end gap-3 border-t border-gray-200 pt-5 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={handleCloseDuplicateModal}
+                  disabled={duplicating}
+                  className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/3"
+                >
+                  გაუქმება
+                </button>
+                <button
+                  type="submit"
+                  disabled={duplicating}
+                  className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {duplicating ? "იქმნება..." : "დუბლირება"}
                 </button>
               </div>
             </form>

@@ -38,8 +38,16 @@ class ApiClient {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      return data;
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      const text = await response.text();
+      if (!text.trim()) {
+        return undefined as T;
+      }
+
+      return JSON.parse(text) as T;
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, error);
       throw error;

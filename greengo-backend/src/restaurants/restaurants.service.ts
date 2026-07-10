@@ -1,9 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
+import { MenuItemsService } from '../menu-items/menu-items.service';
 import { Restaurant, RestaurantDocument } from './schemas/restaurant.schema';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
+import { DuplicateRestaurantDto } from './dto/duplicate-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 
 @Injectable()
@@ -11,7 +17,53 @@ export class RestaurantsService {
   constructor(
     @InjectModel(Restaurant.name)
     private restaurantModel: Model<RestaurantDocument>,
+    private readonly menuItemsService: MenuItemsService,
   ) {}
+
+  private stripDocumentIds<T extends Record<string, any>>(value: T): Omit<T, '_id' | 'id'> {
+    const { _id: _ignoredId, id: _ignoredVirtualId, ...rest } = value;
+    return rest;
+  }
+
+  private sanitizeRestaurantClone(source: Record<string, any>) {
+    const {
+      _id: _sourceId,
+      id: _sourceVirtualId,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      businessPasswordHash: _businessPasswordHash,
+      __v: _version,
+      location,
+      contact,
+      features,
+      menuCategories,
+      ...restaurantFields
+    } = source;
+
+    return {
+      ...restaurantFields,
+      location: location ? this.stripDocumentIds(location) : location,
+      contact: contact ? this.stripDocumentIds(contact) : contact,
+      features: features ? this.stripDocumentIds(features) : features,
+      menuCategories: Array.isArray(menuCategories)
+        ? menuCategories.map((category) => this.stripDocumentIds(category))
+        : [],
+    };
+  }
+
+  private sanitizeMenuItemClone(source: Record<string, any>) {
+    const {
+      _id: _itemId,
+      id: _itemVirtualId,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      restaurantId: _restaurantId,
+      __v: _version,
+      ...itemRest
+    } = source;
+
+    return itemRest;
+  }
 
   private async prepareBusinessCredentials<T extends CreateRestaurantDto | UpdateRestaurantDto>(
     dto: T,
@@ -181,9 +233,126 @@ export class RestaurantsService {
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.restaurantModel.findByIdAndDelete(id).exec();
-    if (!result) {
+    const restaurant = await this.restaurantModel.findById(id).exec();
+    if (!restaurant) {
       throw new NotFoundException(`რესტორნი ID ${id} ვერ მოიძებნა`);
     }
+
+    await this.menuItemsService.deleteByRestaurant(id);
+    await this.restaurantModel.findByIdAndDelete(id).exec();
+  }
+
+  async duplicate(
+    sourceId: string,
+    duplicateDto: DuplicateRestaurantDto,
+  ): Promise<{ restaurant: Restaurant; menuItemsCount: number }> {
+    const source = await this.restaurantModel.findById(sourceId).exec();
+    if (!source) {
+      throw new NotFoundException(`რესტორნი ID ${sourceId} ვერ მოიძებნა`);
+    }
+
+    const sourceObj = source.toObject({ virtuals: false }) as Record<string, any>;
+    const sanitizedRestaurant = this.sanitizeRestaurantClone(sourceObj);
+
+    const location = {
+      ...sanitizedRestaurant.location,
+      ...(duplicateDto.location ?? {}),
+    };
+
+    const newRestaurantData = {
+      ...sanitizedRestaurant,
+      name: duplicateDto.name?.trim() || `${source.name} (კოპია)`,
+      rating: 0,
+      reviewCount: 0,
+      isActive: duplicateDto.isActive ?? false,
+      businessUsername: duplicateDto.businessUsername,
+      businessPassword: duplicateDto.businessPassword,
+      location,
+    };
+
+    try {
+      const payload = await this.prepareBusinessCredentials(
+        newRestaurantData as CreateRestaurantDto,
+      );
+      const newRestaurant = await this.restaurantModel.create(payload);
+      const menuItemsCount = await this.copyMenuItems(
+        sourceId,
+        String(newRestaurant._id),
+      );
+
+      return {
+        restaurant: newRestaurant,
+        menuItemsCount,
+      };
+    } catch (error: any) {
+      if (error.code === 11000 || error.message?.includes('duplicate')) {
+        throw new BadRequestException(
+          'business username უკვე გამოყენებულია. გამოიყენეთ სხვა username.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async copyMenu(
+    targetId: string,
+    sourceRestaurantId: string,
+  ): Promise<{ menuItemsCount: number }> {
+    const [target, source] = await Promise.all([
+      this.restaurantModel.findById(targetId).exec(),
+      this.restaurantModel.findById(sourceRestaurantId).exec(),
+    ]);
+
+    if (!target) {
+      throw new NotFoundException(`რესტორნი ID ${targetId} ვერ მოიძებნა`);
+    }
+
+    if (!source) {
+      throw new NotFoundException(
+        `საწყისი რესტორანი ID ${sourceRestaurantId} ვერ მოიძებნა`,
+      );
+    }
+
+    if (targetId === sourceRestaurantId) {
+      throw new BadRequestException('საწყისი და სამიზნე რესტორანი ერთი და იგივეა');
+    }
+
+    const existingItems =
+      await this.menuItemsService.findByRestaurant(targetId);
+    if (existingItems.length > 0) {
+      throw new BadRequestException(
+        'ამ რესტორანს უკვე აქვს პროდუქტები. ჯერ წაშალეთ არსებული მენიუ ან გამოიყენეთ ახალი ფილიალი.',
+      );
+    }
+
+    const menuItemsCount = await this.copyMenuItems(
+      sourceRestaurantId,
+      String(target._id),
+    );
+
+    return { menuItemsCount };
+  }
+
+  private async copyMenuItems(
+    sourceRestaurantId: string,
+    targetRestaurantId: string,
+  ): Promise<number> {
+    const menuItems =
+      await this.menuItemsService.findByRestaurant(sourceRestaurantId);
+
+    const clonedItems = menuItems.map((item) => {
+      const itemObj = (item as any).toObject({ virtuals: false }) as Record<string, any>;
+      return {
+        ...this.sanitizeMenuItemClone(itemObj),
+        restaurantId: targetRestaurantId,
+      };
+    });
+
+    if (clonedItems.length > 0) {
+      await this.menuItemsService.bulkCreate(clonedItems);
+    }
+
+    return clonedItems.length;
   }
 }
