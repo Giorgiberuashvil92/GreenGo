@@ -22,6 +22,7 @@ import { CouriersModule } from './couriers/couriers.module';
 import { MenuItemsModule } from './menu-items/menu-items.module';
 import { OrdersModule } from './orders/orders.module';
 import { PromoCodesModule } from './promo-codes/promo-codes.module';
+import { RestaurantOffersModule } from './restaurant-offers/restaurant-offers.module';
 import { RestaurantsModule } from './restaurants/restaurants.module';
 import { UsersModule } from './users/users.module';
 
@@ -45,6 +46,7 @@ import { UsersModule } from './users/users.module';
     BannersModule,
     HomeSectionsModule,
     PromoCodesModule,
+    RestaurantOffersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

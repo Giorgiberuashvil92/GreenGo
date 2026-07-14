@@ -2,6 +2,7 @@
 // Base URL - შეცვალეთ production-ზე
 
 import { getApiUrl } from './apiConfig';
+import type { RestaurantOffer } from './restaurantOffers';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -240,6 +241,19 @@ class ApiService {
 
   async getMenuItem(id: string) {
     return this.request(`/menu-items/${id}`);
+  }
+
+  async getRestaurantOffers(restaurantId: string, activeOnly = true) {
+    const params = new URLSearchParams();
+    params.append('restaurantId', restaurantId);
+    if (activeOnly) params.append('active', 'true');
+    return this.request<RestaurantOffer[]>(
+      `/restaurant-offers?${params.toString()}`,
+    );
+  }
+
+  async getRestaurantOffer(id: string) {
+    return this.request<RestaurantOffer>(`/restaurant-offers/${id}`);
   }
 
   async createOrder(orderData: {

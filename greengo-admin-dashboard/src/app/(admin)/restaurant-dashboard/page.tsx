@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import RestaurantMenuManager from "@/components/restaurant/RestaurantMenuManager";
+import RestaurantOffersManager from "@/components/restaurant/RestaurantOffersManager";
 import { MenuItem, menuItemsApi, Order, ordersApi, Restaurant, restaurantsApi } from "@/lib/api/endpoints";
 import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -623,6 +624,11 @@ function RestaurantDashboardPageContent() {
           menuItems={menuItems}
           onRestaurantUpdated={setRestaurant}
           onMenuItemsUpdated={setMenuItems}
+        />
+
+        <RestaurantOffersManager
+          restaurantId={restaurantId}
+          menuItems={menuItems}
         />
           </>
         )}

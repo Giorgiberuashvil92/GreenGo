@@ -533,3 +533,61 @@ export const promoCodesApi = {
       freeDelivery?: boolean;
     }>('/promo-codes/validate', { code, subtotal, deliveryFee, serviceFee }),
 };
+
+export interface RestaurantOfferMenuItem {
+  _id: string;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  heroImage?: string;
+  category?: string;
+}
+
+export interface RestaurantOffer {
+  _id: string;
+  restaurantId: string;
+  title: string;
+  description?: string;
+  discountType: 'percentage' | 'delivery_fixed';
+  discountValue: number;
+  menuItemIds: Array<string | RestaurantOfferMenuItem>;
+  isActive: boolean;
+  sortOrder?: number;
+  startsAt?: string;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateRestaurantOfferPayload = {
+  restaurantId: string;
+  title: string;
+  description?: string;
+  discountType: 'percentage' | 'delivery_fixed';
+  discountValue: number;
+  menuItemIds?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+  startsAt?: string;
+  expiresAt?: string;
+};
+
+export const restaurantOffersApi = {
+  getAll: (params?: { restaurantId?: string; active?: boolean }) =>
+    apiClient.get<RestaurantOffer[]>('/restaurant-offers', {
+      restaurantId: params?.restaurantId,
+      active: params?.active ? 'true' : undefined,
+    }),
+
+  getById: (id: string) =>
+    apiClient.get<RestaurantOffer>(`/restaurant-offers/${id}`),
+
+  create: (data: CreateRestaurantOfferPayload) =>
+    apiClient.post<RestaurantOffer>('/restaurant-offers', data),
+
+  update: (id: string, data: Partial<CreateRestaurantOfferPayload>) =>
+    apiClient.patch<RestaurantOffer>(`/restaurant-offers/${id}`, data),
+
+  delete: (id: string) => apiClient.delete(`/restaurant-offers/${id}`),
+};

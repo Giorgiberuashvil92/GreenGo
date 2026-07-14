@@ -21,8 +21,11 @@ import PopularMenuCard, {
   POPULAR_MENU_CARD_GAP,
 } from "../../components/PopularMenuCard";
 import ProductModal from "../../components/ProductModal";
+import RestaurantDiscounts from "../../components/RestaurantDiscounts";
+import RestaurantOffersSheet from "../../components/RestaurantOffersSheet";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
+import type { RestaurantOffer } from "../../utils/restaurantOffers";
 
 const HERO_IMAGE_HEIGHT = 205;
 const TAB_UNDERLINE = "#003E20";
@@ -108,6 +111,9 @@ export default function RestaurantScreen() {
   const [loadingMenuItems, setLoadingMenuItems] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  const [offers, setOffers] = useState<RestaurantOffer[]>([]);
+  const [offersSheetVisible, setOffersSheetVisible] = useState(false);
+  const [focusedOfferId, setFocusedOfferId] = useState<string | null>(null);
 
   const fetchMenuItems = async () => {
     if (!restaurantId) return;
@@ -134,13 +140,32 @@ export default function RestaurantScreen() {
     }
   };
 
+  const fetchOffers = async () => {
+    if (!restaurantId) return;
+    try {
+      const response = await apiService.getRestaurantOffers(restaurantId, true);
+      if (response.success && response.data) {
+        setOffers(Array.isArray(response.data) ? response.data : []);
+      } else {
+        setOffers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching restaurant offers:", error);
+      setOffers([]);
+    }
+  };
+
   useEffect(() => {
     setMenuItems([]);
+    setOffers([]);
     setSelectedCategory("");
     setActiveProductId(menuItemId ?? null);
+    setOffersSheetVisible(false);
+    setFocusedOfferId(null);
 
     if (restaurantId) {
       void fetchMenuItems();
+      void fetchOffers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
@@ -382,6 +407,14 @@ export default function RestaurantScreen() {
           </View>
         </View>
 
+        <RestaurantDiscounts
+          offers={offers}
+          onOfferPress={(offer) => {
+            setFocusedOfferId(offer._id);
+            setOffersSheetVisible(true);
+          }}
+        />
+
         {popularItems.length > 0 ? (
           <View style={styles.popularBlock}>
             <Text style={styles.blockTitle}>ყველაზე პოპულარული</Text>
@@ -481,6 +514,19 @@ export default function RestaurantScreen() {
       </ScrollView>
 
       <CartBottomBar restaurantId={rid} />
+
+      <RestaurantOffersSheet
+        visible={offersSheetVisible}
+        offers={offers}
+        initialOfferId={focusedOfferId}
+        onClose={() => {
+          setOffersSheetVisible(false);
+          setFocusedOfferId(null);
+        }}
+        onSelectProduct={(menuItemId) => {
+          setActiveProductId(menuItemId);
+        }}
+      />
 
       <ProductModal
         visible={!!activeProductId}
@@ -642,7 +688,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F8F9",
   },
   popularBlock: {
-    marginTop: 20,
+    marginTop: 16,
     marginBottom: 20,
     marginLeft: 16,
   },
