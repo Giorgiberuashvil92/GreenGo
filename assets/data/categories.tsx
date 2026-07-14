@@ -8,14 +8,30 @@ export type HomeCategory = {
   link?: string;
 };
 
-/** მთავარი ეკრანის კატეგორიები — ლოკალური აიკონები assets/images/categories */
+export type ApiHomeCategory = {
+  _id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  image?: string;
+  bgColor?: string;
+  order?: number;
+  isActive?: boolean;
+};
+
+const FALLBACK_ICON = require("@/assets/images/categories/all.png");
+
+/** „ყველა“ ყოველთვის ლოკალურად იდება პირველად — ფილტრი არ არის */
+export const ALL_HOME_CATEGORY: HomeCategory = {
+  id: "all",
+  name: "ყველა",
+  bgColor: "#EDF4FD",
+  icon: FALLBACK_ICON,
+};
+
+/** Fallback თუ API ცარიელია */
 export const homeCategories: HomeCategory[] = [
-  {
-    id: "all",
-    name: "ყველა",
-    bgColor: "#EDF4FD",
-    icon: require("@/assets/images/categories/all.png"),
-  },
+  ALL_HOME_CATEGORY,
   {
     id: "food",
     name: "კვება",
@@ -28,45 +44,45 @@ export const homeCategories: HomeCategory[] = [
     bgColor: "#FDECED",
     icon: require("@/assets/images/categories/flowers.png"),
   },
-  {
-    id: "zoo",
-    name: "ზოომაღაზია",
-    bgColor: "#EDF7F1",
-    icon: require("@/assets/images/categories/all.png"),
-  },
 ];
 
-const HOME_CATEGORY_MATCH_TERMS: Record<string, string[]> = {
-  კვება: ["კვება", "სწრაფი კვება", "food", "fast food"],
-  ყვავილები: ["ყვავილ", "flowers", "flower"],
-  ზოომაღაზია: ["ზოო", "zoo", "pet", "ზოომაღაზია"],
-};
-
-export function getHomeCategoryMatchTerms(categoryName: string): string[] {
-  return HOME_CATEGORY_MATCH_TERMS[categoryName] ?? [categoryName];
+export function mapApiCategoryToHome(category: ApiHomeCategory): HomeCategory {
+  const iconUrl = category.icon || category.image;
+  return {
+    id: category._id,
+    name: category.name,
+    bgColor: category.bgColor || "#F5F5F5",
+    icon: iconUrl ? { uri: iconUrl } : resolveCategoryIcon(category.name),
+  };
 }
 
+export function buildHomeCategories(
+  apiCategories: ApiHomeCategory[],
+): HomeCategory[] {
+  const mapped = apiCategories
+    .filter((c) => c.isActive !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map(mapApiCategoryToHome);
+
+  return [ALL_HOME_CATEGORY, ...mapped];
+}
+
+/** რესტორნის კატეგორია ემთხვევა ჰოუმ კატეგორიის სახელს (ადმინიდან მინიჭებული) */
 export function restaurantMatchesHomeCategory(
   restaurant: { categories?: string[]; cuisine?: string[] },
   categoryName: string,
 ): boolean {
-  const terms = getHomeCategoryMatchTerms(categoryName);
-  const values = [...(restaurant.categories ?? []), ...(restaurant.cuisine ?? [])];
+  const normalized = categoryName.trim().toLocaleLowerCase("ka");
+  if (!normalized || normalized === "ყველა") return true;
 
-  return terms.some((term) => {
-    const normalizedTerm = term.trim().toLocaleLowerCase("ka");
-    return values.some((value) => {
-      const normalizedValue = value.trim().toLocaleLowerCase("ka");
-      return (
-        normalizedValue.includes(normalizedTerm) ||
-        normalizedTerm.includes(normalizedValue)
-      );
-    });
-  });
+  const values = [...(restaurant.categories ?? []), ...(restaurant.cuisine ?? [])];
+  return values.some(
+    (value) => value.trim().toLocaleLowerCase("ka") === normalized,
+  );
 }
 
 export function getRestaurantsRouteForCategory(category: HomeCategory) {
-  if (category.name === "ყველა") {
+  if (category.name === "ყველა" || category.id === "all") {
     return "/(tabs)/restaurants" as const;
   }
 
@@ -84,11 +100,6 @@ export function resolveCategoryIcon(
     return { uri: remoteUrl };
   }
 
-  const exact = homeCategories.find((c) => c.name === categoryName);
-  if (exact) {
-    return exact.icon;
-  }
-
   const nameLower = categoryName.toLowerCase();
   if (nameLower.includes("კვება") || nameLower.includes("food")) {
     return require("@/assets/images/categories/food.png");
@@ -96,20 +107,21 @@ export function resolveCategoryIcon(
   if (nameLower.includes("ყვავილ") || nameLower.includes("flower")) {
     return require("@/assets/images/categories/flowers.png");
   }
-  if (nameLower.includes("ზოო") || nameLower.includes("zoo") || nameLower.includes("pet")) {
-    return require("@/assets/images/categories/all.png");
+  if (
+    nameLower.includes("ზოო") ||
+    nameLower.includes("zoo") ||
+    nameLower.includes("pet")
+  ) {
+    return FALLBACK_ICON;
   }
   if (nameLower.includes("ყველა") || nameLower === "all") {
-    return require("@/assets/images/categories/all.png");
+    return FALLBACK_ICON;
   }
 
-  return require("@/assets/images/categories/all.png");
+  return FALLBACK_ICON;
 }
 
 export function getHomeCategoryBgColor(categoryName: string): string {
-  const exact = homeCategories.find((c) => c.name === categoryName);
-  if (exact) {
-    return exact.bgColor;
-  }
+  if (categoryName === "ყველა") return ALL_HOME_CATEGORY.bgColor;
   return "#F5F5F5";
 }

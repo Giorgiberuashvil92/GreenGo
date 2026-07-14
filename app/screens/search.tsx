@@ -1,6 +1,9 @@
 import {
+  ApiHomeCategory,
+  buildHomeCategories,
   getRestaurantsRouteForCategory,
-  homeCategories,
+  HomeCategory,
+  homeCategories as fallbackCategories,
   resolveCategoryIcon,
 } from "@/assets/data/categories";
 import { BRAND_GREEN } from "@/constants/colors";
@@ -46,6 +49,31 @@ export default function SearchScreen() {
     [],
   );
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [homeCategories, setHomeCategories] =
+    useState<HomeCategory[]>(fallbackCategories);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await apiService.getCategories(true);
+        if (cancelled) return;
+        const list: ApiHomeCategory[] = Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response)
+            ? response
+            : [];
+        if (list.length > 0) {
+          setHomeCategories(buildHomeCategories(list));
+        }
+      } catch {
+        // fallback რჩება
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchRecentlyOrdered = useCallback(async () => {
     const userId = user?.id || (user as { _id?: string })?._id;
@@ -121,7 +149,7 @@ export default function SearchScreen() {
     });
   };
 
-  const handleCategoryPress = (category: (typeof homeCategories)[number]) => {
+  const handleCategoryPress = (category: HomeCategory) => {
     const route = getRestaurantsRouteForCategory(category);
     if (typeof route === "string") {
       router.push(route);
@@ -256,7 +284,14 @@ export default function SearchScreen() {
                 activeOpacity={0.65}
               >
                 <Image
-                  source={resolveCategoryIcon(category.name)}
+                  source={resolveCategoryIcon(
+                    category.name,
+                    typeof category.icon === "object" &&
+                      category.icon &&
+                      "uri" in category.icon
+                      ? category.icon.uri
+                      : undefined,
+                  )}
                   style={styles.categoryRemoteIcon}
                 />
                 <Text style={styles.categoryLabel} numberOfLines={1}>

@@ -24,6 +24,8 @@ import {
   loadCheckoutPayment,
 } from "@/utils/payment";
 import { getDistance } from "@/utils/restaurantUtils";
+import { getDeliveryFixedDiscount } from "@/utils/restaurantOffers";
+import type { RestaurantOffer } from "@/utils/restaurantOffers";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -98,6 +100,9 @@ export default function CheckoutScreen() {
   const [appliedPromo, setAppliedPromo] = useState<ValidatedPromoCode | null>(
     null,
   );
+  const [restaurantOffers, setRestaurantOffers] = useState<RestaurantOffer[]>(
+    [],
+  );
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [comment, setComment] = useState<string>("");
   const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup">(
@@ -129,6 +134,36 @@ export default function CheckoutScreen() {
       };
     }, []),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadOffers = async () => {
+      if (!restaurantId) {
+        setRestaurantOffers([]);
+        return;
+      }
+      try {
+        const response = await apiService.getRestaurantOffers(
+          restaurantId,
+          true,
+        );
+        if (cancelled) return;
+        if (response.success && response.data) {
+          setRestaurantOffers(
+            Array.isArray(response.data) ? response.data : [],
+          );
+        } else {
+          setRestaurantOffers([]);
+        }
+      } catch {
+        if (!cancelled) setRestaurantOffers([]);
+      }
+    };
+    void loadOffers();
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantId]);
 
   const restaurantCartItems = cartItems.filter(
     (item) => item.restaurantId === restaurantId,
@@ -180,7 +215,11 @@ export default function CheckoutScreen() {
 
   const deliveryFee = deliveryPricing.deliveryFee;
   const serviceFee = deliveryPricing.serviceFee;
-  const activeDeliveryFee = deliveryType === "delivery" ? deliveryFee : 0;
+  const offerDeliveryDiscount = getDeliveryFixedDiscount(restaurantOffers);
+  const activeDeliveryFee =
+    deliveryType === "delivery"
+      ? Math.max(0, deliveryFee - offerDeliveryDiscount)
+      : 0;
 
   const promoSavings = useMemo(() => {
     if (!appliedPromo) {

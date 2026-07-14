@@ -24,8 +24,19 @@ export type RestaurantOffer = {
   expiresAt?: string;
 };
 
+export type ItemOfferPricing = {
+  original: number;
+  final: number;
+  percent: number | null;
+  offer: RestaurantOffer | null;
+};
+
 function asMenuItemId(item: string | RestaurantOfferMenuItem): string {
   return typeof item === "string" ? item : item._id;
+}
+
+export function getOfferItemIds(offer: RestaurantOffer): string[] {
+  return (offer.menuItemIds || []).map(asMenuItemId);
 }
 
 export function getOfferMenuItems(
@@ -78,4 +89,55 @@ export function offerSubtitle(offer: RestaurantOffer): string {
   }
   const count = getOfferEligibleCount(offer);
   return `${count} დასაშვები პროდუქტი`;
+}
+
+/** უმაღლესი % შეთავაზება მოცემულ პროდუქტზე */
+export function getPercentageOfferForItem(
+  offers: RestaurantOffer[],
+  menuItemId: string,
+): RestaurantOffer | null {
+  if (!menuItemId) return null;
+  let best: RestaurantOffer | null = null;
+  for (const offer of offers) {
+    if (offer.discountType !== "percentage") continue;
+    if (offer.isActive === false) continue;
+    if (!getOfferItemIds(offer).includes(menuItemId)) continue;
+    if (!best || offer.discountValue > best.discountValue) {
+      best = offer;
+    }
+  }
+  return best;
+}
+
+export function applyPercentage(price: number, percent: number): number {
+  if (percent <= 0 || price <= 0) return price;
+  return Math.round(price * (1 - percent / 100) * 100) / 100;
+}
+
+export function getItemOfferPricing(
+  offers: RestaurantOffer[],
+  menuItemId: string,
+  basePrice: number,
+): ItemOfferPricing {
+  const offer = getPercentageOfferForItem(offers, menuItemId);
+  if (!offer) {
+    return { original: basePrice, final: basePrice, percent: null, offer: null };
+  }
+  return {
+    original: basePrice,
+    final: applyPercentage(basePrice, offer.discountValue),
+    percent: offer.discountValue,
+    offer,
+  };
+}
+
+/** მიტანის ფიქსირებული ფასდაკლება (უმაღლესი) */
+export function getDeliveryFixedDiscount(offers: RestaurantOffer[]): number {
+  let best = 0;
+  for (const offer of offers) {
+    if (offer.discountType !== "delivery_fixed") continue;
+    if (offer.isActive === false) continue;
+    best = Math.max(best, offer.discountValue);
+  }
+  return best;
 }

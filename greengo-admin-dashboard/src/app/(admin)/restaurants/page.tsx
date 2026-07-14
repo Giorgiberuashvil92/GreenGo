@@ -12,9 +12,11 @@ import {
 } from "@/components/ui/table";
 import { MoreDotIcon, PencilIcon, PlusIcon, TrashBinIcon, CopyIcon } from "@/icons";
 import {
+  Category,
   CreateRestaurantPayload,
   DuplicateRestaurantPayload,
   Restaurant,
+  categoriesApi,
   restaurantsApi,
 } from "@/lib/api/endpoints";
 import { getImageUrlValidationError } from "@/lib/imageUrl";
@@ -35,7 +37,7 @@ type RestaurantFormState = {
   city: string;
   district: string;
   postalCode: string;
-  categories: string;
+  categories: string[];
   cuisine: string;
   priceRange: "€" | "€€" | "€€€" | "€€€€";
   phone: string;
@@ -85,7 +87,7 @@ const createInitialRestaurantForm = (): RestaurantFormState => ({
   city: "თბილისი",
   district: "",
   postalCode: "",
-  categories: "",
+  categories: [],
   cuisine: "",
   priceRange: "€€",
   phone: "",
@@ -160,6 +162,7 @@ export default function RestaurantsPage() {
     createInitialDuplicateForm,
   );
   const [duplicating, setDuplicating] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
   const fetchRestaurants = useCallback(async () => {
@@ -190,6 +193,16 @@ export default function RestaurantsPage() {
   useEffect(() => {
     fetchRestaurants();
   }, [fetchRestaurants]);
+
+  useEffect(() => {
+    void categoriesApi
+      .getAll()
+      .then((data) => setAvailableCategories(Array.isArray(data) ? data : []))
+      .catch((error) => {
+        console.error("Error fetching categories:", error);
+        setAvailableCategories([]);
+      });
+  }, []);
 
   const closeActionMenu = useCallback(() => {
     setOpenDropdown(null);
@@ -274,7 +287,7 @@ export default function RestaurantsPage() {
       city: restaurant.location?.city || restaurant.address?.city || "თბილისი",
       district: restaurant.location?.district || "",
       postalCode: restaurant.location?.postalCode || "",
-      categories: restaurant.categories?.join(", ") || "",
+      categories: restaurant.categories ?? [],
       cuisine: restaurant.cuisine?.join(", ") || restaurant.cuisineType || "",
       priceRange: restaurant.priceRange || "€€",
       phone: restaurant.contact?.phone || "",
@@ -315,7 +328,7 @@ export default function RestaurantsPage() {
   const handleSaveRestaurant = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const categories = splitListInput(formData.categories);
+    const categories = formData.categories;
     const deliveryFee = Number(formData.deliveryFee);
     const latitude = Number(formData.latitude);
     const longitude = Number(formData.longitude);
@@ -924,13 +937,54 @@ export default function RestaurantsPage() {
                   </div>
                   <div>
                     <label className={labelClassName}>კატეგორიები *</label>
-                    <input
-                      value={formData.categories}
-                      onChange={(e) => updateFormField("categories", e.target.value)}
-                      className={inputClassName}
-                      placeholder="burger, pizza, vegan"
-                      required
-                    />
+                    {availableCategories.length === 0 ? (
+                      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                        ჯერ დაამატეთ კატეგორიები „კატეგორიები“ გვერდიდან.
+                      </p>
+                    ) : (
+                      <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-300 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+                        {availableCategories
+                          .filter((c) => c.isActive)
+                          .map((category) => {
+                            const checked = formData.categories.includes(
+                              category.name,
+                            );
+                            return (
+                              <label
+                                key={category._id}
+                                className="flex cursor-pointer items-center gap-2 text-sm text-gray-800 dark:text-gray-200"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    updateFormField(
+                                      "categories",
+                                      checked
+                                        ? formData.categories.filter(
+                                            (name) => name !== category.name,
+                                          )
+                                        : [...formData.categories, category.name],
+                                    );
+                                  }}
+                                />
+                                <span
+                                  className="inline-block h-3 w-3 rounded-sm border border-gray-200"
+                                  style={{
+                                    backgroundColor: category.bgColor || "#F5F5F5",
+                                  }}
+                                />
+                                {category.name}
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
+                    {formData.categories.length > 0 ? (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        არჩეული: {formData.categories.join(", ")}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="lg:col-span-2">
                     <label className={labelClassName}>აღწერა *</label>

@@ -19,16 +19,9 @@ import { useAuth } from "../../contexts/AuthContext";
 const RegistrationScreen = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const { completeRegistration } = useAuth();
   const { phoneNumber } = useLocalSearchParams<{ phoneNumber?: string }>();
-
-  // Email validation
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
 
   const handleCompleteRegistration = async () => {
     if (!firstName.trim() || !lastName.trim()) {
@@ -41,19 +34,9 @@ const RegistrationScreen = () => {
       return;
     }
 
-    if (!email.trim()) {
-      Alert.alert("შეცდომა", "გთხოვთ შეიყვანოთ ელ. ფოსტა");
-      return;
-    }
-
-    if (!isValidEmail(email.trim())) {
-      Alert.alert("შეცდომა", "გთხოვთ შეიყვანოთ სწორი ელ. ფოსტის მისამართი");
-      return;
-    }
-
     try {
       setLoading(true);
-      await completeRegistration(firstName.trim(), lastName.trim(), email.trim());
+      await completeRegistration(firstName.trim(), lastName.trim());
       
       // Navigate to main app
       router.replace("/(tabs)");
@@ -106,7 +89,7 @@ const RegistrationScreen = () => {
           <View style={styles.registrationSection}>
             <Text style={styles.title}>რეგისტრაცია</Text>
             <Text style={styles.subtitle}>
-              გთხოვთ შეიყვანოთ თქვენი სახელი, გვარი და ელ. ფოსტა
+              გთხოვთ შეიყვანოთ თქვენი სახელი და გვარი
             </Text>
 
             {/* Phone Number Display */}
@@ -141,22 +124,6 @@ const RegistrationScreen = () => {
                 value={lastName}
                 onChangeText={setLastName}
                 autoCapitalize="words"
-                editable={!loading}
-              />
-            </View>
-
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>ელ. ფოსტა *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="example@email.com"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
                 editable={!loading}
               />
             </View>

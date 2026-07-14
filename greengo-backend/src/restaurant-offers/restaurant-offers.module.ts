@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from '../auth/auth.module';
 import {
   MenuItem,
   MenuItemSchema,
@@ -17,6 +18,7 @@ import {
       { name: RestaurantOffer.name, schema: RestaurantOfferSchema },
       { name: MenuItem.name, schema: MenuItemSchema },
     ]),
+    AuthModule,
   ],
   controllers: [RestaurantOffersController],
   providers: [RestaurantOffersService],

@@ -1,9 +1,16 @@
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
 
 function LocationPinIcon() {
@@ -40,7 +47,12 @@ function LocationPinIcon() {
   );
 }
 
-export default function Header() {
+type HeaderProps = {
+  /** სქროლისას სტიკი ჰედერი — ცენტრში მისამართი + chevron */
+  variant?: "default" | "compact";
+};
+
+export default function Header({ variant = "default" }: HeaderProps) {
   const { address, loading } = useDeliveryAddress();
 
   const streetLine = loading
@@ -52,6 +64,32 @@ export default function Header() {
     : address?.street?.trim()
       ? address.district?.trim() || address.city?.trim() || ""
       : "";
+
+  if (variant === "compact") {
+    return (
+      <TouchableOpacity
+        style={styles.compactContainer}
+        onPress={() => router.push("/screens/locations")}
+        activeOpacity={0.7}
+      >
+        <View style={styles.compactStreetRow}>
+          <Text style={styles.compactStreet} numberOfLines={1}>
+            {streetLine}
+          </Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={BRAND_GREEN} />
+          ) : (
+            <Ionicons name="chevron-down" size={16} color="#181B1A" />
+          )}
+        </View>
+        {cityLine ? (
+          <Text style={styles.compactCity} numberOfLines={1}>
+            {cityLine}
+          </Text>
+        ) : null}
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -123,8 +161,32 @@ const styles = StyleSheet.create({
     color: "#9E9E9E",
     marginTop: 2,
   },
-
-  cartButton: {
-    padding: 8,
+  compactContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingTop: 4,
+    paddingBottom: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  compactStreetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    maxWidth: "90%",
+  },
+  compactStreet: {
+    fontSize: 16,
+    fontFamily: fontFamily.bold,
+    color: "#181B1A",
+    textAlign: "center",
+  },
+  compactCity: {
+    marginTop: 2,
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+    color: "#9E9E9E",
+    textAlign: "center",
   },
 });

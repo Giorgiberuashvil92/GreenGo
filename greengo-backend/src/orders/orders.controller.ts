@@ -90,14 +90,17 @@ export class OrdersController {
   @Patch(':id/status')
   async updateStatus(
     @Param('id') id: string,
-    @Body('status') status: string,
+    @Body()
+    body: { status: string; preparationMinutes?: number },
     @CurrentUser() user: JwtRequestUser | undefined,
   ) {
     if (user?.type === 'business') {
       const order = await this.ordersService.findOne(id);
       assertBusinessRestaurantAccess(user, restaurantIdFromDoc(order.restaurantId));
     }
-    return this.ordersService.updateStatus(id, status);
+    return this.ordersService.updateStatus(id, body.status, {
+      preparationMinutes: body.preparationMinutes,
+    });
   }
 
   @Get(':id/tracking')

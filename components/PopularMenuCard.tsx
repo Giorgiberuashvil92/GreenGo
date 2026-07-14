@@ -32,11 +32,14 @@ export { POPULAR_MENU_CARD_GAP };
 export default function PopularMenuCard({
   name,
   price,
+  originalPrice,
   imageUri,
   onPress,
 }: {
   name: string;
   price: number;
+  /** თუ არის — ძველი ფასი ხაზგასმით */
+  originalPrice?: number;
   imageUri?: string;
   onPress: () => void;
 }) {
@@ -55,6 +58,11 @@ export default function PopularMenuCard({
       <View style={styles.textBlock}>
         <View style={styles.priceSection}>
           <Text style={styles.price}>{formatPriceGel(price)}</Text>
+          {originalPrice != null && originalPrice > price ? (
+            <Text style={styles.originalPrice}>
+              {formatPriceGel(originalPrice)}
+            </Text>
+          ) : null}
         </View>
         <DashedLine />
         <Text style={styles.description} numberOfLines={2}>
@@ -94,6 +102,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bold,
     color: "#1D4045",
     letterSpacing: 1,
+  },
+  originalPrice: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: fontFamily.regular,
+    color: "#C41018",
+    textDecorationLine: "line-through",
+    marginTop: 2,
   },
   dashedLine: {
     flexDirection: "row",

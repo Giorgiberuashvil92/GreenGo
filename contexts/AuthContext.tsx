@@ -28,7 +28,6 @@ interface AuthContextType {
   completeRegistration: (
     firstName: string,
     lastName: string,
-    email: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -252,13 +251,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const completeRegistration = async (
     firstName: string,
     lastName: string,
-    email: string,
   ) => {
     try {
       const response = await apiService.completeRegistration(
         firstName,
         lastName,
-        email,
       );
 
       if (response.success && response.data) {

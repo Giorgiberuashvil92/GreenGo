@@ -3,7 +3,11 @@ import type {
   RestaurantOffer,
   RestaurantOfferMenuItem,
 } from "@/utils/restaurantOffers";
-import { getOfferMenuItems, offerSubtitle } from "@/utils/restaurantOffers";
+import {
+  getItemOfferPricing,
+  getOfferMenuItems,
+  offerSubtitle,
+} from "@/utils/restaurantOffers";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -180,7 +184,13 @@ export default function RestaurantOffersSheet({
               ) : products.length === 0 ? (
                 <Text style={styles.empty}>პროდუქტები ვერ მოიძებნა</Text>
               ) : (
-                products.map((item, index) => (
+                products.map((item, index) => {
+                  const pricing = getItemOfferPricing(
+                    offers,
+                    item._id,
+                    item.price,
+                  );
+                  return (
                   <TouchableOpacity
                     key={item._id}
                     style={[
@@ -200,9 +210,16 @@ export default function RestaurantOffersSheet({
                           {item.description}
                         </Text>
                       ) : null}
-                      <Text style={styles.productPrice}>
-                        {formatPriceGel(item.price)}
-                      </Text>
+                      <View style={styles.priceRow}>
+                        <Text style={styles.productPrice}>
+                          {formatPriceGel(pricing.final)}
+                        </Text>
+                        {pricing.percent != null ? (
+                          <Text style={styles.productOriginal}>
+                            {formatPriceGel(pricing.original)}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
                     {item.image || item.heroImage ? (
                       <Image
@@ -213,7 +230,8 @@ export default function RestaurantOffersSheet({
                       <View style={styles.productThumb} />
                     )}
                   </TouchableOpacity>
-                ))
+                );
+                })
               )}
             </ScrollView>
           ) : null}
@@ -253,7 +271,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
   headerSpacer: {
     width: 24,
@@ -271,6 +290,7 @@ const styles = StyleSheet.create({
   },
   bodyContent: {
     paddingHorizontal: 16,
+    paddingTop: 8,
     paddingBottom: 24,
   },
   sectionLabel: {
@@ -316,7 +336,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 24,
     color: "#181B1A",
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 16,
   },
   detailDesc: {
     fontFamily: fontFamily.regular,
@@ -364,6 +385,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: "#1D4045",
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  productOriginal: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#C41018",
+    textDecorationLine: "line-through",
   },
   productThumb: {
     width: 90,

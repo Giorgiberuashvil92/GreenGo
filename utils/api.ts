@@ -427,10 +427,10 @@ class ApiService {
   }
 
   // Complete registration (protected)
-  async completeRegistration(firstName: string, lastName: string, email: string) {
+  async completeRegistration(firstName: string, lastName: string) {
     return this.request('/auth/complete-registration', {
       method: 'POST',
-      body: JSON.stringify({ firstName, lastName, email }),
+      body: JSON.stringify({ firstName, lastName }),
     });
   }
 

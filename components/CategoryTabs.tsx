@@ -1,4 +1,7 @@
-import { getRestaurantsRouteForCategory, homeCategories } from "@/assets/data/categories";
+import {
+  getRestaurantsRouteForCategory,
+  HomeCategory,
+} from "@/assets/data/categories";
 import { fontFamily } from "@/constants/fonts";
 import { router } from "expo-router";
 import React from "react";
@@ -11,15 +14,24 @@ import {
   View,
 } from "react-native";
 
-export default function CategoryTabs() {
+type CategoryTabsProps = {
+  categories: HomeCategory[];
+  /** სტიკი ჰედერში — ნაკლები ქვედა margin */
+  compact?: boolean;
+};
+
+export default function CategoryTabs({
+  categories,
+  compact = false,
+}: CategoryTabsProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {homeCategories.map((category) => (
+        {categories.map((category) => (
           <TouchableOpacity
             key={category.id}
             style={[
@@ -47,6 +59,9 @@ export default function CategoryTabs() {
 const styles = StyleSheet.create({
   container: {
     marginBottom: 20,
+  },
+  containerCompact: {
+    marginBottom: 8,
   },
   scrollContent: {
     paddingHorizontal: 20,

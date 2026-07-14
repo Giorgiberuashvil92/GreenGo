@@ -536,7 +536,11 @@ export class OrdersService {
     };
   }
 
-  async updateStatus(id: string, status: string): Promise<Order> {
+  async updateStatus(
+    id: string,
+    status: string,
+    options?: { preparationMinutes?: number },
+  ): Promise<Order> {
     const order = await this.orderModel.findById(id).exec();
     if (!order) {
       throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
@@ -573,9 +577,22 @@ export class OrdersService {
       // 20 წამის შემდეგ სხვა კურიერს აჩვენებს
     }
 
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = { status };
     if (status === 'delivered') {
       updateData.actualDelivery = new Date();
+    }
+
+    // რესტორნის მიღებისას — მზადების დრო კურიერისთვის
+    if (status === 'confirmed' && options?.preparationMinutes != null) {
+      const minutes = Number(options.preparationMinutes);
+      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 180) {
+        throw new BadRequestException(
+          'მზადების დრო უნდა იყოს 1-დან 180 წუთამდე',
+        );
+      }
+      const readyAt = new Date(Date.now() + minutes * 60 * 1000);
+      updateData.preparationMinutes = Math.round(minutes);
+      updateData.estimatedReadyAt = readyAt;
     }
     
     // თუ status გახდა 'confirmed' ან 'ready' და არ აქვს courierId, დავამატოთ availableForCouriersAt

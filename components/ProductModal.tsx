@@ -1,6 +1,10 @@
 import { BRAND_GREEN, BRAND_GREEN_LIGHT } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { apiService } from "@/utils/api";
+import {
+  getItemOfferPricing,
+  type RestaurantOffer,
+} from "@/utils/restaurantOffers";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -83,6 +87,7 @@ function ProductDetailBody({
   const insets = useSafeAreaInsets();
   const { addToCart, updateQuantity } = useCart();
   const [product, setProduct] = useState<MenuItem | null>(null);
+  const [offers, setOffers] = useState<RestaurantOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(
@@ -94,6 +99,7 @@ function ProductDetailBody({
   useEffect(() => {
     if (!productId) {
       setProduct(null);
+      setOffers([]);
       setLoading(false);
       return;
     }
@@ -106,8 +112,19 @@ function ProductDetailBody({
         setError(null);
         setQuantity(1);
         setSelectedDrink(null);
-        const response = await apiService.getMenuItem(productId);
+        const [response, offersRes] = await Promise.all([
+          apiService.getMenuItem(productId),
+          restaurantId
+            ? apiService.getRestaurantOffers(restaurantId, true)
+            : Promise.resolve({ success: false as const, data: undefined }),
+        ]);
         if (cancelled) return;
+
+        if (offersRes.success && offersRes.data) {
+          setOffers(Array.isArray(offersRes.data) ? offersRes.data : []);
+        } else {
+          setOffers([]);
+        }
 
         if (response.success && response.data) {
           const menuItem = response.data as unknown as MenuItem;
@@ -138,7 +155,7 @@ function ProductDetailBody({
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, restaurantId]);
 
   const toggleIngredient = (ingredientId: string) => {
     setSelectedIngredients((prev) => {
@@ -156,7 +173,12 @@ function ProductDetailBody({
     ? product?.drinks?.find((d) => d.id === selectedDrink)
     : null;
   const selectedDrinkPrice = selectedDrinkData ? selectedDrinkData.price : 0;
-  const baseTotal = product ? product.price + selectedDrinkPrice : 0;
+  const productIdKey = product?._id || product?.id || productId || "";
+  const offerPricing = product
+    ? getItemOfferPricing(offers, productIdKey, product.price)
+    : { original: 0, final: 0, percent: null, offer: null };
+  const discountedUnit = offerPricing.final;
+  const baseTotal = discountedUnit + selectedDrinkPrice;
   const lineTotal = baseTotal * quantity;
 
   const handleAddToCart = () => {
@@ -240,9 +262,21 @@ function ProductDetailBody({
         <View style={styles.body}>
           <Text style={styles.restaurantName}>{restaurantName}</Text>
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.productPrice}>
-            {formatPriceGel(product.price)}
-          </Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.productPrice}>
+              {formatPriceGel(offerPricing.final)}
+            </Text>
+            {offerPricing.percent != null ? (
+              <>
+                <Text style={styles.originalPrice}>
+                  {formatPriceGel(offerPricing.original)}
+                </Text>
+                <Text style={styles.discountBadge}>
+                  −{offerPricing.percent}%
+                </Text>
+              </>
+            ) : null}
+          </View>
           {product.description ? (
             <Text style={styles.productDescription}>{product.description}</Text>
           ) : null}
@@ -500,7 +534,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: fontFamily.bold,
     color: BRAND_GREEN,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
     marginBottom: 10,
+  },
+  originalPrice: {
+    fontSize: 14,
+    fontFamily: fontFamily.regular,
+    color: "#C41018",
+    textDecorationLine: "line-through",
+  },
+  discountBadge: {
+    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    color: "#C41018",
   },
   productDescription: {
     fontSize: 14,

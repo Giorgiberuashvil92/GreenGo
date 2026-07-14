@@ -181,20 +181,32 @@ export class AuthController {
   @Post('complete-registration')
   async completeRegistration(
     @Request() req,
-    @Body() body: { firstName: string; lastName: string; email: string },
+    @Body() body: { firstName: string; lastName: string; email?: string },
   ) {
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(body.email)) {
-      throw new BadRequestException('Invalid email format');
+    if (!body.firstName?.trim() || !body.lastName?.trim()) {
+      throw new BadRequestException('სახელი და გვარი სავალდებულოა');
     }
 
-    const user = await this.usersService.update(req.user.userId, {
-      firstName: body.firstName,
-      lastName: body.lastName,
-      email: body.email,
-      name: `${body.firstName} ${body.lastName}`, // Also set name for compatibility
-    });
+    const updatePayload: {
+      firstName: string;
+      lastName: string;
+      name: string;
+      email?: string;
+    } = {
+      firstName: body.firstName.trim(),
+      lastName: body.lastName.trim(),
+      name: `${body.firstName.trim()} ${body.lastName.trim()}`,
+    };
+
+    if (body.email?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(body.email.trim())) {
+        throw new BadRequestException('Invalid email format');
+      }
+      updatePayload.email = body.email.trim();
+    }
+
+    const user = await this.usersService.update(req.user.userId, updatePayload);
 
     return {
       success: true,

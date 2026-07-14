@@ -26,6 +26,7 @@ import RestaurantOffersSheet from "../../components/RestaurantOffersSheet";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 import type { RestaurantOffer } from "../../utils/restaurantOffers";
+import { getItemOfferPricing } from "../../utils/restaurantOffers";
 
 const HERO_IMAGE_HEIGHT = 205;
 const TAB_UNDERLINE = "#003E20";
@@ -423,7 +424,10 @@ export default function RestaurantScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.popularScrollInner}
             >
-              {popularItems.map((item, index) => (
+              {popularItems.map((item, index) => {
+                const itemId = item._id || item.id || "";
+                const pricing = getItemOfferPricing(offers, itemId, item.price);
+                return (
                 <View
                   key={item._id || item.id}
                   style={
@@ -434,14 +438,18 @@ export default function RestaurantScreen() {
                 >
                   <PopularMenuCard
                     name={item.name}
-                    price={item.price}
+                    price={pricing.final}
+                    originalPrice={
+                      pricing.percent != null ? pricing.original : undefined
+                    }
                     imageUri={
                       typeof item.image === "string" ? item.image : undefined
                     }
-                    onPress={() => openProduct(item._id || item.id || "")}
+                    onPress={() => openProduct(itemId)}
                   />
                 </View>
-              ))}
+              );
+              })}
             </ScrollView>
           </View>
         ) : null}
@@ -477,7 +485,10 @@ export default function RestaurantScreen() {
         ) : null}
 
         <View style={styles.menuBlock}>
-          {categoryItems.map((item, index) => (
+          {categoryItems.map((item, index) => {
+            const itemId = item._id || item.id || "";
+            const pricing = getItemOfferPricing(offers, itemId, item.price);
+            return (
             <TouchableOpacity
               key={item._id || item.id}
               style={[
@@ -485,7 +496,7 @@ export default function RestaurantScreen() {
                 index < categoryItems.length - 1 && styles.menuRowBorder,
               ]}
               activeOpacity={0.75}
-              onPress={() => openProduct(item._id || item.id || "")}
+              onPress={() => openProduct(itemId)}
             >
               <View style={styles.menuRowText}>
                 <Text style={styles.menuName}>{item.name}</Text>
@@ -496,9 +507,21 @@ export default function RestaurantScreen() {
                     : "დეტალები დაემატება მალე"}
                 </Text>
 
-                <Text style={styles.menuPrice}>
-                  {formatPriceGel(item.price)}
-                </Text>
+                <View style={styles.menuPriceRow}>
+                  <Text style={styles.menuPrice}>
+                    {formatPriceGel(pricing.final)}
+                  </Text>
+                  {pricing.percent != null ? (
+                    <>
+                      <Text style={styles.menuOriginalPrice}>
+                        {formatPriceGel(pricing.original)}
+                      </Text>
+                      <Text style={styles.menuDiscountBadge}>
+                        −{pricing.percent}%
+                      </Text>
+                    </>
+                  ) : null}
+                </View>
               </View>
               {item.image ? (
                 <Image
@@ -509,7 +532,8 @@ export default function RestaurantScreen() {
                 <View style={styles.menuThumb} />
               )}
             </TouchableOpacity>
-          ))}
+          );
+          })}
         </View>
       </ScrollView>
 
@@ -775,6 +799,25 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bold,
     color: "#1D4045",
     letterSpacing: 1,
+  },
+  menuPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  menuOriginalPrice: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#C41018",
+    textDecorationLine: "line-through",
+  },
+  menuDiscountBadge: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: fontFamily.semiBold,
+    color: "#C41018",
   },
   menuThumb: {
     position: "absolute",

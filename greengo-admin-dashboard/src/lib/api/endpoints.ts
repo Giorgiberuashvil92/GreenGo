@@ -184,7 +184,12 @@ export interface Category {
   _id: string;
   name: string;
   description?: string;
+  /** აიკონის URL (backend field) */
+  icon?: string;
+  /** ლეგასი/ალტერნატივა */
   image?: string;
+  bgColor?: string;
+  order?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

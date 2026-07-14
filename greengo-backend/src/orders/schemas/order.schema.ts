@@ -85,6 +85,14 @@ export class Order {
   @Prop()
   actualDelivery?: Date;
 
+  /** რესტორნის მიერ მითითებული მზადების დრო (წუთებში) მიღებისას */
+  @Prop({ min: 1, max: 180 })
+  preparationMinutes?: number;
+
+  /** სავარაუდო მზადყოფნის დრო (now + preparationMinutes) */
+  @Prop()
+  estimatedReadyAt?: Date;
+
   @Prop()
   promoCode?: string;
 
