@@ -150,6 +150,8 @@ export default function RestaurantsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [formData, setFormData] = useState<RestaurantFormState>(createInitialRestaurantForm);
+  const [showBusinessPassword, setShowBusinessPassword] = useState(false);
+  const [showDuplicatePassword, setShowDuplicatePassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingRestaurantId, setTogglingRestaurantId] = useState<string | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
@@ -246,11 +248,13 @@ export default function RestaurantsPage() {
   const handleOpenCreate = () => {
     setEditingRestaurant(null);
     setFormData(createInitialRestaurantForm());
+    setShowBusinessPassword(false);
     setShowModal(true);
   };
 
   const handleOpenEdit = (restaurant: Restaurant) => {
     setEditingRestaurant(restaurant);
+    setShowBusinessPassword(false);
     setFormData({
       name: restaurant.name || "",
       description: restaurant.description || "",
@@ -295,6 +299,7 @@ export default function RestaurantsPage() {
     setShowModal(false);
     setEditingRestaurant(null);
     setFormData(createInitialRestaurantForm());
+    setShowBusinessPassword(false);
   };
 
   const updateFormField = <K extends keyof RestaurantFormState>(
@@ -333,6 +338,11 @@ export default function RestaurantsPage() {
 
     if (!formData.businessUsername.trim() || (!editingRestaurant && !formData.businessPassword.trim())) {
       alert("გთხოვთ მიუთითოთ business username და password");
+      return;
+    }
+
+    if (formData.businessPassword.trim() && formData.businessPassword.trim().length < 4) {
+      alert("Business პაროლი მინიმუმ 4 სიმბოლო უნდა იყოს");
       return;
     }
 
@@ -395,6 +405,8 @@ export default function RestaurantsPage() {
       payload.cuisine = cuisine;
     }
 
+    const passwordWasUpdated = Boolean(formData.businessPassword.trim());
+
     try {
       setSaving(true);
       if (editingRestaurant) {
@@ -412,6 +424,14 @@ export default function RestaurantsPage() {
       setShowModal(false);
       setEditingRestaurant(null);
       setFormData(createInitialRestaurantForm());
+      setShowBusinessPassword(false);
+      if (passwordWasUpdated) {
+        alert(
+          editingRestaurant
+            ? "რესტორნი შეინახა. Business პაროლი განახლებულია."
+            : "რესტორნი დაემატა. Business username/პაროლი მზადაა შესასვლელად.",
+        );
+      }
     } catch (error) {
       console.error("Error saving restaurant:", error);
       alert(`რესტორნის შენახვა ვერ მოხერხდა: ${error instanceof Error ? error.message : "უცნობი შეცდომა"}`);
@@ -972,6 +992,57 @@ export default function RestaurantsPage() {
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+                <h3 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">
+                  Business აპის შესვლა
+                </h3>
+                <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
+                  ამ მონაცემებით რესტორანი შედის greengo-business აპში.
+                  {editingRestaurant
+                    ? " პაროლის ველი ცარიელი დატოვე, თუ არ გინდა შეცვლა."
+                    : ""}
+                </p>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div>
+                    <label className={labelClassName}>Business username *</label>
+                    <input
+                      value={formData.businessUsername}
+                      onChange={(e) => updateFormField("businessUsername", e.target.value)}
+                      className={inputClassName}
+                      placeholder="მაგ: doshi-doshi"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="username"
+                      spellCheck={false}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClassName}>
+                      Business password {editingRestaurant ? "(ცარიელი = უცვლელი)" : "*"}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type={showBusinessPassword ? "text" : "password"}
+                        value={formData.businessPassword}
+                        onChange={(e) => updateFormField("businessPassword", e.target.value)}
+                        className={`${inputClassName} flex-1`}
+                        placeholder={editingRestaurant ? "ახალი პაროლი" : "პაროლი"}
+                        autoComplete="new-password"
+                        required={!editingRestaurant}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowBusinessPassword((v) => !v)}
+                        className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                      >
+                        {showBusinessPassword ? "დამალე" : "აჩვენე"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
                   მისამართი
@@ -1048,7 +1119,7 @@ export default function RestaurantsPage() {
                   <div>
                     <label className={labelClassName}>სურათის URL *</label>
                     <input
-                      type="url"
+                      type="text"
                       value={formData.image}
                       onChange={(e) => updateFormField("image", e.target.value)}
                       className={inputClassName}
@@ -1062,7 +1133,7 @@ export default function RestaurantsPage() {
                   <div>
                     <label className={labelClassName}>Hero სურათის URL</label>
                     <input
-                      type="url"
+                      type="text"
                       value={formData.heroImage}
                       onChange={(e) => updateFormField("heroImage", e.target.value)}
                       className={inputClassName}
@@ -1089,35 +1160,11 @@ export default function RestaurantsPage() {
                   <div className="lg:col-span-2">
                     <label className={labelClassName}>ვებგვერდი</label>
                     <input
-                      type="url"
+                      type="text"
                       value={formData.website}
                       onChange={(e) => updateFormField("website", e.target.value)}
                       className={inputClassName}
                       placeholder="https://..."
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClassName}>Business username *</label>
-                    <input
-                      value={formData.businessUsername}
-                      onChange={(e) => updateFormField("businessUsername", e.target.value)}
-                      className={inputClassName}
-                      placeholder="მაგ: green-bistro"
-                      autoCapitalize="none"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClassName}>
-                      Business password {editingRestaurant ? "(ცარიელი = უცვლელი)" : "*"}
-                    </label>
-                    <input
-                      type="password"
-                      value={formData.businessPassword}
-                      onChange={(e) => updateFormField("businessPassword", e.target.value)}
-                      className={inputClassName}
-                      placeholder={editingRestaurant ? "ახალი პაროლი" : "პაროლი"}
-                      required={!editingRestaurant}
                     />
                   </div>
                 </div>
@@ -1214,16 +1261,26 @@ export default function RestaurantsPage() {
                 </div>
                 <div>
                   <label className={labelClassName}>Business password *</label>
-                  <input
-                    type="password"
-                    value={duplicateFormData.businessPassword}
-                    onChange={(e) =>
-                      updateDuplicateField("businessPassword", e.target.value)
-                    }
-                    className={inputClassName}
-                    placeholder="********"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type={showDuplicatePassword ? "text" : "password"}
+                      value={duplicateFormData.businessPassword}
+                      onChange={(e) =>
+                        updateDuplicateField("businessPassword", e.target.value)
+                      }
+                      className={`${inputClassName} flex-1`}
+                      placeholder="********"
+                      autoComplete="new-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowDuplicatePassword((v) => !v)}
+                      className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    >
+                      {showDuplicatePassword ? "დამალე" : "აჩვენე"}
+                    </button>
+                  </div>
                 </div>
               </div>
 

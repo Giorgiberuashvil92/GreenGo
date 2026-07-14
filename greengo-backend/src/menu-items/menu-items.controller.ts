@@ -1,28 +1,61 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-  ParseIntPipe,
+  Controller,
   DefaultValuePipe,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
+import {
+  CurrentUser,
+  assertBusinessRestaurantAccess,
+  resolveRestaurantIdForBusiness,
+} from '../auth/business-scope';
+import type { JwtRequestUser } from '../auth/jwt.strategy';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { MenuItemsService } from './menu-items.service';
 
+function restaurantIdFromDoc(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) {
+    const doc = value as { _id?: { toString(): string }; toString?: () => string };
+    if (doc._id) return doc._id.toString();
+    if (typeof doc.toString === 'function') {
+      const asString = doc.toString();
+      if (asString && asString !== '[object Object]') return asString;
+    }
+  }
+  return String(value);
+}
+
 @Controller('menu-items')
+@UseGuards(OptionalJwtAuthGuard)
 export class MenuItemsController {
   constructor(private readonly menuItemsService: MenuItemsService) {}
 
   @Post()
-  create(@Body() createMenuItemDto: any) {
+  create(
+    @Body() createMenuItemDto: any,
+    @CurrentUser() user: JwtRequestUser | undefined,
+  ) {
+    if (user?.type === 'business') {
+      createMenuItemDto = {
+        ...createMenuItemDto,
+        restaurantId: user.restaurantId,
+      };
+    }
     return this.menuItemsService.create(createMenuItemDto);
   }
 
   @Get()
   findAll(
+    @CurrentUser() user: JwtRequestUser | undefined,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('restaurantId') restaurantId?: string,
@@ -34,10 +67,12 @@ export class MenuItemsController {
     if (isPopular === 'true') isPopularBool = true;
     if (isPopular === 'false') isPopularBool = false;
 
+    const scopedRestaurantId = resolveRestaurantIdForBusiness(user, restaurantId);
+
     return this.menuItemsService.findAll({
       page,
       limit,
-      restaurantId,
+      restaurantId: scopedRestaurantId,
       category,
       search,
       isPopular: isPopularBool,
@@ -45,22 +80,54 @@ export class MenuItemsController {
   }
 
   @Get('restaurant/:restaurantId')
-  findByRestaurant(@Param('restaurantId') restaurantId: string) {
-    return this.menuItemsService.findByRestaurant(restaurantId);
+  findByRestaurant(
+    @Param('restaurantId') restaurantId: string,
+    @CurrentUser() user: JwtRequestUser | undefined,
+  ) {
+    const scopedRestaurantId = resolveRestaurantIdForBusiness(user, restaurantId);
+    return this.menuItemsService.findByRestaurant(scopedRestaurantId!);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.menuItemsService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtRequestUser | undefined,
+  ) {
+    const item = await this.menuItemsService.findOne(id);
+    assertBusinessRestaurantAccess(user, restaurantIdFromDoc(item.restaurantId));
+    return item;
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMenuItemDto: any) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateMenuItemDto: any,
+    @CurrentUser() user: JwtRequestUser | undefined,
+  ) {
+    if (user?.type === 'business') {
+      const existing = await this.menuItemsService.findOne(id);
+      assertBusinessRestaurantAccess(
+        user,
+        restaurantIdFromDoc(existing.restaurantId),
+      );
+      const { restaurantId: _ignored, ...safeDto } = updateMenuItemDto ?? {};
+      updateMenuItemDto = safeDto;
+    }
     return this.menuItemsService.update(id, updateMenuItemDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtRequestUser | undefined,
+  ) {
+    if (user?.type === 'business') {
+      const existing = await this.menuItemsService.findOne(id);
+      assertBusinessRestaurantAccess(
+        user,
+        restaurantIdFromDoc(existing.restaurantId),
+      );
+    }
     return this.menuItemsService.remove(id);
   }
 }
