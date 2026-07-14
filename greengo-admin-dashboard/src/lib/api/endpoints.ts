@@ -81,6 +81,7 @@ export interface Restaurant {
   workingHours?: { [key: string]: string };
   allergens?: string[];
   paymentMethods?: string[];
+  listPreviewMenuItemIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -122,6 +123,8 @@ export interface CreateRestaurantPayload {
   cuisine?: string[];
   allergens?: string[];
   paymentMethods?: string[];
+  /** მთავარი გვერდის / სიის ბარათის გალერეა */
+  listPreviewMenuItemIds?: string[];
 }
 
 export interface DuplicateRestaurantPayload {

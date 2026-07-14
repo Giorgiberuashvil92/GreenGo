@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import {
+  MenuItem,
+  MenuItemDocument,
+} from '../menu-items/schemas/menu-item.schema';
 import { CreateRestaurantOfferDto } from './dto/create-restaurant-offer.dto';
 import { UpdateRestaurantOfferDto } from './dto/update-restaurant-offer.dto';
 import {
@@ -13,16 +17,16 @@ import {
   RestaurantOfferDocument,
 } from './schemas/restaurant-offer.schema';
 
-const MENU_ITEM_POPULATE = {
-  path: 'menuItemIds',
-  select: 'name description price image heroImage category restaurantId',
-};
+const MENU_ITEM_SELECT =
+  'name description price image heroImage category restaurantId';
 
 @Injectable()
 export class RestaurantOffersService {
   constructor(
     @InjectModel(RestaurantOffer.name)
     private readonly offerModel: Model<RestaurantOfferDocument>,
+    @InjectModel(MenuItem.name)
+    private readonly menuItemModel: Model<MenuItemDocument>,
   ) {}
 
   async create(dto: CreateRestaurantOfferDto): Promise<RestaurantOffer> {
@@ -42,10 +46,7 @@ export class RestaurantOffersService {
     });
 
     const saved = await created.save();
-    return this.offerModel
-      .findById(saved._id)
-      .populate(MENU_ITEM_POPULATE)
-      .exec() as Promise<RestaurantOffer>;
+    return this.findOne(String(saved._id));
   }
 
   async findAll(restaurantId?: string): Promise<RestaurantOffer[]> {
@@ -54,11 +55,13 @@ export class RestaurantOffersService {
       filter.restaurantId = new Types.ObjectId(restaurantId);
     }
 
-    return this.offerModel
+    const offers = await this.offerModel
       .find(filter)
-      .populate(MENU_ITEM_POPULATE)
       .sort({ sortOrder: 1, createdAt: -1 })
+      .lean()
       .exec();
+
+    return this.hydrateOffers(offers);
   }
 
   /** პუბლიკური: მხოლოდ აქტიური და ვადაში */
@@ -70,13 +73,17 @@ export class RestaurantOffersService {
     }
 
     const now = new Date();
-    return this.offerModel
+    const offers = await this.offerModel
       .find({
         restaurantId: new Types.ObjectId(restaurantId),
         isActive: true,
         $and: [
           {
-            $or: [{ startsAt: { $exists: false } }, { startsAt: null }, { startsAt: { $lte: now } }],
+            $or: [
+              { startsAt: { $exists: false } },
+              { startsAt: null },
+              { startsAt: { $lte: now } },
+            ],
           },
           {
             $or: [
@@ -87,21 +94,22 @@ export class RestaurantOffersService {
           },
         ],
       })
-      .populate(MENU_ITEM_POPULATE)
       .sort({ sortOrder: 1, createdAt: -1 })
+      .lean()
       .exec();
+
+    return this.hydrateOffers(offers);
   }
 
   async findOne(id: string): Promise<RestaurantOffer> {
-    const offer = await this.offerModel
-      .findById(id)
-      .populate(MENU_ITEM_POPULATE)
-      .exec();
+    const offer = await this.offerModel.findById(id).lean().exec();
 
     if (!offer) {
       throw new NotFoundException(`შეთავაზება ID ${id} ვერ მოიძებნა`);
     }
-    return offer;
+
+    const [hydrated] = await this.hydrateOffers([offer]);
+    return hydrated;
   }
 
   async update(
@@ -147,13 +155,15 @@ export class RestaurantOffersService {
 
     const updated = await this.offerModel
       .findByIdAndUpdate(id, payload, { new: true })
-      .populate(MENU_ITEM_POPULATE)
+      .lean()
       .exec();
 
     if (!updated) {
       throw new NotFoundException(`შეთავაზება ID ${id} ვერ მოიძებნა`);
     }
-    return updated;
+
+    const [hydrated] = await this.hydrateOffers([updated]);
+    return hydrated;
   }
 
   async remove(id: string): Promise<void> {
@@ -161,6 +171,41 @@ export class RestaurantOffersService {
     if (!result) {
       throw new NotFoundException(`შეთავაზება ID ${id} ვერ მოიძებნა`);
     }
+  }
+
+  /** menuItemIds-ს ცალკე ვტვირთავთ (populate Nest-ში საიმედოდ არ მუშაობდა) */
+  private async hydrateOffers(
+    offers: Array<Record<string, unknown>>,
+  ): Promise<RestaurantOffer[]> {
+    const allIds = new Set<string>();
+    for (const offer of offers) {
+      const ids = (offer.menuItemIds as unknown[]) || [];
+      for (const id of ids) {
+        allIds.add(String(id));
+      }
+    }
+
+    if (allIds.size === 0) {
+      return offers as unknown as RestaurantOffer[];
+    }
+
+    const items = await this.menuItemModel
+      .find({ _id: { $in: [...allIds].map((id) => new Types.ObjectId(id)) } })
+      .select(MENU_ITEM_SELECT)
+      .lean()
+      .exec();
+
+    const byId = new Map(items.map((item) => [String(item._id), item]));
+
+    return offers.map((offer) => {
+      const ids = (offer.menuItemIds as unknown[]) || [];
+      return {
+        ...offer,
+        menuItemIds: ids
+          .map((id) => byId.get(String(id)))
+          .filter(Boolean),
+      } as unknown as RestaurantOffer;
+    });
   }
 
   private assertDiscount(

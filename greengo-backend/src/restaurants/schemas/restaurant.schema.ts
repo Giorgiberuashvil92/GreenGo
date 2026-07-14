@@ -124,6 +124,10 @@ export class Restaurant {
 
   @Prop({ type: [String], default: [] })
   paymentMethods: string[];
+
+  /** მთავარი/რესტორნების სიის ბარათის გალერეა (თანმიმდევრობით) */
+  @Prop({ type: [String], default: [] })
+  listPreviewMenuItemIds: string[];
 }
 
 export const RestaurantSchema = SchemaFactory.createForClass(Restaurant);

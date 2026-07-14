@@ -58,6 +58,8 @@ export default function RestaurantMenuManager({
   const [menuForm, setMenuForm] = useState<NewMenuItemForm>(emptyMenuItemForm);
   const [savingMenuItem, setSavingMenuItem] = useState(false);
   const [showMenuForm, setShowMenuForm] = useState(false);
+  const [listPreviewIds, setListPreviewIds] = useState<string[]>([]);
+  const [savingListPreview, setSavingListPreview] = useState(false);
 
   useEffect(() => {
     const sorted = sortCategories(restaurant?.menuCategories || []);
@@ -66,6 +68,7 @@ export default function RestaurantMenuManager({
     setMenuForm((prev) =>
       prev.category ? prev : { ...prev, category: firstActive },
     );
+    setListPreviewIds(restaurant?.listPreviewMenuItemIds || []);
   }, [restaurant]);
 
   const saveCategories = useCallback(
@@ -135,6 +138,56 @@ export default function RestaurantMenuManager({
       alert("პოპულარულობის განახლება ვერ მოხერხდა");
     } finally {
       setUpdatingItemId(null);
+    }
+  };
+
+  const handleToggleListPreview = async (itemId: string) => {
+    const exists = listPreviewIds.includes(itemId);
+    const next = exists
+      ? listPreviewIds.filter((id) => id !== itemId)
+      : listPreviewIds.length >= 12
+        ? listPreviewIds
+        : [...listPreviewIds, itemId];
+
+    if (!exists && listPreviewIds.length >= 12) {
+      alert("მაქსიმუმ 12 პროდუქტი ბარათის გალერეაში");
+      return;
+    }
+
+    setSavingListPreview(true);
+    setListPreviewIds(next);
+    try {
+      const updated = await restaurantsApi.update(restaurantId, {
+        listPreviewMenuItemIds: next,
+      });
+      onRestaurantUpdated(updated);
+    } catch (error) {
+      console.error("Error updating list preview:", error);
+      setListPreviewIds(restaurant?.listPreviewMenuItemIds || []);
+      alert("ბარათის გალერეის შენახვა ვერ მოხერხდა");
+    } finally {
+      setSavingListPreview(false);
+    }
+  };
+
+  const handleMoveListPreview = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= listPreviewIds.length) return;
+    const next = [...listPreviewIds];
+    [next[index], next[target]] = [next[target], next[index]];
+    setSavingListPreview(true);
+    setListPreviewIds(next);
+    try {
+      const updated = await restaurantsApi.update(restaurantId, {
+        listPreviewMenuItemIds: next,
+      });
+      onRestaurantUpdated(updated);
+    } catch (error) {
+      console.error("Error reordering list preview:", error);
+      setListPreviewIds(restaurant?.listPreviewMenuItemIds || []);
+      alert("თანმიმდევრობის შენახვა ვერ მოხერხდა");
+    } finally {
+      setSavingListPreview(false);
     }
   };
 
@@ -515,6 +568,130 @@ export default function RestaurantMenuManager({
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      </div>
+
+      {/* ბარათის გალერეა — მთავარი / რესტორნების სია */}
+      <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="border-b border-gray-200 px-6 py-4 dark:border-white/[0.05]">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+            ბარათის ფოტოები (მთავარი გვერდი)
+          </h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            რომელი პროდუქტები გამოჩნდეს რესტორნის ბარათზე (დიდი + 2 პატარა).
+            თანმიმდევრობა მნიშვნელოვანია — პირველი არის დიდი ფოტო.
+          </p>
+        </div>
+        <div className="space-y-4 p-6">
+          {listPreviewIds.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                არჩეული რიგით ({listPreviewIds.length})
+              </p>
+              {listPreviewIds.map((id, index) => {
+                const item = menuItems.find((m) => m._id === id);
+                if (!item) return null;
+                return (
+                  <div
+                    key={id}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 dark:border-white/[0.05]"
+                  >
+                    <span className="w-6 text-sm font-semibold text-gray-500">
+                      {index + 1}
+                    </span>
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md">
+                      <SafeRemoteImage
+                        width={40}
+                        height={40}
+                        src={item.image}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-white/90">
+                      {item.name}
+                    </p>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={savingListPreview || index === 0}
+                        onClick={() => void handleMoveListPreview(index, -1)}
+                        className="rounded border px-2 py-1 text-xs disabled:opacity-40"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          savingListPreview ||
+                          index === listPreviewIds.length - 1
+                        }
+                        onClick={() => void handleMoveListPreview(index, 1)}
+                        className="rounded border px-2 py-1 text-xs disabled:opacity-40"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingListPreview}
+                        onClick={() => void handleToggleListPreview(id)}
+                        className="rounded border border-red-200 px-2 py-1 text-xs text-red-600"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              ჯერ არჩეული არ არის — აპი ავტომატურად აჩვენებს პოპულარულს ან
+              მენიუს პირველ პროდუქტებს (placeholder-ების გარეშე).
+            </p>
+          )}
+
+          {menuItems.length === 0 ? (
+            <p className="text-sm text-gray-500">მენიუს პროდუქტები არ არის</p>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {menuItems.map((item) => {
+                const checked = listPreviewIds.includes(item._id);
+                return (
+                  <label
+                    key={`preview-${item._id}`}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={savingListPreview}
+                      onChange={() => void handleToggleListPreview(item._id)}
+                      className="h-4 w-4 rounded border-gray-300 text-brand-500"
+                    />
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md">
+                      <SafeRemoteImage
+                        width={40}
+                        height={40}
+                        src={item.image}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-gray-800 dark:text-white/90">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-gray-500">{item.category}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      {item.price.toFixed(2)} ₾
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

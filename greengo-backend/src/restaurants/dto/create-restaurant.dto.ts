@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsArray,
   IsObject,
+  IsMongoId,
   ValidateNested,
   Min,
 } from 'class-validator';
@@ -173,5 +174,10 @@ export class CreateRestaurantDto {
   @IsString({ each: true })
   @IsOptional()
   paymentMethods?: string[];
+
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  listPreviewMenuItemIds?: string[];
 }
 

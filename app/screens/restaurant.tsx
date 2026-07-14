@@ -518,6 +518,7 @@ export default function RestaurantScreen() {
       <RestaurantOffersSheet
         visible={offersSheetVisible}
         offers={offers}
+        menuCatalog={menuItems}
         initialOfferId={focusedOfferId}
         onClose={() => {
           setOffersSheetVisible(false);

@@ -3,10 +3,7 @@ import type {
   RestaurantOffer,
   RestaurantOfferMenuItem,
 } from "@/utils/restaurantOffers";
-import {
-  getOfferMenuItems,
-  offerSubtitle,
-} from "@/utils/restaurantOffers";
+import { getOfferMenuItems, offerSubtitle } from "@/utils/restaurantOffers";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -31,12 +28,23 @@ type ViewMode = "list" | "detail";
 export default function RestaurantOffersSheet({
   visible,
   offers,
+  menuCatalog = [],
   initialOfferId,
   onClose,
   onSelectProduct,
 }: {
   visible: boolean;
   offers: RestaurantOffer[];
+  /** რესტორნის მენიუ — თუ API არ არის populate-ებული */
+  menuCatalog?: Array<{
+    _id: string;
+    name: string;
+    description?: string;
+    price: number;
+    image?: string;
+    heroImage?: string;
+    category?: string;
+  }>;
   initialOfferId?: string | null;
   onClose: () => void;
   onSelectProduct: (menuItemId: string) => void;
@@ -78,7 +86,7 @@ export default function RestaurantOffersSheet({
   };
 
   const products: RestaurantOfferMenuItem[] = selectedOffer
-    ? getOfferMenuItems(selectedOffer)
+    ? getOfferMenuItems(selectedOffer, menuCatalog)
     : [];
 
   return (
@@ -91,10 +99,7 @@ export default function RestaurantOffersSheet({
       <View style={styles.root}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View
-          style={[
-            styles.sheet,
-            { paddingBottom: Math.max(insets.bottom, 16) },
-          ]}
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
         >
           <View style={styles.handle} />
 

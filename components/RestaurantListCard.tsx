@@ -60,27 +60,11 @@ interface MenuPreviewItem {
   isPopular?: boolean;
 }
 
-/** სტატიკური კერძები — როცა API-დან 3-ზე ნაკლები მოდის */
-const STATIC_GALLERY_ITEMS: MenuPreviewItem[] = [
-  {
-    id: "static-burger",
-    name: "ბურგერი",
-    price: 20,
-    image: require("../assets/images/burger.png"),
-  },
-  {
-    id: "static-ribs",
-    name: "შებოლილი ნეკნები",
-    price: 28.4,
-    image: require("../assets/images/kfc.png"),
-  },
-  {
-    id: "static-shawarma",
-    name: "შაურმა სტანდარტი",
-    price: 14,
-    image: require("../assets/images/shaurma.png"),
-  },
-];
+/** სტატიკური placeholder აღარ გამოიყენება — მხოლოდ რეალური პროდუქტები */
+
+function itemKey(item: MenuPreviewItem): string {
+  return String(item._id || item.id || "");
+}
 
 function isStaticGalleryItem(id?: string): boolean {
   return (
@@ -95,22 +79,35 @@ function buildGalleryItems(
   fromApi: MenuPreviewItem[],
   restaurant: RestaurantListCardRestaurant,
 ): MenuPreviewItem[] {
-  const slots: MenuPreviewItem[] = [...fromApi.slice(0, 12)];
+  const byId = new Map(
+    fromApi.map((item) => [itemKey(item), item] as const),
+  );
+  const preferred = (restaurant.listPreviewMenuItemIds || [])
+    .map((id) => byId.get(String(id)))
+    .filter((item): item is MenuPreviewItem => Boolean(item));
 
-  for (let i = slots.length; i < 3; i++) {
-    if (STATIC_GALLERY_ITEMS[i]) {
-      slots.push({ ...STATIC_GALLERY_ITEMS[i] });
-      continue;
-    }
+  const slots: MenuPreviewItem[] = [...preferred];
+  const used = new Set(slots.map(itemKey));
+
+  for (const item of fromApi) {
+    if (slots.length >= 12) break;
+    const id = itemKey(item);
+    if (!id || used.has(id)) continue;
+    slots.push(item);
+    used.add(id);
+  }
+
+  // თუ მაინც < 3 — რესტორნის სურათი (არა KFC placeholder)
+  while (slots.length < 3 && restaurant.image) {
     slots.push({
-      id: "fallback-" + i,
+      id: "fallback-" + slots.length,
       name: restaurant.name,
       price: 0,
       image: restaurant.image,
     });
   }
 
-  return slots;
+  return slots.slice(0, 12);
 }
 
 function chunkGalleryBlocks(items: MenuPreviewItem[]): MenuPreviewItem[][] {
@@ -134,6 +131,8 @@ export interface RestaurantListCardRestaurant {
   heroImage?: string;
   categories?: string[];
   cuisine?: string[];
+  /** ადმინიდან არჩეული ბარათის გალერეა */
+  listPreviewMenuItemIds?: string[];
 }
 
 function formatGel(amount: number): string {
@@ -224,7 +223,7 @@ export default function RestaurantListCard({
       try {
         const response = await apiService.getMenuItems({
           restaurantId,
-          limit: 12,
+          limit: 100,
         });
         if (cancelled) return;
 
@@ -234,9 +233,16 @@ export default function RestaurantListCard({
               ? (response.data as MenuPreviewItem[])
               : (response.data as { data?: MenuPreviewItem[] })?.data || []
             : [];
+        const preferredIds = restaurant.listPreviewMenuItemIds || [];
         const popular = raw.filter((item) => item.isPopular);
-        const source = popular.length > 0 ? popular : raw;
-        setMenuItems(source.slice(0, 12));
+        // სრული raw უნდა გვქონდეს, რომ ადმინის არჩევანი იპოვოს; რიგს buildGalleryItems აკეთებს
+        const source =
+          preferredIds.length > 0
+            ? raw
+            : popular.length > 0
+              ? popular
+              : raw;
+        setMenuItems(source);
       } catch {
         if (!cancelled) setMenuItems([]);
       }
@@ -246,7 +252,7 @@ export default function RestaurantListCard({
     return () => {
       cancelled = true;
     };
-  }, [restaurantId]);
+  }, [restaurantId, restaurant.listPreviewMenuItemIds]);
 
   const categoryLabel =
     restaurant.categories?.[0] || restaurant.cuisine?.[0] || "რესტორანი";
