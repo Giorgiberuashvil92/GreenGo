@@ -197,15 +197,24 @@ export interface Category {
 
 export interface Courier {
   _id: string;
-  name: string;
+  name?: string;
   phoneNumber: string;
   email?: string;
-  vehicleType?: string;
+  profileImage?: string;
+  status: 'available' | 'busy' | 'offline';
   isAvailable: boolean;
+  isActive: boolean;
   currentLocation?: {
-    latitude: number;
-    longitude: number;
+    type?: 'Point';
+    coordinates?: [number, number];
+    latitude?: number;
+    longitude?: number;
+    lastUpdated?: string;
   };
+  currentOrderId?: string;
+  totalDeliveries?: number;
+  rating?: number;
+  reviewCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -414,7 +423,9 @@ export const couriersApi = {
   getAll: (params?: {
     page?: number;
     limit?: number;
+    status?: string;
     isAvailable?: boolean;
+    phoneNumber?: string;
   }) => apiClient.get<{ data: Courier[]; total: number; page: number; limit: number }>('/couriers', params),
   
   getById: (id: string) => apiClient.get<Courier>(`/couriers/${id}`),
