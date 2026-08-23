@@ -38,6 +38,10 @@ export class CreateBannerDto {
 
   @IsBoolean()
   @IsOptional()
+  isClickable?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
   isActive?: boolean;
 
   @IsNumber()

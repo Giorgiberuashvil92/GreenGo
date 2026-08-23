@@ -99,7 +99,10 @@ export class MenuItemsService {
     const [data, total] = await Promise.all([
       this.menuItemModel
         .find(filter)
-        .populate('restaurantId', 'name')
+        .populate(
+          'restaurantId',
+          'name description image heroImage deliveryFee deliveryTime rating isActive',
+        )
         .skip(skip)
         .limit(limit)
         .sort(sort)

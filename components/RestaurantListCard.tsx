@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { apiService } from "../utils/api";
+import { sortByPopularOrder } from "../utils/menuItemSort";
 
 const LOGO_WIDTH = 65;
 const LOGO_HEIGHT = 50;
@@ -58,6 +59,9 @@ interface MenuPreviewItem {
   price: number;
   image?: string | number;
   isPopular?: boolean;
+  order?: number | string;
+  popularOrder?: number | string;
+  createdAt?: string;
 }
 
 /** სტატიკური placeholder აღარ გამოიყენება — მხოლოდ რეალური პროდუქტები */
@@ -234,7 +238,9 @@ export default function RestaurantListCard({
               : (response.data as { data?: MenuPreviewItem[] })?.data || []
             : [];
         const preferredIds = restaurant.listPreviewMenuItemIds || [];
-        const popular = raw.filter((item) => item.isPopular);
+        const popular = sortByPopularOrder(
+          raw.filter((item) => item.isPopular),
+        );
         // სრული raw უნდა გვქონდეს, რომ ადმინის არჩევანი იპოვოს; რიგს buildGalleryItems აკეთებს
         const source =
           preferredIds.length > 0

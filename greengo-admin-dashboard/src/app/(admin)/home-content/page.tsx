@@ -17,6 +17,22 @@ const LAYOUT_LABELS: Record<HomeSection["layout"], string> = {
   banner: "ბანერი",
 };
 
+function getRestaurantId(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && "_id" in value) {
+    const id = (value as { _id?: unknown })._id;
+    return typeof id === "string" ? id : "";
+  }
+  return "";
+}
+
+function getSectionRestaurantIds(section: HomeSection): string[] {
+  return (section.restaurantIds ?? [])
+    .map((id) => getRestaurantId(id))
+    .filter(Boolean);
+}
+
 export default function HomeContentPage() {
   const [sections, setSections] = useState<HomeSection[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -76,7 +92,9 @@ export default function HomeContentPage() {
     const restaurantId = selectedRestaurant[section._id];
     if (!restaurantId) return;
 
-    if (section.restaurantIds.includes(restaurantId)) {
+    const restaurantIds = getSectionRestaurantIds(section);
+
+    if (restaurantIds.includes(restaurantId)) {
       alert("ეს რესტორანი უკვე დამატებულია");
       return;
     }
@@ -107,8 +125,64 @@ export default function HomeContentPage() {
     }
   };
 
+  const moveRestaurant = async (
+    section: HomeSection,
+    restaurantId: string,
+    direction: -1 | 1,
+  ) => {
+    const currentRestaurantIds = getSectionRestaurantIds(section);
+    const visibleRestaurantIds = currentRestaurantIds.filter((id) =>
+      restaurantMap.has(id),
+    );
+    const visibleIndex = visibleRestaurantIds.indexOf(restaurantId);
+    const targetVisibleIndex = visibleIndex + direction;
+
+    if (
+      visibleIndex < 0 ||
+      targetVisibleIndex < 0 ||
+      targetVisibleIndex >= visibleRestaurantIds.length
+    ) {
+      return;
+    }
+
+    const nextRestaurantIds = [...currentRestaurantIds];
+    const currentIndex = nextRestaurantIds.indexOf(restaurantId);
+    const targetIndex = nextRestaurantIds.indexOf(
+      visibleRestaurantIds[targetVisibleIndex],
+    );
+
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    [nextRestaurantIds[currentIndex], nextRestaurantIds[targetIndex]] = [
+      nextRestaurantIds[targetIndex],
+      nextRestaurantIds[currentIndex],
+    ];
+
+    setSavingId(section._id);
+    setSections((current) =>
+      current.map((item) =>
+        item._id === section._id
+          ? { ...item, restaurantIds: nextRestaurantIds }
+          : item,
+      ),
+    );
+
+    try {
+      await homeSectionsApi.update(section._id, {
+        restaurantIds: nextRestaurantIds,
+      });
+      await loadData();
+    } catch (error) {
+      console.error("Error reordering restaurants:", error);
+      alert("რესტორნების რიგის შენახვა ვერ მოხერხდა");
+      await loadData();
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const availableRestaurants = (section: HomeSection) =>
-    restaurants.filter((r) => !section.restaurantIds.includes(r._id));
+    restaurants.filter((r) => !getSectionRestaurantIds(section).includes(r._id));
 
   return (
     <div>
@@ -132,7 +206,9 @@ export default function HomeContentPage() {
             {sections.map((section) => {
               const isExpanded = expandedId === section._id;
               const isBanner = section.layout === "banner";
-              const assigned = section.restaurantIds
+              const canReorderRestaurants = section.slug !== "nearby";
+              const restaurantIds = getSectionRestaurantIds(section);
+              const assigned = restaurantIds
                 .map((id) => restaurantMap.get(id))
                 .filter(Boolean) as Restaurant[];
 
@@ -229,12 +305,15 @@ export default function HomeContentPage() {
                         </p>
                       ) : (
                         <div className="space-y-2">
-                          {assigned.map((restaurant) => (
+                          {assigned.map((restaurant, index) => (
                             <div
                               key={restaurant._id}
                               className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-white/[0.05]"
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <span className="w-6 shrink-0 text-sm font-semibold text-gray-500">
+                                  {index + 1}
+                                </span>
                                 <div className="h-10 w-10 overflow-hidden rounded-md bg-gray-100">
                                   <SafeRemoteImage
                                     src={restaurant.image}
@@ -253,16 +332,55 @@ export default function HomeContentPage() {
                                   </p>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                disabled={savingId === section._id}
-                                onClick={() =>
-                                  removeRestaurant(section, restaurant._id)
-                                }
-                                className="text-sm text-red-500 hover:text-red-600"
-                              >
-                                წაშლა
-                              </button>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {canReorderRestaurants ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={savingId === section._id || index === 0}
+                                      onClick={() =>
+                                        void moveRestaurant(
+                                          section,
+                                          restaurant._id,
+                                          -1,
+                                        )
+                                      }
+                                      className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 dark:border-gray-700"
+                                      title="ზემოთ აწევა"
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        savingId === section._id ||
+                                        index === assigned.length - 1
+                                      }
+                                      onClick={() =>
+                                        void moveRestaurant(
+                                          section,
+                                          restaurant._id,
+                                          1,
+                                        )
+                                      }
+                                      className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 dark:border-gray-700"
+                                      title="ქვემოთ ჩამოწევა"
+                                    >
+                                      ↓
+                                    </button>
+                                  </>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  disabled={savingId === section._id}
+                                  onClick={() =>
+                                    removeRestaurant(section, restaurant._id)
+                                  }
+                                  className="text-sm text-red-500 hover:text-red-600"
+                                >
+                                  წაშლა
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>

@@ -36,8 +36,40 @@ type RecentRestaurant = {
   rating: number;
 };
 
+type SearchRestaurant = RecentRestaurant & {
+  description?: string;
+  matchedProductNames?: string[];
+};
+
 function formatLari(value: number): string {
   return `${value.toFixed(2).replace(".", ",")}₾`;
+}
+
+function unwrapList<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[];
+  const objectData = data as { data?: unknown };
+  if (Array.isArray(objectData?.data)) return objectData.data as T[];
+  return [];
+}
+
+function restaurantIdFrom(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  const objectValue = value as { _id?: unknown; id?: unknown };
+  return String(objectValue._id || objectValue.id || "");
+}
+
+function mapRestaurant(restaurant: any): SearchRestaurant {
+  return {
+    id: String(restaurant._id || restaurant.id || ""),
+    name: restaurant.name || "რესტორანი",
+    description: restaurant.description,
+    image: restaurant.image || restaurant.heroImage,
+    deliveryFee:
+      typeof restaurant.deliveryFee === "number" ? restaurant.deliveryFee : 0,
+    deliveryTime: restaurant.deliveryTime || "20-30",
+    rating: typeof restaurant.rating === "number" ? restaurant.rating : 4.5,
+  };
 }
 
 export default function SearchScreen() {
@@ -49,6 +81,10 @@ export default function SearchScreen() {
     [],
   );
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [restaurantResults, setRestaurantResults] = useState<SearchRestaurant[]>(
+    [],
+  );
   const [homeCategories, setHomeCategories] =
     useState<HomeCategory[]>(fallbackCategories);
 
@@ -142,6 +178,93 @@ export default function SearchScreen() {
     }
   }, [user, fetchRecentlyOrdered]);
 
+  useEffect(() => {
+    const query = searchQuery.trim();
+    let cancelled = false;
+
+    if (query.length < 2) {
+      setRestaurantResults([]);
+      setSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          setSearching(true);
+          const [restaurantsResponse, menuItemsResponse] = await Promise.all([
+            apiService.getRestaurants({
+              search: query,
+              limit: 20,
+              page: 1,
+            }),
+            apiService.getMenuItems({
+              search: query,
+              limit: 50,
+              page: 1,
+            }),
+          ]);
+
+          if (cancelled) return;
+
+          const resultsById = new Map<string, SearchRestaurant>();
+
+          for (const restaurant of unwrapList<any>(restaurantsResponse.data)) {
+            const mapped = mapRestaurant(restaurant);
+            if (mapped.id) {
+              resultsById.set(mapped.id, mapped);
+            }
+          }
+
+          for (const item of unwrapList<any>(menuItemsResponse.data)) {
+            const restaurantId = restaurantIdFrom(item.restaurantId);
+            if (!restaurantId) continue;
+
+            const restaurantObject =
+              typeof item.restaurantId === "object" ? item.restaurantId : null;
+            const existing = resultsById.get(restaurantId);
+            const productName = item.name ? String(item.name) : "";
+
+            if (existing) {
+              resultsById.set(restaurantId, {
+                ...existing,
+                matchedProductNames: productName
+                  ? [
+                      ...(existing.matchedProductNames || []),
+                      productName,
+                    ].slice(0, 3)
+                  : existing.matchedProductNames,
+              });
+              continue;
+            }
+
+            if (restaurantObject) {
+              resultsById.set(restaurantId, {
+                ...mapRestaurant(restaurantObject),
+                id: restaurantId,
+                matchedProductNames: productName ? [productName] : undefined,
+              });
+            }
+          }
+
+          setRestaurantResults(Array.from(resultsById.values()));
+        } catch (error) {
+          console.error("Search error:", error);
+          if (!cancelled) {
+            setRestaurantResults([]);
+          }
+        } finally {
+          if (!cancelled) setSearching(false);
+        }
+      })();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
   const handleRestaurantPress = (restaurantId: string) => {
     router.push({
       pathname: "/screens/restaurant",
@@ -198,8 +321,52 @@ export default function SearchScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {searchQuery.trim().length >= 2 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>შედეგები</Text>
+            {searching ? (
+              <View style={styles.recentLoading}>
+                <ActivityIndicator size="small" color={BRAND_GREEN} />
+              </View>
+            ) : restaurantResults.length === 0 ? (
+              <Text style={styles.emptyHint}>შედეგი ვერ მოიძებნა</Text>
+            ) : (
+              <>
+                {restaurantResults.map((restaurant) => (
+                  <TouchableOpacity
+                    key={`restaurant-${restaurant.id}`}
+                    style={styles.recentRow}
+                    onPress={() => handleRestaurantPress(restaurant.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={
+                        restaurant.image
+                          ? { uri: restaurant.image }
+                          : require("../../assets/images/magnolia.png")
+                      }
+                      style={styles.recentThumb}
+                    />
+                    <View style={styles.recentBody}>
+                      <Text style={styles.recentName} numberOfLines={1}>
+                        {restaurant.name}
+                      </Text>
+                      <Text style={styles.recentSubtitle} numberOfLines={1}>
+                        {restaurant.matchedProductNames?.length
+                          ? `მენიუში: ${restaurant.matchedProductNames.join(", ")}`
+                          : "რესტორანი"}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+          </View>
+        ) : null}
+
         {/* ბოლოს შეკვეთილი */}
-        <View style={styles.section}>
+        {searchQuery.trim().length < 2 ? <View style={styles.section}>
           <Text style={styles.sectionTitle}>ბოლოს შეკვეთილი</Text>
           {loadingOrders ? (
             <View style={styles.recentLoading}>
@@ -268,10 +435,10 @@ export default function SearchScreen() {
               </View>
             ))
           )}
-        </View>
+        </View> : null}
 
         {/* კატეგორიები */}
-        <View style={styles.section}>
+        {searchQuery.trim().length < 2 ? <View style={styles.section}>
           <View style={styles.categoriesTitleRow}>
             <Ionicons name="grid-outline" size={16} color="#181B1A" />
             <Text style={styles.categoriesHeaderTitle}>კატეგორიები</Text>
@@ -304,7 +471,7 @@ export default function SearchScreen() {
               ) : null}
             </View>
           ))}
-        </View>
+        </View> : null}
       </ScrollView>
 
       <FilterModal

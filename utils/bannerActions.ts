@@ -9,6 +9,8 @@ export function getBannerRestaurantId(banner: {
 export function hasBannerAction(banner: {
   restaurantId?: string;
   link?: string;
+  isClickable?: boolean;
 }): boolean {
+  if (banner.isClickable === false) return false;
   return Boolean(getBannerRestaurantId(banner) || banner.link?.trim());
 }

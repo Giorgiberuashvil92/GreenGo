@@ -10,6 +10,7 @@ export interface AppBanner {
   source: ImageSourcePropType;
   link?: string;
   restaurantId?: string;
+  isClickable?: boolean;
   title?: string;
 }
 
@@ -36,12 +37,14 @@ export function useBanners(placement: BannerPlacement = "top") {
                 image: string;
                 link?: string;
                 restaurantId?: unknown;
+                isClickable?: boolean;
                 title?: string;
               }) => ({
                 id: banner._id,
                 source: { uri: banner.image },
                 link: banner.link,
                 restaurantId: getBannerRestaurantId(banner),
+                isClickable: banner.isClickable !== false,
                 title: banner.title,
               }),
             );

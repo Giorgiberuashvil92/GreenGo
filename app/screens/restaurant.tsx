@@ -25,6 +25,7 @@ import RestaurantDiscounts from "../../components/RestaurantDiscounts";
 import RestaurantOffersSheet from "../../components/RestaurantOffersSheet";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
+import { sortByPopularOrder } from "../../utils/menuItemSort";
 import type { RestaurantOffer } from "../../utils/restaurantOffers";
 import { getItemOfferPricing } from "../../utils/restaurantOffers";
 
@@ -52,6 +53,7 @@ interface MenuItem {
   order?: number;
   isPopular?: boolean;
   popularOrder?: number;
+  createdAt?: string;
   restaurantId: string;
 }
 
@@ -223,15 +225,7 @@ export default function RestaurantScreen() {
 
   const popularItems = useMemo(
     () =>
-      menuItems
-        .filter((item) => item.isPopular)
-        .sort((a, b) => {
-          const orderA = a.popularOrder ?? a.order ?? Number.MAX_SAFE_INTEGER;
-          const orderB = b.popularOrder ?? b.order ?? Number.MAX_SAFE_INTEGER;
-
-          if (orderA !== orderB) return orderA - orderB;
-          return (a.order ?? 0) - (b.order ?? 0);
-        }),
+      sortByPopularOrder(menuItems.filter((item) => item.isPopular)),
     [menuItems],
   );
 

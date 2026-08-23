@@ -76,6 +76,8 @@ export default function PromotionalBanner({
   };
 
   const handleBannerPress = async (banner: AppBanner) => {
+    if (banner.isClickable === false) return;
+
     const restaurantId = getBannerRestaurantId(banner);
 
     if (restaurantId) {

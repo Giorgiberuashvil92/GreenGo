@@ -39,6 +39,37 @@ const TOKEN_KEY = "@greengo:auth_token";
 const USER_KEY = "@greengo:user";
 const PHONE_KEY = "@greengo:phone_number";
 
+function extractUserData(data: unknown): User | null {
+  if (!data) return null;
+  const maybeNested = data as { data?: unknown };
+  return ((maybeNested.data || data) as User) || null;
+}
+
+function isAuthFailure(error: unknown): boolean {
+  const err = error as {
+    code?: string;
+    status?: number;
+    details?: string;
+    error?: {
+      code?: string;
+      status?: number;
+      details?: string;
+    };
+  };
+  const code = err?.error?.code || err?.code;
+  const status = err?.error?.status || err?.status;
+  const details = err?.error?.details || err?.details || "";
+
+  return (
+    code === "AUTH_ERROR" ||
+    status === 401 ||
+    status === 403 ||
+    details.includes("401") ||
+    details.includes("403") ||
+    details.includes("Unauthorized")
+  );
+}
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -55,6 +86,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const clearStoredAuth = async () => {
+    await Promise.all([
+      AsyncStorage.removeItem(TOKEN_KEY),
+      AsyncStorage.removeItem(USER_KEY),
+      AsyncStorage.removeItem(PHONE_KEY),
+    ]);
+    setToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+  };
+
   // Load stored auth data on mount
   useEffect(() => {
     loadStoredAuth();
@@ -62,99 +104,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loadStoredAuth = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
+      const [storedToken, storedUser] = await Promise.all([
+        AsyncStorage.getItem(TOKEN_KEY),
+        AsyncStorage.getItem(USER_KEY),
+      ]);
 
       if (storedToken) {
         setToken(storedToken);
         setIsAuthenticated(true);
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
 
-        // Fetch fresh user data from /auth/me endpoint
+        // Refresh user data, but keep the saved login unless the token is truly invalid.
         try {
           const meResponse = await apiService.getMe();
-          console.log(
-            "🔍 loadStoredAuth - /auth/me response:",
-            JSON.stringify(meResponse, null, 2),
-          );
           if (meResponse.success && meResponse.data) {
-            // Backend returns {success: true, data: {...}}
-            // API service wraps it: {success: true, data: {success: true, data: {...}}}
-            // So we need to check if meResponse.data has nested structure
-            const userData = (meResponse.data as any).data || meResponse.data;
-            const fullUserData = userData as User;
-            console.log(
-              "✅ Setting user data:",
-              JSON.stringify(fullUserData, null, 2),
-            );
-            await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUserData));
-            setUser(fullUserData);
+            const fullUserData = extractUserData(meResponse.data);
+            if (fullUserData) {
+              await AsyncStorage.setItem(USER_KEY, JSON.stringify(fullUserData));
+              setUser(fullUserData);
+            }
           } else {
-            // If API call fails (401, 403, etc.), token is invalid - clear auth
-            const errorCode = meResponse.error?.code;
-            const errorStatus = meResponse.error?.status;
-            const errorDetails = meResponse.error?.details || "";
-
-            if (
-              errorCode === "AUTH_ERROR" ||
-              (errorCode === "API_ERROR" &&
-                (errorStatus === 401 ||
-                  errorStatus === 403 ||
-                  errorDetails.includes("401") ||
-                  errorDetails.includes("403") ||
-                  errorDetails.includes("Unauthorized")))
-            ) {
-              console.warn(
-                "⚠️ Token validation failed (401/403), clearing auth",
-              );
-              await Promise.all([
-                AsyncStorage.removeItem(TOKEN_KEY),
-                AsyncStorage.removeItem(USER_KEY),
-                AsyncStorage.removeItem(PHONE_KEY),
-              ]);
-              setToken(null);
-              setUser(null);
-              setIsAuthenticated(false);
-            } else {
-              // For other errors, fallback to stored user data
-              console.warn(
-                "⚠️ API call failed but not auth error, using stored user data",
-              );
-              const storedUser = await AsyncStorage.getItem(USER_KEY);
-              if (storedUser) {
-                setUser(JSON.parse(storedUser));
-              }
+            if (isAuthFailure(meResponse.error)) {
+              await clearStoredAuth();
             }
           }
         } catch (meError: any) {
           console.error("Error fetching user data on app load:", meError);
-          // If error is 401/403, token is invalid - clear auth
-          const errorCode = meError?.error?.code;
-          const errorStatus = meError?.error?.status;
-          const errorDetails = meError?.error?.details || "";
-
-          if (
-            errorCode === "AUTH_ERROR" ||
-            (errorCode === "API_ERROR" &&
-              (errorStatus === 401 ||
-                errorStatus === 403 ||
-                errorDetails.includes("401") ||
-                errorDetails.includes("403") ||
-                errorDetails.includes("Unauthorized")))
-          ) {
-            console.warn("⚠️ Token expired or invalid, clearing auth");
-            await Promise.all([
-              AsyncStorage.removeItem(TOKEN_KEY),
-              AsyncStorage.removeItem(USER_KEY),
-              AsyncStorage.removeItem(PHONE_KEY),
-            ]);
-            setToken(null);
-            setUser(null);
-            setIsAuthenticated(false);
-          } else {
-            // For other errors, fallback to stored user data
-            const storedUser = await AsyncStorage.getItem(USER_KEY);
-            if (storedUser) {
-              setUser(JSON.parse(storedUser));
-            }
+          if (isAuthFailure(meError)) {
+            await clearStoredAuth();
           }
         }
       }
@@ -273,15 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const logout = async () => {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem(TOKEN_KEY),
-        AsyncStorage.removeItem(USER_KEY),
-        AsyncStorage.removeItem(PHONE_KEY),
-      ]);
-
-      setToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
+      await clearStoredAuth();
     } catch (error) {
       console.error("Logout error:", error);
     }

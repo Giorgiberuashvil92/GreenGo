@@ -26,6 +26,7 @@ type BannerForm = {
   newPrice: string;
   order: string;
   placement: "top" | "mid";
+  isClickable: boolean;
   isActive: boolean;
   startDate: string;
   endDate: string;
@@ -41,6 +42,7 @@ const emptyForm: BannerForm = {
   newPrice: "",
   order: "0",
   placement: "top",
+  isClickable: true,
   isActive: true,
   startDate: "",
   endDate: "",
@@ -90,6 +92,7 @@ function bannerToForm(banner: Banner): BannerForm {
     newPrice: banner.newPrice || "",
     order: String(banner.order ?? 0),
     placement: banner.placement === "mid" ? "mid" : "top",
+    isClickable: banner.isClickable !== false,
     isActive: banner.isActive,
     startDate: banner.startDate ? banner.startDate.slice(0, 10) : "",
     endDate: banner.endDate ? banner.endDate.slice(0, 10) : "",
@@ -178,6 +181,7 @@ export default function BannersPage() {
       newPrice: form.newPrice.trim() || undefined,
       order: Number(form.order) || 0,
       placement: form.placement,
+      isClickable: form.isClickable,
       isActive: form.isActive,
       startDate: form.startDate || undefined,
       endDate: form.endDate || undefined,
@@ -315,6 +319,12 @@ export default function BannersPage() {
                       isHeader
                       className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
+                      დაჭერა
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    >
                       სტატუსი
                     </TableCell>
                     <TableCell
@@ -376,6 +386,14 @@ export default function BannersPage() {
                       </TableCell>
                       <TableCell className="px-5 py-4 text-gray-500 text-theme-sm dark:text-gray-400">
                         {banner.description || "-"}
+                      </TableCell>
+                      <TableCell className="px-5 py-4">
+                        <Badge
+                          size="sm"
+                          color={banner.isClickable === false ? "warning" : "success"}
+                        >
+                          {banner.isClickable === false ? "გამორთული" : "ჩართული"}
+                        </Badge>
                       </TableCell>
                       <TableCell className="px-5 py-4">
                         <Badge
@@ -572,6 +590,16 @@ export default function BannersPage() {
                   onChange={(e) => updateForm("endDate", e.target.value)}
                   className={inputClass}
                 />
+              </div>
+              <div className="flex items-center md:col-span-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={form.isClickable}
+                    onChange={(e) => updateForm("isClickable", e.target.checked)}
+                  />
+                  დაჭერადი ბანერი
+                </label>
               </div>
               <div className="flex items-center md:col-span-2">
                 <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

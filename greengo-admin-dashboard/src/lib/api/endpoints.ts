@@ -452,6 +452,7 @@ export interface Banner {
   description?: string;
   link?: string;
   restaurantId?: string | { _id: string; name?: string } | null;
+  isClickable?: boolean;
   isActive: boolean;
   order: number;
   placement?: 'top' | 'mid';

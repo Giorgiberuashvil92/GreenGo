@@ -27,6 +27,9 @@ export class Banner {
   restaurantId?: Types.ObjectId;
 
   @Prop({ default: true })
+  isClickable: boolean;
+
+  @Prop({ default: true })
   isActive: boolean;
 
   @Prop({ default: 0 })
