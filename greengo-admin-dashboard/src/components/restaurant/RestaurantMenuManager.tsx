@@ -37,8 +37,8 @@ function sortPopularItems(items: MenuItem[]) {
   return items
     .filter((item) => item.isPopular)
     .sort((a, b) => {
-      const popularOrderA = a.popularOrder ?? Number.MAX_SAFE_INTEGER;
-      const popularOrderB = b.popularOrder ?? Number.MAX_SAFE_INTEGER;
+      const popularOrderA = a.popularOrder ?? a.order ?? Number.MAX_SAFE_INTEGER;
+      const popularOrderB = b.popularOrder ?? b.order ?? Number.MAX_SAFE_INTEGER;
 
       if (popularOrderA !== popularOrderB) return popularOrderA - popularOrderB;
       return (a.order ?? 0) - (b.order ?? 0);

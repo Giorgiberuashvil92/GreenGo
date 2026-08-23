@@ -91,13 +91,18 @@ export class MenuItemsService {
       ];
     }
 
+    const sort: Record<string, 1 | -1> =
+      isPopular === true
+        ? { popularOrder: 1, order: 1, category: 1, createdAt: -1 }
+        : { order: 1, category: 1, createdAt: -1 };
+
     const [data, total] = await Promise.all([
       this.menuItemModel
         .find(filter)
         .populate('restaurantId', 'name')
         .skip(skip)
         .limit(limit)
-        .sort({ order: 1, category: 1, createdAt: -1 })
+        .sort(sort)
         .exec(),
       this.menuItemModel.countDocuments(filter).exec(),
     ]);

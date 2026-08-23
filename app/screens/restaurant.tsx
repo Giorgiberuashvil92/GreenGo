@@ -226,8 +226,8 @@ export default function RestaurantScreen() {
       menuItems
         .filter((item) => item.isPopular)
         .sort((a, b) => {
-          const orderA = a.popularOrder ?? Number.MAX_SAFE_INTEGER;
-          const orderB = b.popularOrder ?? Number.MAX_SAFE_INTEGER;
+          const orderA = a.popularOrder ?? a.order ?? Number.MAX_SAFE_INTEGER;
+          const orderB = b.popularOrder ?? b.order ?? Number.MAX_SAFE_INTEGER;
 
           if (orderA !== orderB) return orderA - orderB;
           return (a.order ?? 0) - (b.order ?? 0);
