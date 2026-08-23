@@ -24,6 +24,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PromoCodesModule } from './promo-codes/promo-codes.module';
 import { RestaurantOffersModule } from './restaurant-offers/restaurant-offers.module';
 import { RestaurantsModule } from './restaurants/restaurants.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module';
     HomeSectionsModule,
     PromoCodesModule,
     RestaurantOffersModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

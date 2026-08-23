@@ -1,5 +1,6 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import CloudinaryImageUpload from "@/components/common/CloudinaryImageUpload";
 import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import Badge from "@/components/ui/badge/Badge";
 import { Modal } from "@/components/ui/modal";
@@ -1261,8 +1262,12 @@ export default function RestaurantsPage() {
                       placeholder="https://example.com/image.jpg"
                       required
                     />
+                    <CloudinaryImageUpload
+                      folder="greengo/restaurants"
+                      onUploaded={(url) => updateFormField("image", url)}
+                    />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      გამოიყენეთ პირდაპირი სურათის ბმული (.jpg, .png). Google ძებნის ბმული არ მუშაობს.
+                      ატვირთეთ სურათი ან გამოიყენეთ პირდაპირი სურათის ბმული.
                     </p>
                   </div>
                   <div>
@@ -1273,6 +1278,10 @@ export default function RestaurantsPage() {
                       onChange={(e) => updateFormField("heroImage", e.target.value)}
                       className={inputClassName}
                       placeholder="ცარიელი დატოვებისას გამოიყენება მთავარი სურათი"
+                    />
+                    <CloudinaryImageUpload
+                      folder="greengo/restaurants/hero"
+                      onUploaded={(url) => updateFormField("heroImage", url)}
                     />
                   </div>
                   <div>

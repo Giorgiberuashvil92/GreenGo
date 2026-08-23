@@ -13,6 +13,7 @@ const NEXT_IMAGE_HOST_PATTERNS: RegExp[] = [
   /^greengo-production\.up\.railway\.app$/,
   /^(.+\.)?up\.railway\.app$/,
   /^imageproxy\.wolt\.com$/,
+  /^res\.cloudinary\.com$/,
 ];
 
 const DIRECT_IMAGE_EXT = /\.(avif|bmp|gif|jpe?g|png|svg|webp)(\?.*)?$/i;

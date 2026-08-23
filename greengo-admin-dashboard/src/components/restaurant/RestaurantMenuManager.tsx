@@ -1,5 +1,6 @@
 "use client";
 
+import CloudinaryImageUpload from "@/components/common/CloudinaryImageUpload";
 import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import {
   MenuItem,
@@ -442,6 +443,10 @@ export default function RestaurantMenuManager({
                   placeholder="https://..."
                   required
                 />
+                <CloudinaryImageUpload
+                  folder="greengo/products"
+                  onUploaded={(url) => updateMenuForm("image", url)}
+                />
               </div>
               <div>
                 <label className={labelClass}>Hero სურათის URL</label>
@@ -451,6 +456,10 @@ export default function RestaurantMenuManager({
                   onChange={(e) => updateMenuForm("heroImage", e.target.value)}
                   className={inputClass}
                   placeholder="ცარიელი = იგივე რაც სურათი"
+                />
+                <CloudinaryImageUpload
+                  folder="greengo/products/hero"
+                  onUploaded={(url) => updateMenuForm("heroImage", url)}
                 />
               </div>
               <div>

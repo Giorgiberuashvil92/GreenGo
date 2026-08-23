@@ -1,5 +1,6 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import CloudinaryImageUpload from "@/components/common/CloudinaryImageUpload";
 import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import Badge from "@/components/ui/badge/Badge";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
@@ -457,6 +458,10 @@ export default function MenuItemsPage() {
                   className={inputClass}
                   required
                 />
+                <CloudinaryImageUpload
+                  folder="greengo/products"
+                  onUploaded={(url) => updateForm("image", url)}
+                />
               </div>
               <div>
                 <label className={labelClass}>Hero სურათის URL</label>
@@ -466,6 +471,10 @@ export default function MenuItemsPage() {
                   onChange={(e) => updateForm("heroImage", e.target.value)}
                   className={inputClass}
                   placeholder="ცარიელი = იგივე რაც სურათი"
+                />
+                <CloudinaryImageUpload
+                  folder="greengo/products/hero"
+                  onUploaded={(url) => updateForm("heroImage", url)}
                 />
               </div>
               <div>
