@@ -84,6 +84,20 @@ export class RestaurantsService {
 
   async create(createRestaurantDto: CreateRestaurantDto): Promise<Restaurant> {
     const payload = await this.prepareBusinessCredentials(createRestaurantDto);
+
+    if (payload.order === undefined || payload.order === null) {
+      const lastRestaurant = await this.restaurantModel
+        .findOne()
+        .sort({ order: -1, createdAt: -1 })
+        .select('order')
+        .exec();
+
+      payload.order =
+        typeof lastRestaurant?.order === 'number'
+          ? lastRestaurant.order + 1
+          : 0;
+    }
+
     const createdRestaurant = new this.restaurantModel(payload);
     return createdRestaurant.save();
   }
@@ -154,7 +168,7 @@ export class RestaurantsService {
     }
 
     // Build sort object
-    let sort: any = { createdAt: -1 }; // Default sort
+    let sort: any = { order: 1, createdAt: -1 }; // Default sort
     if (sortBy) {
       switch (sortBy) {
         case 'rating':
@@ -172,7 +186,7 @@ export class RestaurantsService {
           sort = { name: 1 };
           break;
         default:
-          sort = { createdAt: -1 };
+          sort = { order: 1, createdAt: -1 };
       }
     }
 

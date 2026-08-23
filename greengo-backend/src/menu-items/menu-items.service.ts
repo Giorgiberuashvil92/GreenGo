@@ -20,6 +20,24 @@ export class MenuItemsService {
   }
 
   async create(createMenuItemDto: any): Promise<MenuItem> {
+    if (
+      createMenuItemDto.order === undefined ||
+      createMenuItemDto.order === null
+    ) {
+      const lastItem = await this.menuItemModel
+        .findOne({
+          restaurantId: this.buildRestaurantIdFilter(
+            createMenuItemDto.restaurantId,
+          ),
+        })
+        .sort({ order: -1, createdAt: -1 })
+        .select('order')
+        .exec();
+
+      createMenuItemDto.order =
+        typeof lastItem?.order === 'number' ? lastItem.order + 1 : 0;
+    }
+
     const createdMenuItem = new this.menuItemModel(createMenuItemDto);
     return createdMenuItem.save();
   }
@@ -79,7 +97,7 @@ export class MenuItemsService {
         .populate('restaurantId', 'name')
         .skip(skip)
         .limit(limit)
-        .sort({ createdAt: -1 })
+        .sort({ order: 1, category: 1, createdAt: -1 })
         .exec(),
       this.menuItemModel.countDocuments(filter).exec(),
     ]);
@@ -95,7 +113,7 @@ export class MenuItemsService {
   async findByRestaurant(restaurantId: string): Promise<MenuItem[]> {
     return this.menuItemModel
       .find({ restaurantId: this.buildRestaurantIdFilter(restaurantId) })
-      .sort({ category: 1, createdAt: -1 })
+      .sort({ order: 1, category: 1, createdAt: -1 })
       .exec();
   }
 

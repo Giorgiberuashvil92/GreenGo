@@ -49,6 +49,7 @@ interface MenuItem {
   price: number;
   image?: string;
   category: string;
+  order?: number;
   isPopular?: boolean;
   restaurantId: string;
 }

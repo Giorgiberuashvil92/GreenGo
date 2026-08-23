@@ -26,6 +26,9 @@ export class MenuItem {
   @Prop({ required: true })
   category: string;
 
+  @Prop({ default: 0 })
+  order: number;
+
   @Prop({ default: false })
   isPopular: boolean;
 
@@ -70,4 +73,3 @@ export class MenuItem {
 }
 
 export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);
-

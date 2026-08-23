@@ -32,6 +32,9 @@ export class Restaurant {
   @Prop({ default: true })
   isActive: boolean;
 
+  @Prop({ default: 0 })
+  order: number;
+
   @Prop({ unique: true, sparse: true, trim: true, lowercase: true })
   businessUsername?: string;
 
@@ -131,4 +134,3 @@ export class Restaurant {
 }
 
 export const RestaurantSchema = SchemaFactory.createForClass(Restaurant);
-

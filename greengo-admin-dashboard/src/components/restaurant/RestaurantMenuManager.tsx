@@ -22,7 +22,17 @@ function sortCategories(categories: RestaurantMenuCategory[]) {
   return [...categories].sort((a, b) => a.order - b.order);
 }
 
-type NewMenuItemForm = {
+function sortMenuItems(items: MenuItem[]) {
+  return [...items].sort((a, b) => {
+    const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+
+    if (orderA !== orderB) return orderA - orderB;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+type MenuItemForm = {
   name: string;
   description: string;
   price: string;
@@ -33,7 +43,7 @@ type NewMenuItemForm = {
   isAvailable: boolean;
 };
 
-const emptyMenuItemForm: NewMenuItemForm = {
+const emptyMenuItemForm: MenuItemForm = {
   name: "",
   description: "",
   price: "",
@@ -55,7 +65,10 @@ export default function RestaurantMenuManager({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [savingCategories, setSavingCategories] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
-  const [menuForm, setMenuForm] = useState<NewMenuItemForm>(emptyMenuItemForm);
+  const [editingMenuItemId, setEditingMenuItemId] = useState<string | null>(
+    null,
+  );
+  const [menuForm, setMenuForm] = useState<MenuItemForm>(emptyMenuItemForm);
   const [savingMenuItem, setSavingMenuItem] = useState(false);
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [listPreviewIds, setListPreviewIds] = useState<string[]>([]);
@@ -191,14 +204,36 @@ export default function RestaurantMenuManager({
     }
   };
 
-  const updateMenuForm = <K extends keyof NewMenuItemForm>(
+  const updateMenuForm = <K extends keyof MenuItemForm>(
     key: K,
-    value: NewMenuItemForm[K],
+    value: MenuItemForm[K],
   ) => {
     setMenuForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleCreateMenuItem = async (e: React.FormEvent) => {
+  const resetMenuForm = () => {
+    const firstActive = categories.find((c) => c.isActive !== false)?.name || "";
+    setMenuForm({ ...emptyMenuItemForm, category: firstActive });
+    setEditingMenuItemId(null);
+    setShowMenuForm(false);
+  };
+
+  const handleStartEditMenuItem = (item: MenuItem) => {
+    setEditingMenuItemId(item._id);
+    setMenuForm({
+      name: item.name || "",
+      description: item.description || "",
+      price: Number.isFinite(item.price) ? String(item.price) : "",
+      image: item.image || "",
+      heroImage: item.heroImage || "",
+      category: item.category || "",
+      isPopular: !!item.isPopular,
+      isAvailable: item.isAvailable !== false,
+    });
+    setShowMenuForm(true);
+  };
+
+  const handleSaveMenuItem = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = menuForm.name.trim();
     const price = parseFloat(menuForm.price.replace(",", "."));
@@ -224,8 +259,7 @@ export default function RestaurantMenuManager({
 
     setSavingMenuItem(true);
     try {
-      const created = await menuItemsApi.create({
-        restaurantId,
+      const payload = {
         name,
         description: menuForm.description.trim() || undefined,
         price,
@@ -234,15 +268,27 @@ export default function RestaurantMenuManager({
         category,
         isPopular: menuForm.isPopular,
         isAvailable: menuForm.isAvailable,
-      });
-      onMenuItemsUpdated([created, ...menuItems]);
-      const firstActive =
-        categories.find((c) => c.isActive !== false)?.name || category;
-      setMenuForm({ ...emptyMenuItemForm, category: firstActive });
-      setShowMenuForm(false);
+      };
+
+      if (editingMenuItemId) {
+        const updated = await menuItemsApi.update(editingMenuItemId, payload);
+        onMenuItemsUpdated(
+          menuItems.map((m) =>
+            m._id === editingMenuItemId ? { ...m, ...updated } : m,
+          ),
+        );
+      } else {
+        const created = await menuItemsApi.create({
+          restaurantId,
+          ...payload,
+        });
+        onMenuItemsUpdated([created, ...menuItems]);
+      }
+
+      resetMenuForm();
     } catch (error) {
-      console.error("Error creating menu item:", error);
-      alert("პროდუქტის დამატება ვერ მოხერხდა");
+      console.error("Error saving menu item:", error);
+      alert("პროდუქტის შენახვა ვერ მოხერხდა");
     } finally {
       setSavingMenuItem(false);
     }
@@ -277,7 +323,38 @@ export default function RestaurantMenuManager({
     }
   };
 
+  const handleMoveMenuItem = async (index: number, direction: -1 | 1) => {
+    const sortedItems = sortMenuItems(menuItems);
+    const target = index + direction;
+    if (target < 0 || target >= sortedItems.length) return;
+
+    const next = [...sortedItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    const reordered = next.map((item, itemIndex) => ({
+      ...item,
+      order: itemIndex,
+    }));
+
+    setUpdatingItemId(sortedItems[index]._id);
+    onMenuItemsUpdated(reordered);
+
+    try {
+      await Promise.all(
+        reordered.map((item) =>
+          menuItemsApi.update(item._id, { order: item.order }),
+        ),
+      );
+    } catch (error) {
+      console.error("Error reordering menu items:", error);
+      onMenuItemsUpdated(menuItems);
+      alert("პროდუქტების რიგის შენახვა ვერ მოხერხდა");
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
+
   const activeCategories = categories.filter((c) => c.isActive);
+  const sortedMenuItems = sortMenuItems(menuItems);
   const popularItems = menuItems.filter((item) => item.isPopular);
 
   const inputClass =
@@ -300,7 +377,13 @@ export default function RestaurantMenuManager({
           </div>
           <button
             type="button"
-            onClick={() => setShowMenuForm((v) => !v)}
+            onClick={() => {
+              if (showMenuForm) {
+                resetMenuForm();
+              } else {
+                setShowMenuForm(true);
+              }
+            }}
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
           >
             {showMenuForm ? "დახურვა" : "+ პროდუქტის დამატება"}
@@ -308,7 +391,12 @@ export default function RestaurantMenuManager({
         </div>
 
         {showMenuForm && (
-          <form onSubmit={handleCreateMenuItem} className="space-y-4 p-6">
+          <form onSubmit={handleSaveMenuItem} className="space-y-4 p-6">
+            {editingMenuItemId && (
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+                პროდუქტის რედაქტირება
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className={labelClass}>სახელი *</label>
@@ -424,7 +512,7 @@ export default function RestaurantMenuManager({
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowMenuForm(false)}
+                onClick={resetMenuForm}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-700"
               >
                 გაუქმება
@@ -434,7 +522,11 @@ export default function RestaurantMenuManager({
                 disabled={savingMenuItem}
                 className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                {savingMenuItem ? "ინახება..." : "პროდუქტის შენახვა"}
+                {savingMenuItem
+                  ? "ინახება..."
+                  : editingMenuItemId
+                    ? "ცვლილებების შენახვა"
+                    : "პროდუქტის შენახვა"}
               </button>
             </div>
           </form>
@@ -442,11 +534,39 @@ export default function RestaurantMenuManager({
 
         {menuItems.length > 0 ? (
           <div className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-            {menuItems.map((item) => (
+            {sortedMenuItems.map((item, index) => (
               <div
                 key={item._id}
                 className="flex items-center gap-3 px-6 py-3"
               >
+                <div className="flex w-16 shrink-0 items-center gap-2">
+                  <span className="w-6 text-sm font-semibold text-gray-500">
+                    {index + 1}
+                  </span>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleMoveMenuItem(index, -1)}
+                      disabled={updatingItemId !== null || index === 0}
+                      className="rounded border border-gray-300 px-1.5 py-0.5 text-xs disabled:opacity-40 dark:border-gray-700"
+                      title="ზემოთ აწევა"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleMoveMenuItem(index, 1)}
+                      disabled={
+                        updatingItemId !== null ||
+                        index === sortedMenuItems.length - 1
+                      }
+                      className="rounded border border-gray-300 px-1.5 py-0.5 text-xs disabled:opacity-40 dark:border-gray-700"
+                      title="ქვემოთ ჩამოწევა"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
                 <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg">
                   <SafeRemoteImage
                     width={48}
@@ -468,6 +588,14 @@ export default function RestaurantMenuManager({
                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   {item.price.toFixed(2)} ₾
                 </span>
+                <button
+                  type="button"
+                  onClick={() => handleStartEditMenuItem(item)}
+                  disabled={updatingItemId === item._id || savingMenuItem}
+                  className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
+                >
+                  რედაქტირება
+                </button>
                 <button
                   type="button"
                   onClick={() => handleDeleteMenuItem(item)}

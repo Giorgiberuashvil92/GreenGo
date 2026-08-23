@@ -126,6 +126,15 @@ const formatRestaurantAddress = (restaurant: Restaurant) => {
   return "N/A";
 };
 
+const sortRestaurants = (items: Restaurant[]) =>
+  [...items].sort((a, b) => {
+    const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+
+    if (orderA !== orderB) return orderA - orderB;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+
 const featureCheckboxes: Array<{
   field: "isActive" | "hasDelivery" | "hasPickup" | "hasDineIn" | "acceptsOnlineOrders";
   label: string;
@@ -156,6 +165,7 @@ export default function RestaurantsPage() {
   const [showDuplicatePassword, setShowDuplicatePassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingRestaurantId, setTogglingRestaurantId] = useState<string | null>(null);
+  const [reorderingRestaurantId, setReorderingRestaurantId] = useState<string | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicatingRestaurant, setDuplicatingRestaurant] = useState<Restaurant | null>(null);
   const [duplicateFormData, setDuplicateFormData] = useState<DuplicateFormState>(
@@ -630,12 +640,45 @@ export default function RestaurantsPage() {
     }
   };
 
+  const handleMoveRestaurant = async (index: number, direction: -1 | 1) => {
+    const sortedRestaurants = sortRestaurants(restaurants);
+    const target = index + direction;
+    if (target < 0 || target >= sortedRestaurants.length) return;
+
+    const next = [...sortedRestaurants];
+    [next[index], next[target]] = [next[target], next[index]];
+    const pageOffset = (page - 1) * RESTAURANTS_PAGE_LIMIT;
+    const reordered = next.map((restaurant, itemIndex) => ({
+      ...restaurant,
+      order: pageOffset + itemIndex,
+    }));
+
+    setReorderingRestaurantId(sortedRestaurants[index]._id);
+    setRestaurants(reordered);
+
+    try {
+      await Promise.all(
+        reordered.map((restaurant) =>
+          restaurantsApi.update(restaurant._id, { order: restaurant.order }),
+        ),
+      );
+    } catch (error) {
+      console.error("Error reordering restaurants:", error);
+      setRestaurants(restaurants);
+      alert("რესტორნების რიგის შენახვა ვერ მოხერხდა");
+    } finally {
+      setReorderingRestaurantId(null);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ka-GE");
   };
 
+  const sortedRestaurants = sortRestaurants(restaurants);
+
   const selectedActionRestaurant = openDropdown
-    ? restaurants.find((restaurant) => restaurant._id === openDropdown)
+    ? sortedRestaurants.find((restaurant) => restaurant._id === openDropdown)
     : null;
 
   return (
@@ -683,6 +726,12 @@ export default function RestaurantsPage() {
                       isHeader
                       className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
+                      რიგი
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    >
                       სურათი
                     </TableCell>
                     <TableCell
@@ -724,8 +773,40 @@ export default function RestaurantsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-gray-100 dark:divide-white/5">
-                  {restaurants.map((restaurant) => (
+                  {sortedRestaurants.map((restaurant, index) => (
                     <TableRow key={restaurant._id}>
+                      <TableCell className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 text-sm font-semibold text-gray-500">
+                            {(page - 1) * RESTAURANTS_PAGE_LIMIT + index + 1}
+                          </span>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              onClick={() => void handleMoveRestaurant(index, -1)}
+                              disabled={
+                                reorderingRestaurantId !== null || index === 0
+                              }
+                              className="rounded border border-gray-300 px-1.5 py-0.5 text-xs disabled:opacity-40 dark:border-gray-700"
+                              title="ზემოთ აწევა"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleMoveRestaurant(index, 1)}
+                              disabled={
+                                reorderingRestaurantId !== null ||
+                                index === sortedRestaurants.length - 1
+                              }
+                              className="rounded border border-gray-300 px-1.5 py-0.5 text-xs disabled:opacity-40 dark:border-gray-700"
+                              title="ქვემოთ ჩამოწევა"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell className="px-5 py-4">
                         <div className="h-12 w-12 overflow-hidden rounded-md">
                           <SafeRemoteImage

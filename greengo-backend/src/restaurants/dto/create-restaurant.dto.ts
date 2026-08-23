@@ -120,6 +120,11 @@ export class CreateRestaurantDto {
   @IsOptional()
   isActive?: boolean;
 
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  order?: number;
+
   @IsString()
   @IsOptional()
   businessUsername?: string;
@@ -180,4 +185,3 @@ export class CreateRestaurantDto {
   @IsOptional()
   listPreviewMenuItemIds?: string[];
 }
-

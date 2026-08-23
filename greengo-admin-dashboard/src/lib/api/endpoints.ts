@@ -67,6 +67,7 @@ export interface Restaurant {
   deliveryFee?: number;
   minimumOrder?: number;
   isActive: boolean;
+  order?: number;
   categories?: string[];
   menuCategories?: RestaurantMenuCategory[];
   priceRange?: '€' | '€€' | '€€€' | '€€€€';
@@ -94,6 +95,7 @@ export interface CreateRestaurantPayload {
   image: string;
   heroImage: string;
   isActive?: boolean;
+  order?: number;
   location: {
     latitude: number;
     longitude: number;
@@ -174,6 +176,7 @@ export interface MenuItem {
   image?: string;
   heroImage?: string;
   category: string;
+  order?: number;
   isPopular?: boolean;
   isAvailable: boolean;
   createdAt: string;
