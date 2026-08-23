@@ -21,7 +21,8 @@ type CloudinaryResponse = {
 @Injectable()
 export class UploadsService {
   private getConfig() {
-    const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
+    const cloudinaryUrl =
+      'cloudinary://371577584952328:DvszfHOU_LNZS01CKn8tM87mlm8@uah1hszj';
     if (cloudinaryUrl) {
       try {
         const parsed = new URL(cloudinaryUrl);
@@ -29,7 +30,12 @@ export class UploadsService {
         const apiSecret = decodeURIComponent(parsed.password);
         const cloudName = parsed.hostname;
 
-        if (parsed.protocol === 'cloudinary:' && cloudName && apiKey && apiSecret) {
+        if (
+          parsed.protocol === 'cloudinary:' &&
+          cloudName &&
+          apiKey &&
+          apiSecret
+        ) {
           return { cloudName, apiKey, apiSecret };
         }
       } catch {
@@ -44,9 +50,7 @@ export class UploadsService {
     const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
 
     if (!cloudName || !apiKey || !apiSecret) {
-      throw new InternalServerErrorException(
-        'Cloudinary env აკლია backend-ში',
-      );
+      throw new InternalServerErrorException('Cloudinary env აკლია backend-ში');
     }
 
     return { cloudName, apiKey, apiSecret };
@@ -54,14 +58,14 @@ export class UploadsService {
 
   private sign(params: Record<string, string | number>, apiSecret: string) {
     const payload = Object.entries(params)
-      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .filter(
+        ([, value]) => value !== undefined && value !== null && value !== '',
+      )
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => `${key}=${value}`)
       .join('&');
 
-    return createHash('sha1')
-      .update(`${payload}${apiSecret}`)
-      .digest('hex');
+    return createHash('sha1').update(`${payload}${apiSecret}`).digest('hex');
   }
 
   async uploadImage(file: any, folder?: string) {
@@ -93,7 +97,9 @@ export class UploadsService {
       },
     );
 
-    const data = (await response.json().catch(() => ({}))) as CloudinaryResponse;
+    const data = (await response
+      .json()
+      .catch(() => ({}))) as CloudinaryResponse;
 
     if (!response.ok) {
       throw new BadRequestException(
