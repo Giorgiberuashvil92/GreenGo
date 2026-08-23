@@ -32,6 +32,9 @@ export class MenuItem {
   @Prop({ default: false })
   isPopular: boolean;
 
+  @Prop({ default: 0 })
+  popularOrder: number;
+
   @Prop({ default: true })
   isAvailable: boolean;
 

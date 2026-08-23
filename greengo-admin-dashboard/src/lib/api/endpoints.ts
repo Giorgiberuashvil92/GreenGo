@@ -178,6 +178,7 @@ export interface MenuItem {
   category: string;
   order?: number;
   isPopular?: boolean;
+  popularOrder?: number;
   isAvailable: boolean;
   createdAt: string;
   updatedAt: string;

@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = [
+  "cd greengo-backend && npm install --legacy-peer-deps"
+]
+
+[phases.build]
+cmds = [
+  "cd greengo-backend && npm run build",
+  "ls -la greengo-backend/dist/src/main.js || echo 'Build failed - greengo-backend/dist/src/main.js not found'"
+]
+
+[start]
+cmd = "cd greengo-backend && npm run start:prod"

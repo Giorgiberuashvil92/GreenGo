@@ -33,6 +33,18 @@ function sortMenuItems(items: MenuItem[]) {
   });
 }
 
+function sortPopularItems(items: MenuItem[]) {
+  return items
+    .filter((item) => item.isPopular)
+    .sort((a, b) => {
+      const popularOrderA = a.popularOrder ?? Number.MAX_SAFE_INTEGER;
+      const popularOrderB = b.popularOrder ?? Number.MAX_SAFE_INTEGER;
+
+      if (popularOrderA !== popularOrderB) return popularOrderA - popularOrderB;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+}
+
 type MenuItemForm = {
   name: string;
   description: string;
@@ -141,8 +153,13 @@ export default function RestaurantMenuManager({
   const handleTogglePopular = async (item: MenuItem) => {
     setUpdatingItemId(item._id);
     try {
+      const nextIsPopular = !item.isPopular;
+      const nextPopularOrder = nextIsPopular
+        ? sortPopularItems(menuItems).length
+        : item.popularOrder;
       const updated = await menuItemsApi.update(item._id, {
-        isPopular: !item.isPopular,
+        isPopular: nextIsPopular,
+        popularOrder: nextPopularOrder,
       });
       onMenuItemsUpdated(
         menuItems.map((m) => (m._id === item._id ? { ...m, ...updated } : m)),
@@ -354,9 +371,44 @@ export default function RestaurantMenuManager({
     }
   };
 
+  const handleMovePopularItem = async (index: number, direction: -1 | 1) => {
+    const sortedPopularItems = sortPopularItems(menuItems);
+    const target = index + direction;
+    if (target < 0 || target >= sortedPopularItems.length) return;
+
+    const next = [...sortedPopularItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    const reorderedPopular = next.map((item, itemIndex) => ({
+      ...item,
+      popularOrder: itemIndex,
+    }));
+
+    setUpdatingItemId(sortedPopularItems[index]._id);
+    onMenuItemsUpdated(
+      menuItems.map((item) => {
+        const reordered = reorderedPopular.find((p) => p._id === item._id);
+        return reordered ? { ...item, ...reordered } : item;
+      }),
+    );
+
+    try {
+      await Promise.all(
+        reorderedPopular.map((item) =>
+          menuItemsApi.update(item._id, { popularOrder: item.popularOrder }),
+        ),
+      );
+    } catch (error) {
+      console.error("Error reordering popular menu items:", error);
+      onMenuItemsUpdated(menuItems);
+      alert("პოპულარულების რიგის შენახვა ვერ მოხერხდა");
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
+
   const activeCategories = categories.filter((c) => c.isActive);
   const sortedMenuItems = sortMenuItems(menuItems);
-  const popularItems = menuItems.filter((item) => item.isPopular);
+  const popularItems = sortPopularItems(menuItems);
 
   const inputClass =
     "w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white";
@@ -846,10 +898,55 @@ export default function RestaurantMenuManager({
         </div>
         <div className="p-6">
           {popularItems.length > 0 && (
-            <div className="mb-4 rounded-lg bg-green-50 px-4 py-3 dark:bg-green-900/20">
+            <div className="mb-4 space-y-2 rounded-lg bg-green-50 px-4 py-3 dark:bg-green-900/20">
               <p className="text-sm font-medium text-green-800 dark:text-green-300">
                 არჩეული: {popularItems.length} პროდუქტი
               </p>
+              <div className="space-y-2">
+                {popularItems.map((item, index) => (
+                  <div
+                    key={`popular-order-${item._id}`}
+                    className="flex items-center gap-3 rounded-lg border border-green-100 bg-white p-2 dark:border-green-900/40 dark:bg-gray-900"
+                  >
+                    <span className="w-6 text-sm font-semibold text-green-700 dark:text-green-300">
+                      {index + 1}
+                    </span>
+                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md">
+                      <SafeRemoteImage
+                        width={36}
+                        height={36}
+                        src={item.image}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-white/90">
+                      {item.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleMovePopularItem(index, -1)}
+                      disabled={updatingItemId !== null || index === 0}
+                      className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 dark:border-gray-700"
+                      title="ზემოთ აწევა"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleMovePopularItem(index, 1)}
+                      disabled={
+                        updatingItemId !== null ||
+                        index === popularItems.length - 1
+                      }
+                      className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 dark:border-gray-700"
+                      title="ქვემოთ ჩამოწევა"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
