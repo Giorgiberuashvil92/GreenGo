@@ -1,5 +1,6 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import CloudinaryImageUpload from "@/components/common/CloudinaryImageUpload";
 import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import Badge from "@/components/ui/badge/Badge";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
@@ -535,6 +536,13 @@ export default function BannersPage() {
                   placeholder="https://..."
                   required
                 />
+                <CloudinaryImageUpload
+                  folder="greengo/banners"
+                  onUploaded={(url) => updateForm("image", url)}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  ატვირთეთ სურათი ან ჩასვით პირდაპირი სურათის ბმული.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>გარე ბმული (დაჭერისას)</label>
