@@ -2,7 +2,6 @@ import CardBrandIcon from "@/components/icons/CardBrandIcon";
 import ListScreenLayout from "@/components/layout/ListScreenLayout";
 import { BRAND_GREEN, LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
-import { useGreenGoBalance } from "@/hooks/useGreenGoBalance";
 import apiService from "@/utils/api";
 import {
   CheckoutPaymentSelection,
@@ -30,7 +29,6 @@ const bogCashIcon = require("@/assets/images/bog-cash-payment.png");
 export default function PaymentMethodsScreen() {
   const { select } = useLocalSearchParams<{ select?: string }>();
   const isSelectMode = select === "1";
-  const { formattedBalance } = useGreenGoBalance();
 
   const [cards, setCards] = useState<SavedPaymentCard[]>([]);
   const [loadingCards, setLoadingCards] = useState(true);
@@ -94,14 +92,6 @@ export default function PaymentMethodsScreen() {
     router.back();
   };
 
-  const handleGreenGoBalancePress = () => {
-    if (isSelectMode) {
-      void selectMethodForCheckout("greengo_balance");
-      return;
-    }
-    console.log("GreenGo balance pressed");
-  };
-
   const handleCardPress = (card: SavedPaymentCard) => {
     if (isSelectMode) {
       void selectCardForCheckout(card);
@@ -109,6 +99,12 @@ export default function PaymentMethodsScreen() {
     }
     setSelectedCard(card);
     setShowCardModal(true);
+  };
+
+  const handleFlittPaymentPress = () => {
+    if (isSelectMode) {
+      void selectMethodForCheckout("card");
+    }
   };
 
   const handleCardOptionsPress = (card: SavedPaymentCard) => {
@@ -174,8 +170,7 @@ export default function PaymentMethodsScreen() {
   };
 
   const isCashSelected = isSelectMode && checkoutSelection?.method === "cash";
-  const isBalanceSelected =
-    isSelectMode && checkoutSelection?.method === "greengo_balance";
+  const isFlittSelected = isSelectMode && checkoutSelection?.method === "card";
 
   return (
     <>
@@ -186,31 +181,7 @@ export default function PaymentMethodsScreen() {
         scrollable
       >
         <View style={styles.content}>
-          <TouchableOpacity
-            style={styles.balanceSection}
-            onPress={handleGreenGoBalancePress}
-            activeOpacity={0.85}
-          >
-            <View style={styles.balanceTop}>
-              <Text style={styles.balanceTitle}>GreenGo ბალანსი</Text>
-              <Text style={styles.balanceAmount}>{formattedBalance}</Text>
-            </View>
-            {!isSelectMode ? (
-              <Text style={styles.balanceQuestion}>
-                რა არის GreenGo ბალანსი?
-              </Text>
-            ) : isBalanceSelected ? (
-              <View style={styles.balanceCheck}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={22}
-                  color={LIST_ACCENT_GREEN}
-                />
-              </View>
-            ) : null}
-          </TouchableOpacity>
-
-          {!loadingCards && cards.length === 0 ? (
+          {!isSelectMode && !loadingCards && cards.length === 0 ? (
             <View style={styles.cardsEmptyContainer}>
               <Ionicons
                 name="card-outline"
@@ -242,7 +213,31 @@ export default function PaymentMethodsScreen() {
           ) : null}
 
           <View style={styles.methodsList}>
-            {loadingCards ? (
+            {isSelectMode ? (
+              <TouchableOpacity
+                style={[styles.methodRow, styles.methodRowBorder]}
+                onPress={handleFlittPaymentPress}
+                activeOpacity={0.75}
+              >
+                <View style={styles.methodRowLeft}>
+                  {isFlittSelected ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={LIST_ACCENT_GREEN}
+                      style={styles.rowCheck}
+                    />
+                  ) : null}
+                  <View style={styles.cardIconWrap}>
+                    <Ionicons name="card-outline" size={28} color="#1D4045" />
+                  </View>
+                  <View style={styles.cardTextBlock}>
+                    <Text style={styles.cardLabel}>ბარათით გადახდა</Text>
+                    <Text style={styles.cardNumber}>უსაფრთხო გადახდა Flitt-ით</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ) : loadingCards ? (
               <View style={styles.loadingWrap}>
                 <ActivityIndicator size="small" color={BRAND_GREEN} />
               </View>
@@ -399,44 +394,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 32,
-  },
-  balanceSection: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingRight: 16,
-    marginBottom: 24,
-  },
-  balanceTop: {
-    paddingBottom: 12,
-    marginBottom: 8,
-    marginLeft: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-  },
-  balanceTitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: fontFamily.regular,
-    color: "#666666",
-    marginBottom: 8,
-  },
-  balanceAmount: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontFamily: fontFamily.bold,
-    color: "#003E20",
-  },
-  balanceQuestion: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: fontFamily.regular,
-    color: "#181B1A",
-    marginLeft: 16,
-  },
-  balanceCheck: {
-    marginLeft: 16,
-    marginTop: 4,
   },
   methodsList: {
     marginBottom: 19,

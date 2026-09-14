@@ -5,6 +5,8 @@ import { CouriersService } from '../couriers/couriers.service';
 import { calculateDeliveryFeeFromDistance } from '../common/delivery-fee.util';
 import { PromoCodesService } from '../promo-codes/promo-codes.service';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import { AuthService } from '../auth/auth.service';
+import { FlittService } from '../payments/flitt.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
 
@@ -15,6 +17,8 @@ export class OrdersService {
     @InjectModel(Restaurant.name) private restaurantModel: Model<RestaurantDocument>,
     private couriersService: CouriersService,
     private promoCodesService: PromoCodesService,
+    private authService: AuthService,
+    private flittService: FlittService,
   ) {}
 
   /**
@@ -55,7 +59,7 @@ export class OrdersService {
       // Get restaurant location to calculate distance
       const restaurant = await this.restaurantModel
         .findById(createOrderDto.restaurantId)
-        .select('location')
+        .select('name location')
         .exec();
 
       if (!restaurant) {
@@ -134,8 +138,54 @@ export class OrdersService {
       
       const savedOrder = await createdOrder.save();
       console.log('✅ Order created successfully:', savedOrder._id);
+      let paymentUrl: string | undefined;
+      let paymentError: string | undefined;
+
+      if (createOrderDto.paymentMethod === 'card') {
+        try {
+          const checkout = await this.flittService.createCheckout(
+            savedOrder._id.toString(),
+            newTotalAmount,
+            `GreenGo order ${savedOrder._id.toString().slice(-6).toUpperCase()}`,
+          );
+          savedOrder.paymentStatus = 'pending';
+          savedOrder.flittOrderId = checkout.flittOrderId;
+          savedOrder.flittPaymentId = checkout.paymentId;
+          await savedOrder.save();
+          paymentUrl = checkout.checkoutUrl;
+        } catch (flittError: any) {
+          console.error(
+            `⚠️ Order created but Flitt checkout failed for ${savedOrder._id}:`,
+            flittError?.message || flittError,
+          );
+          paymentError = flittError?.message || 'Flitt checkout creation failed';
+          savedOrder.paymentStatus = 'failed';
+          await savedOrder.save();
+        }
+      }
+
+      // Notify one configured number for every order, regardless of the restaurant.
+      // SMS delivery must not make an otherwise valid order fail.
+      try {
+        const orderNumber = savedOrder._id.toString().slice(-6).toUpperCase();
+        const smsSent = await this.authService.sendOrderNotificationSms(
+          `GreenGo: ახალი შეკვეთა #${orderNumber} — ${restaurant.name}, ${newTotalAmount.toFixed(2)} ₾`,
+        );
+        if (smsSent) {
+          console.log(`📱 Order notification SMS sent for ${savedOrder._id}`);
+        }
+      } catch (smsError: any) {
+        console.error(
+          `⚠️ Order created but notification SMS failed for ${savedOrder._id}:`,
+          smsError?.message || smsError,
+        );
+      }
       
-      return savedOrder;
+      return paymentUrl
+        ? ({ ...savedOrder.toObject(), paymentUrl } as any)
+        : paymentError
+          ? ({ ...savedOrder.toObject(), paymentError } as any)
+        : savedOrder;
     } catch (error: any) {
       console.error('❌ Error in orders service create:', error);
       throw error;
@@ -163,6 +213,19 @@ export class OrdersService {
 
     if (restaurantId) {
       filter.restaurantId = restaurantId;
+    }
+
+    // Card orders become visible to the business only after Flitt confirms payment.
+    // Customer queries (with userId) must still be able to see their pending order.
+    if (restaurantId && !userId) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { paymentMethod: { $ne: 'card' } },
+          { paymentMethod: 'card', paymentStatus: 'paid' },
+          { paymentMethod: 'card', paymentStatus: { $exists: false } },
+        ],
+      });
     }
 
     if (courierId) {

@@ -207,6 +207,25 @@ export class AuthService {
     }
   }
 
+  /** Sends a transactional SMS to the configured GreenGo order notification number. */
+  async sendOrderNotificationSms(content: string): Promise<boolean> {
+    const configuredPhone =
+      this.configService.get<string>('ORDER_NOTIFICATION_PHONE')?.trim() ||
+      process.env.ORDER_NOTIFICATION_PHONE?.trim() ||
+      '';
+
+    if (!configuredPhone) {
+      console.warn(
+        'ORDER_NOTIFICATION_PHONE is not configured; order notification SMS skipped',
+      );
+      return false;
+    }
+
+    const destination = this.normalizeGeorgianDestination(configuredPhone);
+    await this.sendViaSender(destination, content);
+    return true;
+  }
+
   async sendVerificationCode(
     phoneNumber: string,
   ): Promise<{ code?: string; sentViaSms: boolean }> {

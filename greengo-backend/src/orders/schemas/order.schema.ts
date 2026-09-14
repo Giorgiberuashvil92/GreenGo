@@ -57,6 +57,15 @@ export class Order {
   })
   paymentMethod: string;
 
+  @Prop({ enum: ['pending', 'paid', 'failed'], default: 'pending' })
+  paymentStatus?: 'pending' | 'paid' | 'failed';
+
+  @Prop()
+  flittOrderId?: string;
+
+  @Prop()
+  flittPaymentId?: string;
+
   @Prop({
     type: {
       street: { type: String, required: true },
@@ -136,4 +145,3 @@ export class Order {
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
-

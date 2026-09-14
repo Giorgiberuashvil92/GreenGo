@@ -26,6 +26,7 @@ import { RestaurantOffersModule } from './restaurant-offers/restaurant-offers.mo
 import { RestaurantsModule } from './restaurants/restaurants.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { UsersModule } from './users/users.module';
     PromoCodesModule,
     RestaurantOffersModule,
     UploadsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

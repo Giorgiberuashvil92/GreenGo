@@ -28,7 +28,12 @@ export async function loadCheckoutPayment(): Promise<CheckoutPaymentSelection> {
   try {
     const json = await AsyncStorage.getItem(CHECKOUT_PAYMENT_KEY);
     if (!json) return DEFAULT_PAYMENT;
-    return JSON.parse(json) as CheckoutPaymentSelection;
+    const saved = JSON.parse(json) as CheckoutPaymentSelection;
+    // GreenGo balance is no longer a checkout option; migrate old selections.
+    if (saved.method === "greengo_balance") {
+      return DEFAULT_PAYMENT;
+    }
+    return saved;
   } catch {
     return DEFAULT_PAYMENT;
   }
@@ -61,6 +66,9 @@ export function getPaymentDisplayLine(
   }
   if (selection.method === "greengo_balance") {
     return "GreenGo ბალანსი";
+  }
+  if (!selection.lastFour) {
+    return "ბარათით გადახდა · Flitt";
   }
   const lastFour = selection.lastFour || "----";
   return `**** ${lastFour}`;

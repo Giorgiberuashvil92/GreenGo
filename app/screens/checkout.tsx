@@ -48,6 +48,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useCart } from "../../contexts/CartContext";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
+import * as WebBrowser from "expo-web-browser";
 
 const PRIMARY_GREEN = "#1D4045";
 const QTY_BG = "#EFFBF5";
@@ -526,6 +527,30 @@ export default function CheckoutScreen() {
 
       if (response.success) {
         console.log("✅ Order created successfully!");
+
+        const paymentUrl = (response.data as any)?.paymentUrl as
+          | string
+          | undefined;
+        if (paymentMethod === "card") {
+          if (!paymentUrl) {
+            Alert.alert(
+              "გადახდა ვერ დაიწყო",
+              (response.data as any)?.paymentError ||
+                "Flitt-ის გადახდის გვერდის შექმნა ვერ მოხერხდა. შეკვეთა შენახულია, გთხოვთ თავიდან სცადოთ.",
+            );
+            return;
+          }
+
+          const paymentResult = await WebBrowser.openAuthSessionAsync(
+            paymentUrl,
+            "greengo://payment-result",
+          );
+          if (paymentResult.type !== "success") {
+            Alert.alert("გადახდა გაუქმდა", "შეკვეთა ჯერ არ არის გადახდილი.");
+            return;
+          }
+        }
+
         // Clear cart for this restaurant
         restaurantCartItems.forEach((item) => {
           removeFromCart(item.id);
