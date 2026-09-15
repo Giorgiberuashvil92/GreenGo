@@ -1,5 +1,6 @@
 "use client";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import CloudinaryImageUpload from "@/components/common/CloudinaryImageUpload";
 import Badge from "@/components/ui/badge/Badge";
 import SafeRemoteImage from "@/components/common/SafeRemoteImage";
 import {
@@ -93,6 +94,10 @@ export default function CategoriesPage() {
     const name = form.name.trim();
     if (!name) {
       alert("სახელი სავალდებულოა");
+      return;
+    }
+    if (!form.icon.trim()) {
+      alert("კატეგორიის ფოტო სავალდებულოა");
       return;
     }
 
@@ -220,15 +225,28 @@ export default function CategoriesPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className={labelClass}>აიკონის URL</label>
-                <input
-                  className={inputClass}
-                  value={form.icon}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, icon: e.target.value }))
-                  }
-                  placeholder="https://..."
-                />
+                <label className={labelClass}>კატეგორიის ფოტო *</label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <CloudinaryImageUpload
+                    label={form.icon ? "ფოტოს შეცვლა" : "ფოტოს ატვირთვა"}
+                    folder="greengo/categories"
+                    disabled={saving}
+                    onUploaded={(url) =>
+                      setForm((prev) => ({ ...prev, icon: url }))
+                    }
+                  />
+                  {form.icon ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, icon: "" }))
+                      }
+                      className="text-xs font-medium text-red-500 hover:text-red-600"
+                    >
+                      ფოტოს წაშლა
+                    </button>
+                  ) : null}
+                </div>
                 {form.icon ? (
                   <div className="mt-2 h-12 w-12 overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
                     <SafeRemoteImage
@@ -240,6 +258,9 @@ export default function CategoriesPage() {
                     />
                   </div>
                 ) : null}
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  ატვირთული ფოტო ავტომატურად შეინახება კატეგორიის აიქონად.
+                </p>
               </div>
               <div>
                 <label className={labelClass}>თანმიმდევრობა</label>
