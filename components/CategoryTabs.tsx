@@ -47,7 +47,9 @@ export default function CategoryTabs({
               router.push(route);
             }}
           >
-            <Image source={category.icon} style={styles.categoryIcon} />
+            {category.icon ? (
+              <Image source={category.icon} style={styles.categoryIcon} />
+            ) : null}
             <Text style={styles.categoryText}>{category.name}</Text>
           </TouchableOpacity>
         ))}

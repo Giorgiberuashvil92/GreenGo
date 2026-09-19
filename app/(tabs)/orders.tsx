@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -17,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import OrderMenuIcon from "../../components/icons/OrderMenuIcon";
 import { fontFamily } from "../../constants/fonts";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCart } from "../../contexts/CartContext";
 import { apiService } from "../../utils/api";
 import { ordersFromGetOrdersData } from "../../utils/ordersFromResponse";
 
@@ -89,6 +91,7 @@ export default function OrdersScreen() {
     "current",
   );
   const { user } = useAuth();
+  const { clearCart, addToCart, updateQuantity } = useCart();
   const [currentOrders, setCurrentOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +108,7 @@ export default function OrdersScreen() {
     longitudeDelta: 0.05,
   });
   const [menuOrder, setMenuOrder] = useState<Order | null>(null);
+  const [repeatingOrderId, setRepeatingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     console.log("📦 Orders useEffect - User:", JSON.stringify(user, null, 2));
@@ -187,9 +191,81 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleRepeatOrder = (order: Order) => {
-    console.log("Repeating order:", order._id);
-    // TODO: Implement repeat order functionality
+  const handleRepeatOrder = async (order: Order) => {
+    const restaurant = getRestaurantFromOrder(order);
+    const restaurantId =
+      typeof order.restaurantId === "string"
+        ? order.restaurantId
+        : restaurant?._id || "";
+
+    if (!restaurantId || !order.items.length) {
+      Alert.alert("შეკვეთის გამეორება ვერ მოხერხდა", "პროდუქტები ვერ მოიძებნა");
+      return;
+    }
+
+    try {
+      setRepeatingOrderId(order._id);
+      const repeatedItems = await Promise.all(
+        order.items.map(async (item) => {
+          const rawMenuItemId = (item as typeof item & {
+            menuItemId?: string | { _id?: string };
+          }).menuItemId;
+          const menuItemId =
+            typeof rawMenuItemId === "string"
+              ? rawMenuItemId
+              : rawMenuItemId?._id || "";
+          if (!menuItemId) throw new Error("პროდუქტის ID ვერ მოიძებნა");
+
+          const response = await apiService.getMenuItem(menuItemId);
+          const menuItem = response.success && response.data
+            ? (response.data as {
+                _id?: string;
+                id?: string;
+                name?: string;
+                price?: number;
+                image?: string;
+                heroImage?: string;
+              })
+            : null;
+
+          return {
+            id: menuItem?._id || menuItem?.id || menuItemId,
+            name: menuItem?.name || item.name,
+            price: menuItem?.price ?? item.price,
+            image: menuItem?.heroImage || menuItem?.image || restaurant?.image || "",
+            quantity: item.quantity,
+          };
+        }),
+      );
+
+      clearCart();
+      for (const item of repeatedItems) {
+        addToCart({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          restaurantId,
+          restaurantName: restaurant?.name || "რესტორანი",
+        });
+        if (item.quantity > 1) {
+          updateQuantity(item.id, item.quantity);
+        }
+      }
+
+      router.push({
+        pathname: "/screens/checkout",
+        params: { restaurantId },
+      });
+    } catch (error) {
+      console.error("Repeat order error:", error);
+      Alert.alert(
+        "შეკვეთის გამეორება ვერ მოხერხდა",
+        "ერთ-ერთი პროდუქტი შესაძლოა აღარ იყოს ხელმისაწვდომი. სცადეთ ხელახლა.",
+      );
+    } finally {
+      setRepeatingOrderId(null);
+    }
   };
 
   const openOrderMenu = (order: Order) => {
@@ -204,7 +280,7 @@ export default function OrdersScreen() {
     if (!menuOrder) return;
     const order = menuOrder;
     closeOrderMenu();
-    handleRepeatOrder(order);
+    void handleRepeatOrder(order);
   };
 
   const handleMenuDetails = () => {
@@ -386,10 +462,15 @@ export default function OrdersScreen() {
         </View>
         <TouchableOpacity
           style={styles.repeatOrderButton}
-          onPress={() => handleRepeatOrder(order)}
+          onPress={() => void handleRepeatOrder(order)}
           activeOpacity={0.8}
+          disabled={repeatingOrderId === order._id}
         >
-          <Text style={styles.repeatOrderButtonText}>შეკვეთის განმეორება</Text>
+          {repeatingOrderId === order._id ? (
+            <ActivityIndicator size="small" color={REPEAT_GREEN} />
+          ) : (
+            <Text style={styles.repeatOrderButtonText}>შეკვეთის განმეორება</Text>
+          )}
         </TouchableOpacity>
       </View>
     );

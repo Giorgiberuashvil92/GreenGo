@@ -76,6 +76,7 @@ export class MenuItemsController {
       category,
       search,
       isPopular: isPopularBool,
+      includeUnavailable: user?.type === 'business',
     });
   }
 
@@ -85,7 +86,9 @@ export class MenuItemsController {
     @CurrentUser() user: JwtRequestUser | undefined,
   ) {
     const scopedRestaurantId = resolveRestaurantIdForBusiness(user, restaurantId);
-    return this.menuItemsService.findByRestaurant(scopedRestaurantId!);
+    return this.menuItemsService.findByRestaurant(scopedRestaurantId!, {
+      includeUnavailable: user?.type === 'business',
+    });
   }
 
   @Get(':id')

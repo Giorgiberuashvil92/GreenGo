@@ -56,7 +56,24 @@
           "locationAlwaysAndWhenInUsePermission": "This app needs access to location to show restaurant locations on map."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 21
+          }
+        }
+      ],
+      [
+        "crisp-sdk-react-native",
+        {
+          "websiteId": "c13038eb-f0b9-4d39-aadb-902b015646ee"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

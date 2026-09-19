@@ -21,7 +21,7 @@ export interface CheckoutPaymentSelection {
 }
 
 const DEFAULT_PAYMENT: CheckoutPaymentSelection = {
-  method: "cash",
+  method: "card",
 };
 
 export async function loadCheckoutPayment(): Promise<CheckoutPaymentSelection> {

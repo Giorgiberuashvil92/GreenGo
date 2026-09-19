@@ -3,9 +3,14 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 
 import AuthGuard from "@/components/AuthGuard";
-import { AuthProvider } from "../contexts/AuthContext";
+import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { CartProvider } from "../contexts/CartContext";
 import { useAppFonts } from "../hooks/useFonts";
+import {
+  configureCrisp,
+  identifyCrispUser,
+  resetCrispSession,
+} from "../utils/crisp";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -24,6 +29,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+      <CrispBootstrap />
       <CartProvider>
         <AuthGuard>
           <Stack>
@@ -224,4 +230,22 @@ export default function RootLayout() {
       </CartProvider>
     </AuthProvider>
   );
+}
+
+function CrispBootstrap() {
+  const { user, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    configureCrisp();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      identifyCrispUser(user);
+    } else if (!isAuthenticated) {
+      resetCrispSession();
+    }
+  }, [isAuthenticated, user]);
+
+  return null;
 }

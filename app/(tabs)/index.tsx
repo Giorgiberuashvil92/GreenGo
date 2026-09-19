@@ -137,6 +137,7 @@ export default function HomeScreen() {
           )}
         </Animated.ScrollView>
       </SafeAreaView>
+
     </View>
   );
 }

@@ -6,8 +6,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { createHash, timingSafeEqual } from 'crypto';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
+import { PaymentIntent, PaymentIntentDocument } from './schemas/payment-intent.schema';
 
 const FLITT_API_URL = 'https://pay.flitt.com/api';
 
@@ -25,6 +26,8 @@ export class FlittService {
   constructor(
     private readonly configService: ConfigService,
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
+    @InjectModel(PaymentIntent.name)
+    private readonly paymentIntentModel: Model<PaymentIntentDocument>,
   ) {}
 
   private get merchantId(): string {
@@ -111,6 +114,25 @@ export class FlittService {
     };
   }
 
+  async createPaymentIntent(
+    orderPayload: Record<string, unknown>,
+    amountGel: number,
+    description: string,
+  ) {
+    const orderId = new Types.ObjectId();
+    const flittOrderId = `greengo_${orderId.toString()}`;
+    const checkout = await this.createCheckout(orderId.toString(), amountGel, description);
+    await this.paymentIntentModel.create({
+      orderId,
+      flittOrderId,
+      orderPayload,
+      amount: checkout.amount,
+      status: 'pending',
+      flittPaymentId: checkout.paymentId,
+    });
+    return { ...checkout, orderId: orderId.toString() };
+  }
+
   async processCallback(payload: Record<string, unknown>) {
     if (!this.verifyCallback(payload)) {
       throw new BadRequestException('Invalid Flitt callback signature');
@@ -124,7 +146,23 @@ export class FlittService {
       flittPaymentId: payload.payment_id ? String(payload.payment_id) : undefined,
     };
 
-    await this.orderModel.findOneAndUpdate({ flittOrderId }, update).exec();
+    const intent = await this.paymentIntentModel.findOne({ flittOrderId }).exec();
+    if (!intent) {
+      throw new BadRequestException('Flitt payment intent not found');
+    }
+
+    if (paymentStatus === 'paid' && intent.status !== 'paid') {
+      await this.orderModel.create({
+        _id: intent.orderId,
+        ...intent.orderPayload,
+        paymentStatus: 'paid',
+        flittOrderId,
+        flittPaymentId: update.flittPaymentId,
+      });
+    }
+    await this.paymentIntentModel
+      .findByIdAndUpdate(intent._id, { ...update, status: paymentStatus })
+      .exec();
     return { ok: true };
   }
 }

@@ -15,7 +15,6 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   StatusBar,
   StyleSheet,
@@ -23,8 +22,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-const bogCashIcon = require("@/assets/images/bog-cash-payment.png");
 
 export default function PaymentMethodsScreen() {
   const { select } = useLocalSearchParams<{ select?: string }>();
@@ -181,157 +178,106 @@ export default function PaymentMethodsScreen() {
         scrollable
       >
         <View style={styles.content}>
-          {!isSelectMode && !loadingCards && cards.length === 0 ? (
-            <View style={styles.cardsEmptyContainer}>
-              <Ionicons
-                name="card-outline"
-                size={32}
-                color="#CCCCCC"
-                style={styles.emptyIcon}
-              />
-              <Text style={styles.emptyCardText}>
-                ბარათი არ გაქვთ დამატებული
-              </Text>
-              <Text style={styles.emptyCardHint}>
-                გადახდისთვის დაამატეთ ბარათი
-              </Text>
-              {!isSelectMode ? (
-                <TouchableOpacity
-                  style={styles.addCardButtonInEmpty}
-                  onPress={handleAddCardPress}
-                  activeOpacity={0.88}
-                >
-                  <View style={styles.addCardButtonInner}>
-                    <Ionicons name="add" size={16} color="#1D4045" />
-                    <Text style={styles.addCardTextInEmpty}>
-                      ახალი ბარათის დამატება
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ) : null}
+          <View style={styles.introBlock}>
+            <View style={styles.introIcon}>
+              <Ionicons name="wallet-outline" size={24} color={BRAND_GREEN} />
             </View>
-          ) : null}
+            <View style={styles.introTextBlock}>
+              <Text style={styles.introTitle}>აირჩიეთ სასურველი მეთოდი</Text>
+              <Text style={styles.introText}>
+                გადახდის მეთოდი ნებისმიერ დროს შეგიძლიათ შეცვალოთ
+              </Text>
+            </View>
+          </View>
 
+          <Text style={styles.sectionLabel}>გადახდის მეთოდები</Text>
           <View style={styles.methodsList}>
             {isSelectMode ? (
               <TouchableOpacity
-                style={[styles.methodRow, styles.methodRowBorder]}
+                style={[styles.methodCard, isFlittSelected && styles.methodCardActive]}
                 onPress={handleFlittPaymentPress}
-                activeOpacity={0.75}
+                activeOpacity={0.82}
               >
-                <View style={styles.methodRowLeft}>
-                  {isFlittSelected ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={LIST_ACCENT_GREEN}
-                      style={styles.rowCheck}
-                    />
-                  ) : null}
-                  <View style={styles.cardIconWrap}>
-                    <Ionicons name="card-outline" size={28} color="#1D4045" />
-                  </View>
-                  <View style={styles.cardTextBlock}>
-                    <Text style={styles.cardLabel}>ბარათით გადახდა</Text>
-                    <Text style={styles.cardNumber}>უსაფრთხო გადახდა Flitt-ით</Text>
-                  </View>
+                <View style={styles.methodIconCard}>
+                  <Ionicons name="card-outline" size={28} color={BRAND_GREEN} />
                 </View>
+                <View style={styles.methodCopy}>
+              <Text style={[styles.methodTitle, isFlittSelected && styles.methodTitleActive]}>
+                ბარათით გადახდა
+              </Text>
+              <Text style={[styles.methodSubtitle, isFlittSelected && styles.methodSubtitleActive]}>
+                უსაფრთხო გადახდა Flitt-ით
+              </Text>
+                </View>
+                <Ionicons
+                  name={isFlittSelected ? "checkmark-circle" : "ellipse-outline"}
+                  size={25}
+                  color={isFlittSelected ? LIST_ACCENT_GREEN : "#C8D2D0"}
+                />
               </TouchableOpacity>
             ) : loadingCards ? (
               <View style={styles.loadingWrap}>
                 <ActivityIndicator size="small" color={BRAND_GREEN} />
               </View>
             ) : (
-              cards.map((card, index) => (
+              cards.map((card) => (
                 <TouchableOpacity
                   key={card.id}
-                  style={[
-                    styles.methodRow,
-                    index < cards.length - 1 && styles.methodRowBorder,
-                  ]}
+                  style={[styles.methodCard, isCardSelected(card) && styles.methodCardActive]}
                   onPress={() => handleCardPress(card)}
-                  activeOpacity={0.75}
+                  activeOpacity={0.82}
                 >
-                  <View style={styles.methodRowLeft}>
-                    {isSelectMode && isCardSelected(card) ? (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={LIST_ACCENT_GREEN}
-                        style={styles.rowCheck}
-                      />
-                    ) : null}
-                    <View style={styles.cardIconWrap}>
-                      <CardBrandIcon type={card.type} width={32} height={21} />
-                    </View>
-                    <View style={styles.cardTextBlock}>
-                      <Text style={styles.cardLabel}>
-                        Card{card.isPrimary ? " · ძირითადი" : ""}
-                      </Text>
-                      <Text style={styles.cardNumber}>{card.maskedNumber}</Text>
-                    </View>
+                  <View style={styles.methodIconCard}>
+                    <CardBrandIcon type={card.type} width={32} height={21} />
                   </View>
-                  {!isSelectMode ? (
-                    <TouchableOpacity
-                      onPress={() => handleCardOptionsPress(card)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons
-                        name="ellipsis-vertical"
-                        size={20}
-                        color="#666666"
-                      />
-                    </TouchableOpacity>
-                  ) : null}
+                  <View style={styles.methodCopy}>
+                    <Text style={styles.methodTitle}>
+                      Card{card.isPrimary ? " · ძირითადი" : ""}
+                    </Text>
+                    <Text style={styles.methodSubtitle}>{card.maskedNumber}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleCardOptionsPress(card)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityLabel="ბარათის პარამეტრები"
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#71817E" />
+                  </TouchableOpacity>
                 </TouchableOpacity>
               ))
             )}
 
             <TouchableOpacity
-              style={[styles.methodRow, styles.methodRowLast]}
+              style={[styles.methodCard, isCashSelected && styles.methodCardActive]}
               onPress={handleCashPaymentPress}
-              activeOpacity={0.75}
+              activeOpacity={0.82}
             >
-              <View style={styles.methodRowLeft}>
-                {isCashSelected ? (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={20}
-                    color={LIST_ACCENT_GREEN}
-                    style={styles.rowCheck}
-                  />
-                ) : null}
-                <Image
-                  source={bogCashIcon}
-                  style={styles.cashIcon}
-                  resizeMode="contain"
-                />
-                <View style={styles.cashLabelWrap}>
-                  <Text style={styles.cashLabel}>ნაღდი ანგარიშსწორება</Text>
-                </View>
+              <View style={styles.methodIconCard}>
+                <Ionicons name="cash-outline" size={28} color={BRAND_GREEN} />
               </View>
-              {!isSelectMode ? (
-                <TouchableOpacity
-                  onPress={handleCashPaymentPress}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={20}
-                    color="#666666"
-                  />
-                </TouchableOpacity>
-              ) : null}
+              <View style={styles.methodCopy}>
+                <Text style={[styles.methodTitle, isCashSelected && styles.methodTitleActive]}>
+                  ნაღდი ანგარიშსწორება
+                </Text>
+                <Text style={[styles.methodSubtitle, isCashSelected && styles.methodSubtitleActive]}>
+                  გადახდა კურიერთან მიღებისას
+                </Text>
+              </View>
+              <Ionicons
+                name={isCashSelected ? "checkmark-circle" : "ellipse-outline"}
+                size={25}
+                color={isCashSelected ? LIST_ACCENT_GREEN : "#C8D2D0"}
+              />
             </TouchableOpacity>
           </View>
 
-          {!isSelectMode && !loadingCards && cards.length > 0 ? (
+          {!isSelectMode && !loadingCards ? (
             <TouchableOpacity
               style={styles.addCardButton}
               onPress={handleAddCardPress}
               activeOpacity={0.88}
             >
-              <Ionicons name="add" size={16} color="#1D4045" />
+              <Ionicons name="add-circle-outline" size={20} color={BRAND_GREEN} />
               <Text style={styles.addCardText}>ახალი ბარათის დამატება</Text>
             </TouchableOpacity>
           ) : null}
@@ -392,15 +338,112 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 32,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  introBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F4F7F6",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: "#DCE6E3",
+  },
+  introIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    marginRight: 12,
+  },
+  introTextBlock: {
+    flex: 1,
+  },
+  introTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: BRAND_GREEN,
+    marginBottom: 3,
+  },
+  introText: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#67807A",
+  },
+  sectionLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamily.semiBold,
+    color: "#78908B",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 10,
   },
   methodsList: {
-    marginBottom: 19,
+    gap: 10,
+    marginBottom: 18,
   },
   loadingWrap: {
-    paddingVertical: 24,
+    paddingVertical: 40,
     alignItems: "center",
+  },
+  methodCard: {
+    minHeight: 82,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5ECEA",
+    shadowColor: "#123C35",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  methodCardActive: {
+    borderColor: BRAND_GREEN,
+    backgroundColor: BRAND_GREEN,
+  },
+  methodIconCard: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EFF8F5",
+    marginRight: 14,
+  },
+  methodCopy: {
+    flex: 1,
+    marginRight: 10,
+  },
+  methodTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fontFamily.semiBold,
+    color: "#181B1A",
+    marginBottom: 3,
+  },
+  methodSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: fontFamily.regular,
+    color: "#80908D",
+  },
+  methodTitleActive: {
+    color: "#FFFFFF",
+  },
+  methodSubtitleActive: {
+    color: "#D8E7E2",
   },
   cardsEmptyContainer: {
     backgroundColor: "#F5F5F5",
@@ -494,11 +537,14 @@ const styles = StyleSheet.create({
   addCardButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F8F9",
-    borderRadius: 8,
-    paddingVertical: 8,
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#D6E4E0",
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    height: 36,
+    minHeight: 48,
   },
   addCardButtonInEmpty: {
     alignSelf: "stretch",

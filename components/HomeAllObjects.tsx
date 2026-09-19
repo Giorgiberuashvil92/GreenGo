@@ -39,8 +39,8 @@ export default function HomeAllObjects({
               }
               onDishPress={(menuItemId) =>
                 router.push({
-                  pathname: "/screens/restaurant",
-                  params: { restaurantId: id, menuItemId },
+                  pathname: "/screens/product",
+                  params: { productId: menuItemId, restaurantId: id },
                 })
               }
             />

@@ -74,6 +74,7 @@ type ProductModalProps = {
   restaurantId: string;
   restaurantName: string;
   onClose: () => void;
+  onAddedToCart?: () => void;
   asModal?: boolean;
 };
 
@@ -82,6 +83,7 @@ function ProductDetailBody({
   restaurantId,
   restaurantName,
   onClose,
+  onAddedToCart,
   asModal = true,
 }: Omit<ProductModalProps, "visible">) {
   const insets = useSafeAreaInsets();
@@ -195,7 +197,11 @@ function ProductDetailBody({
     if (quantity > 1) {
       updateQuantity(id, quantity);
     }
-    onClose();
+    if (onAddedToCart) {
+      onAddedToCart();
+    } else {
+      onClose();
+    }
   };
 
   if (loading) {
@@ -418,6 +424,7 @@ export default function ProductModal({
   restaurantId,
   restaurantName,
   onClose,
+  onAddedToCart,
   asModal = true,
 }: ProductModalProps) {
   const { height: screenHeight } = useWindowDimensions();
@@ -431,6 +438,7 @@ export default function ProductModal({
         restaurantId={restaurantId}
         restaurantName={restaurantName}
         onClose={onClose}
+        onAddedToCart={onAddedToCart}
         asModal={false}
       />
     );
@@ -452,6 +460,7 @@ export default function ProductModal({
               restaurantId={restaurantId}
               restaurantName={restaurantName}
               onClose={onClose}
+              onAddedToCart={onAddedToCart}
               asModal
             />
           ) : null}

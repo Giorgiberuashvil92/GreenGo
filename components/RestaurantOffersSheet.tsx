@@ -146,7 +146,7 @@ export default function RestaurantOffersSheet({
                     activeOpacity={0.75}
                     onPress={() => openDetail(offer)}
                   >
-                    <DiscountPercentBadge size={40} tone="pink" />
+                    <DiscountPercentBadge size={40} tone="red" />
                     <View style={styles.offerText}>
                       <Text style={styles.offerTitle} numberOfLines={2}>
                         {offer.title}

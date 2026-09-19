@@ -3,8 +3,6 @@ import {
   buildHomeCategories,
   getRestaurantsRouteForCategory,
   HomeCategory,
-  homeCategories as fallbackCategories,
-  resolveCategoryIcon,
 } from "@/assets/data/categories";
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
@@ -85,8 +83,7 @@ export default function SearchScreen() {
   const [restaurantResults, setRestaurantResults] = useState<SearchRestaurant[]>(
     [],
   );
-  const [homeCategories, setHomeCategories] =
-    useState<HomeCategory[]>(fallbackCategories);
+  const [homeCategories, setHomeCategories] = useState<HomeCategory[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,11 +96,9 @@ export default function SearchScreen() {
           : Array.isArray(response)
             ? response
             : [];
-        if (list.length > 0) {
-          setHomeCategories(buildHomeCategories(list));
-        }
+        setHomeCategories(buildHomeCategories(list));
       } catch {
-        // fallback რჩება
+        setHomeCategories([]);
       }
     })();
     return () => {
@@ -450,17 +445,12 @@ export default function SearchScreen() {
                 onPress={() => handleCategoryPress(category)}
                 activeOpacity={0.65}
               >
-                <Image
-                  source={resolveCategoryIcon(
-                    category.name,
-                    typeof category.icon === "object" &&
-                      category.icon &&
-                      "uri" in category.icon
-                      ? category.icon.uri
-                      : undefined,
-                  )}
-                  style={styles.categoryRemoteIcon}
-                />
+                {category.icon ? (
+                  <Image
+                    source={category.icon}
+                    style={styles.categoryRemoteIcon}
+                  />
+                ) : null}
                 <Text style={styles.categoryLabel} numberOfLines={1}>
                   {category.name}
                 </Text>

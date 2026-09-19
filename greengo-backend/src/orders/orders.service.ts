@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CouriersService } from '../couriers/couriers.service';
 import { calculateDeliveryFeeFromDistance } from '../common/delivery-fee.util';
 import { PromoCodesService } from '../promo-codes/promo-codes.service';
@@ -55,7 +55,7 @@ export class OrdersService {
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
     try {
       console.log('📦 Creating order with DTO:', JSON.stringify(createOrderDto, null, 2));
-      
+
       // Get restaurant location to calculate distance
       const restaurant = await this.restaurantModel
         .findById(createOrderDto.restaurantId)
@@ -126,7 +126,7 @@ export class OrdersService {
       console.log(`📏 Distance: ${distanceKm.toFixed(2)} km, Base fee: ${baseDeliveryFee}, Calculated fee: ${calculatedDeliveryFee.toFixed(2)}`);
       console.log(`💰 Items total: ${itemsTotal.toFixed(2)}, Discount: ${discountAmount.toFixed(2)}, New total: ${newTotalAmount.toFixed(2)}`);
       
-      const createdOrder = new this.orderModel({
+      const orderPayload = {
         ...createOrderDto,
         promoCode,
         discountAmount,
@@ -134,35 +134,27 @@ export class OrdersService {
         totalAmount: newTotalAmount,
         orderDate: new Date(),
         estimatedDelivery: new Date(createOrderDto.estimatedDelivery),
-      });
-      
+      };
+
+      // Do not create a real Order before an online card payment succeeds.
+      if (createOrderDto.paymentMethod === 'card') {
+        const checkout = await this.flittService.createPaymentIntent(
+          orderPayload as Record<string, unknown>,
+          newTotalAmount,
+          `GreenGo order ${new Types.ObjectId().toString().slice(-6).toUpperCase()}`,
+        );
+        return {
+          ...orderPayload,
+          _id: checkout.orderId,
+          paymentStatus: 'pending',
+          paymentUrl: checkout.checkoutUrl,
+        } as any;
+      }
+
+      const createdOrder = new this.orderModel(orderPayload);
+
       const savedOrder = await createdOrder.save();
       console.log('✅ Order created successfully:', savedOrder._id);
-      let paymentUrl: string | undefined;
-      let paymentError: string | undefined;
-
-      if (createOrderDto.paymentMethod === 'card') {
-        try {
-          const checkout = await this.flittService.createCheckout(
-            savedOrder._id.toString(),
-            newTotalAmount,
-            `GreenGo order ${savedOrder._id.toString().slice(-6).toUpperCase()}`,
-          );
-          savedOrder.paymentStatus = 'pending';
-          savedOrder.flittOrderId = checkout.flittOrderId;
-          savedOrder.flittPaymentId = checkout.paymentId;
-          await savedOrder.save();
-          paymentUrl = checkout.checkoutUrl;
-        } catch (flittError: any) {
-          console.error(
-            `⚠️ Order created but Flitt checkout failed for ${savedOrder._id}:`,
-            flittError?.message || flittError,
-          );
-          paymentError = flittError?.message || 'Flitt checkout creation failed';
-          savedOrder.paymentStatus = 'failed';
-          await savedOrder.save();
-        }
-      }
 
       // Notify one configured number for every order, regardless of the restaurant.
       // SMS delivery must not make an otherwise valid order fail.
@@ -181,11 +173,7 @@ export class OrdersService {
         );
       }
       
-      return paymentUrl
-        ? ({ ...savedOrder.toObject(), paymentUrl } as any)
-        : paymentError
-          ? ({ ...savedOrder.toObject(), paymentError } as any)
-        : savedOrder;
+      return savedOrder;
     } catch (error: any) {
       console.error('❌ Error in orders service create:', error);
       throw error;

@@ -3,6 +3,7 @@ import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { openCrispChat } from "../../utils/crisp";
 import React, { useState } from "react";
 import {
   Alert,
@@ -30,10 +31,7 @@ export default function SupportArticleScreen() {
   };
 
   const handleChat = () => {
-    Alert.alert(
-      "მხარდაჭერა",
-      "ჩატი მალე დაემატება. დაგვიკავშირდით support@greengo.ge",
-    );
+    openCrispChat();
   };
 
   if (!article) {

@@ -65,9 +65,18 @@ export class MenuItemsService {
     category?: string;
     search?: string;
     isPopular?: boolean;
+    /** false = მხოლოდ აქტიური მენიუ (მომხმარებლის აპი) */
+    includeUnavailable?: boolean;
   }): Promise<{ data: MenuItem[]; total: number; page: number; limit: number }> {
-    const { page = 1, limit = 10, restaurantId, category, search, isPopular } =
-      query;
+    const {
+      page = 1,
+      limit = 10,
+      restaurantId,
+      category,
+      search,
+      isPopular,
+      includeUnavailable = false,
+    } = query;
     const skip = (page - 1) * limit;
 
     const filter: any = {};
@@ -82,6 +91,10 @@ export class MenuItemsService {
 
     if (isPopular === true || isPopular === false) {
       filter.isPopular = isPopular;
+    }
+
+    if (!includeUnavailable) {
+      filter.isAvailable = { $ne: false };
     }
 
     if (search) {
@@ -118,9 +131,19 @@ export class MenuItemsService {
     };
   }
 
-  async findByRestaurant(restaurantId: string): Promise<MenuItem[]> {
+  async findByRestaurant(
+    restaurantId: string,
+    options?: { includeUnavailable?: boolean },
+  ): Promise<MenuItem[]> {
+    const filter: Record<string, unknown> = {
+      restaurantId: this.buildRestaurantIdFilter(restaurantId),
+    };
+    if (!options?.includeUnavailable) {
+      filter.isAvailable = { $ne: false };
+    }
+
     return this.menuItemModel
-      .find({ restaurantId: this.buildRestaurantIdFilter(restaurantId) })
+      .find(filter)
       .sort({ order: 1, category: 1, createdAt: -1 })
       .exec();
   }

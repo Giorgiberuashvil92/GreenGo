@@ -4,9 +4,9 @@ import { TEXT_MUTED } from "@/constants/formStyles";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { openCrispChat } from "../../utils/crisp";
 import React from "react";
 import {
-  Alert,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -21,10 +21,7 @@ export default function SupportTopicScreen() {
   const category = topic ? getSupportCategory(topic) : undefined;
 
   const handleChat = () => {
-    Alert.alert(
-      "მხარდაჭერა",
-      "ჩატი მალე დაემატება. დაგვიკავშირდით support@greengo.ge",
-    );
+    openCrispChat();
   };
 
   if (!category) {

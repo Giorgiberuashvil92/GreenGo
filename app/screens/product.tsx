@@ -22,6 +22,12 @@ export default function ProductScreen() {
         restaurantId={rid}
         restaurantName={restaurant?.name || ""}
         onClose={() => router.back()}
+        onAddedToCart={() =>
+          router.replace({
+            pathname: "/screens/checkout",
+            params: { restaurantId: rid },
+          })
+        }
       />
     </View>
   );

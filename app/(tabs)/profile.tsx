@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiService } from "../../utils/api";
+import { openCrispChat } from "../../utils/crisp";
 
 interface Order {
   _id: string;
@@ -259,7 +260,7 @@ export default function ProfileScreen() {
               <ProfileRow
                 icon="help-circle-outline"
                 label="მხარდაჭერა"
-                onPress={() => router.push("/screens/support")}
+                onPress={openCrispChat}
               />
             </View>
           </View>

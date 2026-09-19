@@ -2,14 +2,12 @@ import {
   ApiHomeCategory,
   buildHomeCategories,
   HomeCategory,
-  homeCategories as fallbackCategories,
 } from "@/assets/data/categories";
 import { apiService } from "@/utils/api";
 import { useEffect, useState } from "react";
 
 export function useHomeCategories() {
-  const [categories, setCategories] =
-    useState<HomeCategory[]>(fallbackCategories);
+  const [categories, setCategories] = useState<HomeCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,9 +24,7 @@ export function useHomeCategories() {
             ? response
             : [];
 
-        if (list.length > 0) {
-          setCategories(buildHomeCategories(list));
-        }
+        setCategories(buildHomeCategories(list));
       } catch (error) {
         console.error("Failed to load home categories:", error);
       } finally {
