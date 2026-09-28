@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { CouriersService } from './couriers.service';
 import { CreateCourierDto } from './dto/create-courier.dto';
+import { LoginCourierDto } from './dto/login-courier.dto';
 import { RegisterCourierDto } from './dto/register-courier.dto';
 import { UpdateCourierDto } from './dto/update-courier.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
@@ -22,6 +23,44 @@ import { UpdateLocationDto } from './dto/update-location.dto';
 @Controller('couriers')
 export class CouriersController {
   constructor(private readonly couriersService: CouriersService) {}
+
+  @Post('login')
+  async login(@Body() loginCourierDto: LoginCourierDto) {
+    try {
+      return await this.couriersService.login(
+        loginCourierDto.phoneNumber,
+        loginCourierDto.verificationCode,
+      );
+    } catch (error: any) {
+      if (error instanceof UnauthorizedException || error.status === 401) {
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.UNAUTHORIZED,
+            message: error.message || 'OTP კოდი არასწორია',
+          },
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      if (error.status === 404 || error.message?.includes('ვერ მოიძებნა')) {
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.NOT_FOUND,
+            message: error.message || 'კურიერი ვერ მოიძებნა',
+          },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: error.message || 'კურიერის ავტორიზაცია ვერ მოხერხდა',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
   @Post('register')
   async register(@Body() registerCourierDto: RegisterCourierDto) {

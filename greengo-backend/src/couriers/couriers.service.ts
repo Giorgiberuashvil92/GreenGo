@@ -17,6 +17,23 @@ export class CouriersService {
     private authService: AuthService,
   ) {}
 
+  async login(phoneNumber: string, verificationCode: string): Promise<Courier> {
+    await this.authService.verifyCodeOnly(phoneNumber, verificationCode);
+
+    const courier = await this.findByPhone(phoneNumber);
+    if (!courier) {
+      throw new NotFoundException(
+        `კურიერი ტელეფონის ნომრით ${phoneNumber} ვერ მოიძებნა`,
+      );
+    }
+
+    if (!courier.isActive) {
+      throw new UnauthorizedException('კურიერის ანგარიში გათიშულია');
+    }
+
+    return courier;
+  }
+
   async register(registerCourierDto: RegisterCourierDto): Promise<Courier> {
     try {
       // Verify OTP code first (without creating user)
@@ -150,7 +167,27 @@ export class CouriersService {
   }
 
   async findByPhone(phoneNumber: string): Promise<Courier | null> {
-    return this.courierModel.findOne({ phoneNumber }).exec();
+    const variants = this.phoneLookupVariants(phoneNumber);
+    return this.courierModel.findOne({ phoneNumber: { $in: variants } }).exec();
+  }
+
+  /** +995 / 995 / ლოკალური ფორმატის ვარიანტები ძებნისთვის */
+  private phoneLookupVariants(phoneNumber: string): string[] {
+    const digits = phoneNumber.replace(/\D/g, '');
+    const localNine =
+      digits.startsWith('995') && digits.length >= 12
+        ? digits.slice(3)
+        : digits.length === 9
+          ? digits
+          : null;
+
+    const variants = new Set<string>([phoneNumber, digits]);
+    if (localNine) {
+      variants.add(localNine);
+      variants.add(`995${localNine}`);
+      variants.add(`+995${localNine}`);
+    }
+    return [...variants];
   }
 
   async update(id: string, updateCourierDto: UpdateCourierDto): Promise<Courier> {
