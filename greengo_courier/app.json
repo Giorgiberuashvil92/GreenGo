@@ -1,0 +1,126 @@
+{
+  "expo": {
+    "name": "greengo_courier",
+    "slug": "greengo_courier",
+    "version": "1.0.7",
+    "orientation": "portrait",
+    "icon": "./assets/images/images/icon.png",
+    "scheme": "greengocourier",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "buildNumber": "9",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "config": {
+        "googleMapsApiKey": "AIzaSyDIvUAM6M-UnBbfdXNzmbDX_VLSIE2tBfs"
+      },
+      "bundleIdentifier": "greengocourierios",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GreenGo Courier uses your location while you are using the app to show your position on the delivery map, suggest nearby orders you can accept, and share your live location during active deliveries. For example, when you are delivering an order, customers can see your progress on the map as you travel to their address.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "GreenGo Courier uses your location while you are using the app to show your position on the delivery map, suggest nearby orders you can accept, and share your live location during active deliveries. For example, when you are delivering an order, customers can see your progress on the map as you travel to their address.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "greengo-production.up.railway.app": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            }
+          }
+        }
+      },
+      "appleTeamId": "HVQ2Q73MR2"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#173E40",
+        "foregroundImage": "./assets/images/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/images/android-icon-monochrome.png"
+      },
+      "googleServicesFile": "./google-services.json",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDIvUAM6M-UnBbfdXNzmbDX_VLSIE2tBfs"
+        }
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.herrra.greengocourier"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#4CAF50",
+          "defaultChannel": "orders",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GreenGo Courier uses your location while you are using the app to show your position on the delivery map, suggest nearby orders you can accept, and share your live location during active deliveries. For example, when you are delivering an order, customers can see your progress on the map as you travel to their address.",
+          "locationAlwaysAndWhenInUsePermission": "GreenGo Courier uses your location while you are using the app to show your position on the delivery map, suggest nearby orders you can accept, and share your live location during active deliveries. For example, when you are delivering an order, customers can see your progress on the map as you travel to their address."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/courier.png",
+          "resizeMode": "cover",
+          "backgroundColor": "#F7F7F5",
+          "dark": {
+            "backgroundColor": "#F7F7F5"
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GreenGo Courier needs access to your photo library so you can upload a profile picture.",
+          "cameraPermission": "GreenGo Courier needs access to your camera so you can take a profile picture."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 21
+          }
+        }
+      ],
+      [
+        "crisp-sdk-react-native",
+        {
+          "websiteId": "c13038eb-f0b9-4d39-aadb-902b015646ee"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "36007ae3-b941-4b26-a447-ea07a3890a23"
+      }
+    }
+  }
+}

@@ -71,6 +71,7 @@ function OrdersPageContent() {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [restaurantName, setRestaurantName] = useState<string>("");
   const [analytics, setAnalytics] = useState<OrdersAnalytics | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const limit = 10;
 
@@ -189,6 +190,31 @@ function OrdersPageContent() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (!total) {
+      alert('წასაშლელი შეკვეთები არ მოიძებნა');
+      return;
+    }
+
+    const scopeText = restaurantName ? `რესტორან „${restaurantName}“-ის` : 'ყველა';
+    if (!confirm(`ნამდვილად გსურთ ${scopeText} შეკვეთის წაშლა? ეს მოქმედება შეუქცევადია და შეკვეთები ბაზიდან სრულად წაიშლება.`)) {
+      return;
+    }
+
+    try {
+      setDeletingAll(true);
+      await ordersApi.deleteAll(restaurantId || undefined);
+      setPage(1);
+      await Promise.all([fetchOrders(), !restaurantId ? fetchAnalytics() : Promise.resolve()]);
+      alert('შეკვეთები წარმატებით წაიშალა');
+    } catch (error) {
+      console.error('Error deleting all orders:', error);
+      alert('ყველა შეკვეთის წაშლა ვერ მოხერხდა');
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ka-GE", {
       day: "2-digit",
@@ -255,26 +281,37 @@ function OrdersPageContent() {
             <p className="text-sm font-semibold text-gray-800 dark:text-white">შეკვეთების სია</p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{total ? `${total} შეკვეთა ნაპოვნია` : "მონაცემები იტვირთება"}</p>
           </div>
-          <label className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-            <span>სტატუსი</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="min-w-[180px] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-700 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
-          >
-            <option value="">ყველა სტატუსი</option>
-            <option value="pending">მოლოდინში</option>
-            <option value="confirmed">დადასტურებული</option>
-            <option value="preparing">მზადდება</option>
-            <option value="ready">მზადაა</option>
-            <option value="out_for_delivery">გზაში</option>
-            <option value="delivered">მიწოდებული</option>
-            <option value="cancelled">გაუქმებული</option>
-          </select>
-          </label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+              <span>სტატუსი</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="min-w-[180px] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-700 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+              >
+                <option value="">ყველა სტატუსი</option>
+                <option value="pending">მოლოდინში</option>
+                <option value="confirmed">დადასტურებული</option>
+                <option value="preparing">მზადდება</option>
+                <option value="ready">მზადაა</option>
+                <option value="out_for_delivery">გზაში</option>
+                <option value="delivered">მიწოდებული</option>
+                <option value="cancelled">გაუქმებული</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={handleDeleteAll}
+              disabled={deletingAll || loading || !total}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-300 dark:hover:bg-rose-400/20"
+            >
+              <span aria-hidden="true">{deletingAll ? '…' : '×'}</span>
+              {deletingAll ? 'იშლება…' : 'ყველა შეკვეთის წაშლა'}
+            </button>
+          </div>
         </div>
 
         {/* Table */}

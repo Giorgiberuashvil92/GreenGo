@@ -10,7 +10,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useActiveOffersByRestaurant } from "../hooks/useActiveOffersByRestaurant";
 import { useRestaurants } from "../hooks/useRestaurants";
+import {
+  getPrimaryOfferBadgeLabel,
+} from "../utils/restaurantOffers";
 import HomeRestaurantCard, {
   HOME_RESTAURANT_CARD_GAP,
   HOME_RESTAURANT_CARD_PADDING,
@@ -21,6 +25,7 @@ export default function PopularObjects() {
   const router = useRouter();
   const cardWidth = HOME_RESTAURANT_CARD_WIDTH;
   const { restaurants, loading } = useRestaurants({ limit: 10 });
+  const { offersByRestaurant } = useActiveOffersByRestaurant();
 
   const navigateToRestaurant = (restaurantId: string) => {
     router.push({
@@ -67,6 +72,9 @@ export default function PopularObjects() {
       >
         {popularRestaurants.map((restaurant, index) => {
           const id = restaurant._id || restaurant.id || "";
+          const promoLabel = getPrimaryOfferBadgeLabel(
+            offersByRestaurant[id] ?? [],
+          );
           return (
             <View
               key={id}
@@ -81,6 +89,7 @@ export default function PopularObjects() {
               <HomeRestaurantCard
                 restaurant={restaurant}
                 width={cardWidth}
+                promoLabel={promoLabel}
                 onPress={() => navigateToRestaurant(id)}
               />
             </View>

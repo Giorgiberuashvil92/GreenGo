@@ -13,9 +13,11 @@ import CategoryTabs from "../../components/CategoryTabs";
 import GreetingSection from "../../components/GreetingSection";
 import Header from "../../components/Header";
 import HomeAllObjects from "../../components/HomeAllObjects";
+import HomeCurrentOrderBanner from "../../components/HomeCurrentOrderBanner";
 import HomeRestaurantCarousel from "../../components/HomeRestaurantCarousel";
 import PopularObjects from "../../components/PopularObjects";
 import PromotionalBanner from "../../components/PromotionalBanner";
+import { useActiveOffersByRestaurant } from "../../hooks/useActiveOffersByRestaurant";
 import { useHomeCategories } from "../../hooks/useHomeCategories";
 import {
   getBannerPlacement,
@@ -29,6 +31,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { sections, loading } = useHomeSections();
   const { categories } = useHomeCategories();
+  const { offersByRestaurant } = useActiveOffersByRestaurant();
   const scrollY = useSharedValue(0);
 
   const onScroll = useAnimatedScrollHandler({
@@ -93,6 +96,7 @@ export default function HomeScreen() {
         title={section.title}
         restaurants={section.restaurants}
         showSeeAll={section.showSeeAll}
+        offersByRestaurant={offersByRestaurant}
       />
     );
   };
@@ -119,6 +123,7 @@ export default function HomeScreen() {
         >
           <Animated.View style={topChromeStyle}>
             <Header />
+            <HomeCurrentOrderBanner />
             <GreetingSection />
             <CategoryTabs categories={categories} />
           </Animated.View>

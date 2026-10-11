@@ -2,9 +2,10 @@ import SortIcon from "@/components/icons/SortIcon";
 import { BRAND_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,10 +16,20 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCategories } from "../../hooks/useCategories";
 
+const EMPTY_FILTERS: FilterState = {
+  sortBy: "",
+  priceRange: "",
+  rating: "",
+  deliveryTime: "",
+  categories: [],
+};
+
 interface FilterModalProps {
   visible: boolean;
   onClose: () => void;
   onApplyFilters: (filters: FilterState) => void;
+  /** მოდალის გახსნისას ნაჩვენები მიმდინარე ფილტრები */
+  initialFilters?: FilterState;
 }
 
 export interface FilterState {
@@ -26,6 +37,7 @@ export interface FilterState {
   priceRange: string;
   rating: string;
   deliveryTime: string;
+  /** კატეგორიის სახელები (როგორც ადმინში რესტორანზეა მინიჭებული) */
   categories: string[];
 }
 
@@ -49,27 +61,6 @@ const innerItemTypography = {
   fontSize: 12,
   lineHeight: 22,
 } as const;
-
-function categoryEmoji(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes("მაღაზი") || n.includes("shop")) return "🛍️";
-  if (n.includes("ქართულ")) return "🇬🇪";
-  if (n.includes("სწრაფი") || n.includes("fast")) return "🍟";
-  if (n.includes("შაურმ") || n.includes("shawarma")) return "🌯";
-  if (n.includes("პიც")) return "🍕";
-  if (n.includes("ბურგერ")) return "🍔";
-  if (n.includes("ქათამ") || n.includes("chicken")) return "🍗";
-  if (n.includes("დესერტ")) return "🍰";
-  if (n.includes("წვნიან") || n.includes("soup")) return "🥣";
-  if (n.includes("ცომეულ") || n.includes("pastry")) return "🥐";
-  if (n.includes("საუზმე") || n.includes("breakfast")) return "🥪";
-  if (n.includes("ვეგეტარ")) return "🥑";
-  if (n.includes("ჯანსაღ") || n.includes("healthy")) return "🥗";
-  if (n.includes("ყვავილ")) return "🌻";
-  if (n.includes("ზოო") || n.includes("zoo") || n.includes("pet")) return "🐾";
-  if (n.includes("კვებ") || n.includes("food")) return "🍽️";
-  return "📦";
-}
 
 function RadioIndicator({ selected }: { selected: boolean }) {
   return (
@@ -144,17 +135,29 @@ const FilterModal: React.FC<FilterModalProps> = ({
   visible,
   onClose,
   onApplyFilters,
+  initialFilters,
 }) => {
   const insets = useSafeAreaInsets();
-  const [filters, setFilters] = useState<FilterState>({
-    sortBy: "",
-    priceRange: "",
-    rating: "",
-    deliveryTime: "",
-    categories: [],
-  });
+  const [filters, setFilters] = useState<FilterState>(
+    initialFilters ?? EMPTY_FILTERS,
+  );
 
   const { categories, loading: categoriesLoading } = useCategories(true);
+
+  useEffect(() => {
+    if (!visible) return;
+    setFilters({
+      sortBy: initialFilters?.sortBy ?? "",
+      priceRange: initialFilters?.priceRange ?? "",
+      rating: initialFilters?.rating ?? "",
+      deliveryTime: initialFilters?.deliveryTime ?? "",
+      categories: initialFilters?.categories
+        ? [...initialFilters.categories]
+        : [],
+    });
+    // მხოლოდ მოდალის გახსნისას სინქი — არა ყოველ initialFilters რეფერენსზე
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const sortOptions = [
     { id: "closest", label: "უახლოესი  ობიექტი" },
@@ -184,16 +187,11 @@ const FilterModal: React.FC<FilterModalProps> = ({
   const categoryRows = categories.map((c) => ({
     id: c._id || c.id || "",
     name: c.name,
+    iconUrl: c.icon || c.image || undefined,
   }));
 
   const handleClearAll = () => {
-    setFilters({
-      sortBy: "",
-      priceRange: "",
-      rating: "",
-      deliveryTime: "",
-      categories: [],
-    });
+    setFilters(EMPTY_FILTERS);
   };
 
   const handleApply = () => {
@@ -435,10 +433,10 @@ const FilterModal: React.FC<FilterModalProps> = ({
               </View>
             ) : categoryRows.length > 0 ? (
               categoryRows.map((row, index) => {
-                const selected = filters.categories.includes(row.id);
+                const selected = filters.categories.includes(row.name);
                 return (
                   <TouchableOpacity
-                    key={row.id}
+                    key={row.id || row.name}
                     style={[
                       styles.categoryRow,
                       index === categoryRows.length - 1 &&
@@ -447,16 +445,22 @@ const FilterModal: React.FC<FilterModalProps> = ({
                     onPress={() =>
                       setFilters((f) => {
                         const next = selected
-                          ? f.categories.filter((x) => x !== row.id)
-                          : [...f.categories, row.id];
+                          ? f.categories.filter((x) => x !== row.name)
+                          : [...f.categories, row.name];
                         return { ...f, categories: next };
                       })
                     }
                     activeOpacity={0.65}
                   >
-                    <Text style={styles.categoryEmoji}>
-                      {categoryEmoji(row.name)}
-                    </Text>
+                    {row.iconUrl ? (
+                      <Image
+                        source={{ uri: row.iconUrl }}
+                        style={styles.categoryIcon}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={styles.categoryIconPlaceholder} />
+                    )}
                     <Text style={styles.categoryName} numberOfLines={1}>
                       {row.name}
                     </Text>
@@ -719,16 +723,20 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingBottom: 0,
   },
-  categoryEmoji: {
-    fontSize: 22,
-    width: 36,
-    textAlign: "center",
+  categoryIcon: {
+    width: 28,
+    height: 28,
+    marginRight: 8,
+  },
+  categoryIconPlaceholder: {
+    width: 28,
+    height: 28,
+    marginRight: 8,
   },
   categoryName: {
     ...innerItemTypography,
     flex: 1,
     flexShrink: 1,
-    marginLeft: 4,
   },
   loadingRow: {
     flexDirection: "row",

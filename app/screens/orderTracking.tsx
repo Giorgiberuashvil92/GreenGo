@@ -21,6 +21,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Modal,
   PanResponder,
@@ -154,6 +155,7 @@ export default function OrderTrackingScreen() {
     useState<CheckoutPaymentSelection | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>({
     latitude: 41.7151,
     longitude: 44.8271,
@@ -176,28 +178,35 @@ export default function OrderTrackingScreen() {
     () => Math.min(screenHeight * 0.88, screenHeight - insets.top - 40),
     [screenHeight, insets.top],
   );
+  const sheetPeekHeight = useMemo(
+    () =>
+      tracking?.order.status === "pending"
+        ? SHEET_PEEK_HEIGHT + 56
+        : SHEET_PEEK_HEIGHT,
+    [tracking?.order.status],
+  );
   const sheetHeight = useRef(new Animated.Value(SHEET_PEEK_HEIGHT)).current;
   const dragStartHeightRef = useRef(SHEET_PEEK_HEIGHT);
 
   useEffect(() => {
-    sheetHeight.setValue(SHEET_PEEK_HEIGHT);
-    setIsSheetExpanded(false);
+    if (isSheetExpanded) return;
+    sheetHeight.setValue(sheetPeekHeight);
     setShowOrderDetails(false);
-  }, [sheetExpandedHeight, sheetHeight]);
+  }, [sheetExpandedHeight, sheetPeekHeight, sheetHeight, isSheetExpanded]);
 
   useEffect(() => {
     const listenerId = sheetHeight.addListener(({ value }) => {
-      setShowOrderDetails(value > SHEET_PEEK_HEIGHT + 12);
+      setShowOrderDetails(value > sheetPeekHeight + 12);
     });
 
     return () => {
       sheetHeight.removeListener(listenerId);
     };
-  }, [sheetHeight]);
+  }, [sheetHeight, sheetPeekHeight]);
 
   const snapSheet = useCallback(
     (expand: boolean) => {
-      const toValue = expand ? sheetExpandedHeight : SHEET_PEEK_HEIGHT;
+      const toValue = expand ? sheetExpandedHeight : sheetPeekHeight;
       setIsSheetExpanded(expand);
       setShowOrderDetails(expand);
       Animated.spring(sheetHeight, {
@@ -207,7 +216,7 @@ export default function OrderTrackingScreen() {
         friction: 12,
       }).start();
     },
-    [sheetExpandedHeight, sheetHeight],
+    [sheetExpandedHeight, sheetPeekHeight, sheetHeight],
   );
 
   const panResponder = useMemo(
@@ -223,7 +232,7 @@ export default function OrderTrackingScreen() {
         },
         onPanResponderMove: (_, gesture) => {
           const next = Math.max(
-            SHEET_PEEK_HEIGHT,
+            sheetPeekHeight,
             Math.min(
               sheetExpandedHeight,
               dragStartHeightRef.current - gesture.dy,
@@ -233,14 +242,14 @@ export default function OrderTrackingScreen() {
         },
         onPanResponderRelease: (_, gesture) => {
           sheetHeight.stopAnimation((value) => {
-            const midpoint = (SHEET_PEEK_HEIGHT + sheetExpandedHeight) / 2;
+            const midpoint = (sheetPeekHeight + sheetExpandedHeight) / 2;
             const shouldExpand =
               gesture.vy < -0.35 || value > midpoint;
             snapSheet(shouldExpand);
           });
         },
       }),
-    [sheetExpandedHeight, sheetHeight, snapSheet],
+    [sheetExpandedHeight, sheetPeekHeight, sheetHeight, snapSheet],
   );
   
   const getCurrentStageIndex = useCallback((status: string): number => {
@@ -556,6 +565,53 @@ export default function OrderTrackingScreen() {
     };
   }, [tracking?.order, restaurantLocation, deliveryLocation]);
 
+  const handleCancelOrder = () => {
+    if (!orderId || cancelling) return;
+
+    Alert.alert(
+      "შეკვეთის გაუქმება",
+      "დარწმუნებული ხართ, რომ გსურთ შეკვეთის გაუქმება?",
+      [
+        { text: "არა", style: "cancel" },
+        {
+          text: "გაუქმება",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                setCancelling(true);
+                const response = await apiService.cancelOrder(orderId);
+                if (!response.success) {
+                  Alert.alert(
+                    "შეცდომა",
+                    response.error?.details ||
+                      "შეკვეთის გაუქმება ვერ მოხერხდა",
+                  );
+                  return;
+                }
+                Alert.alert("გაუქმებულია", "შეკვეთა წარმატებით გაუქმდა", [
+                  {
+                    text: "კარგი",
+                    onPress: () => router.replace("/(tabs)/orders"),
+                  },
+                ]);
+              } catch (err: unknown) {
+                Alert.alert(
+                  "შეცდომა",
+                  err instanceof Error
+                    ? err.message
+                    : "შეკვეთის გაუქმება ვერ მოხერხდა",
+                );
+              } finally {
+                setCancelling(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -595,6 +651,7 @@ export default function OrderTrackingScreen() {
 
   const currentStageIndex = getCurrentStageIndex(tracking.order.status);
   const estimatedTime = getEstimatedDeliveryTime();
+  const canCancelOrder = tracking.order.status === "pending";
 
   const headerTitle = formatRestaurantHeader(tracking.restaurant?.name);
   const statusMessage = getStatusMessage(
@@ -734,6 +791,26 @@ export default function OrderTrackingScreen() {
             </View>
 
             <Text style={styles.statusMessage}>{statusMessage}</Text>
+
+            {canCancelOrder ? (
+              <TouchableOpacity
+                style={[
+                  styles.cancelButtonPeek,
+                  cancelling && styles.cancelButtonDisabled,
+                ]}
+                activeOpacity={0.85}
+                disabled={cancelling}
+                onPress={handleCancelOrder}
+              >
+                {cancelling ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Text style={styles.cancelButtonText}>
+                    შეკვეთის გაუქმება
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           {showOrderDetails ? (
@@ -1074,6 +1151,7 @@ const styles = StyleSheet.create({
   },
   sheetScrollContent: {
     gap: 20,
+    paddingTop: 4,
     paddingBottom: 8,
   },
   sheetSection: {
@@ -1087,6 +1165,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
     color: "#181B1A",
+    marginTop: 4,
   },
   orderItemBlock: {
     gap: 4,
@@ -1164,6 +1243,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: PRIMARY_GREEN,
   },
+  cancelButtonPeek: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  cancelButtonDisabled: {
+    opacity: 0.6,
+  },
+  cancelButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 14,
+    lineHeight: 18,
+    color: "#EF4444",
+  },
   helpButton: {
     backgroundColor: "#EFFBF5",
     borderRadius: 60,
@@ -1230,6 +1330,7 @@ const styles = StyleSheet.create({
     color: "#666666",
     textAlign: "center",
     paddingHorizontal: 16,
+    marginBottom: 16,
   },
   modalOverlay: {
     flex: 1,

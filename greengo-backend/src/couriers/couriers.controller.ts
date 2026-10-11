@@ -19,6 +19,7 @@ import { LoginCourierDto } from './dto/login-courier.dto';
 import { RegisterCourierDto } from './dto/register-courier.dto';
 import { UpdateCourierDto } from './dto/update-courier.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
 
 @Controller('couriers')
 export class CouriersController {
@@ -209,6 +210,15 @@ export class CouriersController {
     @Body('status') status: 'available' | 'busy' | 'offline',
   ) {
     return this.couriersService.updateStatus(id, status);
+  }
+
+  /** კურიერის აპი — native FCM/APNs token შენახვა */
+  @Patch(':id/push-token')
+  updatePushToken(
+    @Param('id') id: string,
+    @Body() dto: UpdatePushTokenDto,
+  ) {
+    return this.couriersService.updatePushToken(id, dto);
   }
 
   @Patch(':id/assign-order/:orderId')

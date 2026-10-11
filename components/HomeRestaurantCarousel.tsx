@@ -10,6 +10,10 @@ import {
   View,
 } from "react-native";
 import type { HomeSectionRestaurant } from "../hooks/useHomeSections";
+import {
+  getPrimaryOfferBadgeLabel,
+  type RestaurantOffer,
+} from "../utils/restaurantOffers";
 import HomeRestaurantCard, {
   HOME_RESTAURANT_CARD_GAP,
   HOME_RESTAURANT_CARD_PADDING,
@@ -20,10 +24,12 @@ export default function HomeRestaurantCarousel({
   title,
   restaurants,
   showSeeAll = true,
+  offersByRestaurant = {},
 }: {
   title: string;
   restaurants: HomeSectionRestaurant[];
   showSeeAll?: boolean;
+  offersByRestaurant?: Record<string, RestaurantOffer[]>;
 }) {
   const router = useRouter();
   const cardWidth = HOME_RESTAURANT_CARD_WIDTH;
@@ -59,6 +65,9 @@ export default function HomeRestaurantCarousel({
       >
         {restaurants.map((restaurant, index) => {
           const id = restaurant._id || restaurant.id || "";
+          const promoLabel = getPrimaryOfferBadgeLabel(
+            offersByRestaurant[id] ?? [],
+          );
           return (
             <View
               key={id}
@@ -73,6 +82,7 @@ export default function HomeRestaurantCarousel({
               <HomeRestaurantCard
                 restaurant={restaurant}
                 width={cardWidth}
+                promoLabel={promoLabel}
                 onPress={() => navigateToRestaurant(id)}
               />
             </View>

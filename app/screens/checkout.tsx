@@ -1,6 +1,5 @@
 import BackCircleIcon from "@/components/icons/BackCircleIcon";
 import CardBrandIcon from "@/components/icons/CardBrandIcon";
-import CourierTipIcon from "@/components/icons/CourierTipIcon";
 import PencilIcon from "@/components/icons/PencilIcon";
 import VoucherIcon from "@/components/icons/VoucherIcon";
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
@@ -43,6 +42,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import MapView, { Marker } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCart } from "../../contexts/CartContext";
@@ -266,6 +266,12 @@ export default function CheckoutScreen() {
     }
   }, [subtotal, appliedPromo, deliveryType]);
 
+  useEffect(() => {
+    if (deliveryType !== "pickup") return;
+    setTipAmount(0);
+    setActiveTipKey("none");
+  }, [deliveryType]);
+
   const total = useMemo(() => {
     return calculateCheckoutTotal(
       {
@@ -274,7 +280,7 @@ export default function CheckoutScreen() {
         serviceFee,
       },
       appliedPromo,
-      tipAmount,
+      deliveryType === "pickup" ? 0 : tipAmount,
     );
   }, [
     subtotal,
@@ -282,6 +288,7 @@ export default function CheckoutScreen() {
     serviceFee,
     appliedPromo,
     tipAmount,
+    deliveryType,
   ]);
 
   const openCustomTipModal = () => {
@@ -506,13 +513,15 @@ export default function CheckoutScreen() {
         restaurantId: restaurant._id || restaurant.id || restaurantId,
         items: orderItems,
         totalAmount: Number(total.toFixed(2)),
-        deliveryFee: Number(deliveryFee.toFixed(2)),
+        deliveryFee: Number(
+          (deliveryType === "pickup" ? 0 : deliveryFee).toFixed(2),
+        ),
         paymentMethod: paymentMethod,
         deliveryAddress: finalDeliveryAddress,
         estimatedDelivery: estimatedDelivery.toISOString(),
         notes: comment || undefined,
         promoCode: appliedPromo?.code || undefined,
-        tip: tipAmount,
+        tip: deliveryType === "pickup" ? 0 : tipAmount,
         deliveryType: deliveryType,
       };
 
@@ -531,16 +540,8 @@ export default function CheckoutScreen() {
         const paymentUrl = (response.data as any)?.paymentUrl as
           | string
           | undefined;
-        if (paymentMethod === "card") {
-          if (!paymentUrl) {
-            Alert.alert(
-              "გადახდა ვერ დაიწყო",
-              (response.data as any)?.paymentError ||
-                "Flitt-ის გადახდის გვერდის შექმნა ვერ მოხერხდა. შეკვეთა შენახულია, გთხოვთ თავიდან სცადოთ.",
-            );
-            return;
-          }
-
+        // paymentUrl თუ არაა (SKIP_FLITT_PAYMENT) — პირდაპირ წარმატება
+        if (paymentMethod === "card" && paymentUrl) {
           const paymentResult = await WebBrowser.openAuthSessionAsync(
             paymentUrl,
             "greengo://payment-result",
@@ -655,96 +656,153 @@ export default function CheckoutScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity
-          style={styles.card}
-          activeOpacity={0.85}
-          onPress={() =>
-            router.push({ pathname: "/screens/locations", params: {} })
-          }
-        >
-          <View style={styles.cardRow}>
-            <Ionicons name="location" size={22} color={PRIMARY_GREEN} />
-            <View style={styles.cardTextCol}>
-              <Text style={styles.addressMain} numberOfLines={1}>
-                {formatAddressStreetLine(deliveryAddress, addressLoading)}
-              </Text>
-              <Text style={styles.addressSub} numberOfLines={2}>
-                {formatAddressSubLine(deliveryAddress, addressLoading)}
-              </Text>
+        {deliveryType === "delivery" ? (
+          <TouchableOpacity
+            style={styles.card}
+            activeOpacity={0.85}
+            onPress={() =>
+              router.push({ pathname: "/screens/locations", params: {} })
+            }
+          >
+            <View style={styles.cardRow}>
+              <Ionicons name="location" size={22} color={PRIMARY_GREEN} />
+              <View style={styles.cardTextCol}>
+                <Text style={styles.addressMain} numberOfLines={1}>
+                  {formatAddressStreetLine(deliveryAddress, addressLoading)}
+                </Text>
+                <Text style={styles.addressSub} numberOfLines={2}>
+                  {formatAddressSubLine(deliveryAddress, addressLoading)}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        ) : null}
+
+        <View style={styles.deliveryToggleWrap}>
+          <View style={styles.deliveryRow}>
+            <TouchableOpacity
+              style={[
+                styles.deliveryCard,
+                deliveryType === "delivery" && styles.deliveryCardOn,
+              ]}
+              onPress={() => setDeliveryType("delivery")}
+              activeOpacity={0.88}
+            >
+              <View style={styles.deliveryCardHead}>
+                <Ionicons
+                  name="bicycle-outline"
+                  size={22}
+                  color={deliveryType === "delivery" ? "#FFFFFF" : "#4B5563"}
+                />
+                <Text
+                  style={[
+                    styles.deliveryTitle,
+                    deliveryType === "delivery" && styles.deliveryTitleOn,
+                  ]}
+                >
+                  მიწოდება
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.deliverySub,
+                  deliveryType === "delivery" && styles.deliverySubOn,
+                ]}
+                numberOfLines={2}
+              >
+                კურიერი მოიტანს თქვენს მისამართზე
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.deliveryCard,
+                deliveryType === "pickup" && styles.deliveryCardOn,
+              ]}
+              onPress={() => setDeliveryType("pickup")}
+              activeOpacity={0.88}
+            >
+              <View style={styles.deliveryCardHead}>
+                <Ionicons
+                  name="walk-outline"
+                  size={22}
+                  color={deliveryType === "pickup" ? "#FFFFFF" : "#4B5563"}
+                />
+                <Text
+                  style={[
+                    styles.deliveryTitle,
+                    deliveryType === "pickup" && styles.deliveryTitleOn,
+                  ]}
+                >
+                  გატანა
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.deliverySub,
+                  deliveryType === "pickup" && styles.deliverySubOn,
+                ]}
+                numberOfLines={2}
+              >
+                თავად მიაკითხავთ ობიექტს
+              </Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-
-        <View style={styles.deliveryRow}>
-          <TouchableOpacity
-            style={[
-              styles.deliveryCard,
-              deliveryType === "delivery" && styles.deliveryCardOn,
-            ]}
-            onPress={() => setDeliveryType("delivery")}
-            activeOpacity={0.88}
-          >
-            <View style={styles.deliveryCardHead}>
-              <Ionicons
-                name="bicycle-outline"
-                size={22}
-                color={deliveryType === "delivery" ? "#FFFFFF" : "#4B5563"}
-              />
-              <Text
-                style={[
-                  styles.deliveryTitle,
-                  deliveryType === "delivery" && styles.deliveryTitleOn,
-                ]}
-              >
-                მიწოდება
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.deliverySub,
-                deliveryType === "delivery" && styles.deliverySubOn,
-              ]}
-              numberOfLines={2}
-            >
-              კურიერი მოიტანს თქვენს მისამართზე
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.deliveryCard,
-              deliveryType === "pickup" && styles.deliveryCardOn,
-            ]}
-            onPress={() => setDeliveryType("pickup")}
-            activeOpacity={0.88}
-          >
-            <View style={styles.deliveryCardHead}>
-              <Ionicons
-                name="walk-outline"
-                size={22}
-                color={deliveryType === "pickup" ? "#FFFFFF" : "#4B5563"}
-              />
-              <Text
-                style={[
-                  styles.deliveryTitle,
-                  deliveryType === "pickup" && styles.deliveryTitleOn,
-                ]}
-              >
-                გატანა
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.deliverySub,
-                deliveryType === "pickup" && styles.deliverySubOn,
-              ]}
-              numberOfLines={2}
-            >
-              თავად მიაკითხავთ ობიექსს
-            </Text>
-          </TouchableOpacity>
         </View>
+
+        {deliveryType === "pickup" ? (
+          <View style={styles.pickupBlock}>
+            <View style={styles.pickupTimeRow}>
+              <Ionicons name="time-outline" size={18} color="#9B9B9B" />
+              <Text style={styles.pickupTimeText}>
+                დამზადების სავარაუდო დრო{" "}
+                {restaurant?.deliveryTime?.trim()
+                  ? /წუთ/.test(restaurant.deliveryTime)
+                    ? restaurant.deliveryTime.trim()
+                    : `${restaurant.deliveryTime.trim()} წუთი`
+                  : "20-30 წუთი"}
+              </Text>
+            </View>
+
+            {restaurant?.location?.latitude != null &&
+            restaurant?.location?.longitude != null ? (
+              <View style={styles.pickupMapWrap}>
+                <MapView
+                  style={styles.pickupMap}
+                  pointerEvents="none"
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  region={{
+                    latitude: restaurant.location.latitude,
+                    longitude: restaurant.location.longitude,
+                    latitudeDelta: 0.008,
+                    longitudeDelta: 0.008,
+                  }}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: restaurant.location.latitude,
+                      longitude: restaurant.location.longitude,
+                    }}
+                    pinColor="#EF4444"
+                  />
+                </MapView>
+              </View>
+            ) : null}
+
+            <Text style={styles.pickupRestaurantName} numberOfLines={2}>
+              {restaurant?.name || "რესტორანი"}
+            </Text>
+            <Text style={styles.pickupRestaurantAddress} numberOfLines={2}>
+              {[restaurant?.location?.address, restaurant?.location?.city]
+                .filter(Boolean)
+                .join(", ") || "მისამართი მიუწვდომელია"}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.sectionGap}>
           <View style={styles.sectionHead}>
@@ -825,63 +883,69 @@ export default function CheckoutScreen() {
           </View>
         </TouchableOpacity>
 
-        <View style={styles.tipSection}>
-          <View style={styles.tipMainRow}>
-            <View style={styles.tipIconWrap}>
-              <CourierTipIcon size={88} />
+        {deliveryType === "delivery" ? (
+          <View style={styles.tipSection}>
+            <View style={styles.tipMainRow}>
+              <View style={styles.tipIconWrap}>
+                <Image
+                  source={require("../../assets/images/cat.png")}
+                  style={styles.tipCatImage}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.tipContent}>
+                <Text style={styles.tipHeadTitle}>
+                  დაუტოვებთ კურიერს დამატებით თიფს?
+                </Text>
+                <Text style={styles.tipHeadSub}>
+                  კურიერი იღებს თიფის 100% - ს. თიფსის გაუქმებას მოგვიანებით
+                  შეძლებთ
+                </Text>
+              </View>
             </View>
-            <View style={styles.tipContent}>
-              <Text style={styles.tipHeadTitle}>
-                დაუტოვებთ კურიერს დამატებით თიფს?
-              </Text>
-              <Text style={styles.tipHeadSub}>
-                კურიერი იღებს თიფის 100% - ს. თიფსის გაუქმებას მოგვიანებით
-                შეძლებთ
-              </Text>
-            </View>
-          </View>
 
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            style={styles.tipChipsScroll}
-            contentContainerStyle={styles.tipChips}
-          >
-            {TIP_PRESETS.map((tip) => {
-              const isActive = activeTipKey === tip.key;
-              return (
-                <TouchableOpacity
-                  key={tip.key}
-                  style={[styles.tipChip, isActive && styles.tipChipOn]}
-                  onPress={() => selectPresetTip(tip.key, tip.amount)}
-                >
-                  <Text
-                    style={[
-                      styles.tipChipText,
-                      isActive && styles.tipChipTextOn,
-                    ]}
-                  >
-                    {tip.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            <TouchableOpacity
-              style={[
-                styles.tipChip,
-                styles.tipChipIcon,
-                activeTipKey === "custom" && styles.tipChipOn,
-              ]}
-              onPress={openCustomTipModal}
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.tipChipsScroll}
+              contentContainerStyle={styles.tipChips}
             >
-              <PencilIcon
-                size={12}
-                color={activeTipKey === "custom" ? "#181B1A" : "#8C8C8C"}
-              />
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
+              {TIP_PRESETS.map((tip) => {
+                const isActive = activeTipKey === tip.key;
+                return (
+                  <TouchableOpacity
+                    key={tip.key}
+                    style={[styles.tipChip, isActive && styles.tipChipOn]}
+                    onPress={() => selectPresetTip(tip.key, tip.amount)}
+                  >
+                    <Text
+                      style={[
+                        styles.tipChipText,
+                        isActive && styles.tipChipTextOn,
+                      ]}
+                    >
+                      {tip.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity
+                style={[
+                  styles.tipChip,
+                  styles.tipChipIcon,
+                  activeTipKey === "custom" && styles.tipChipOn,
+                ]}
+                onPress={openCustomTipModal}
+              >
+                <PencilIcon
+                  size={12}
+                  color={activeTipKey === "custom" ? "#181B1A" : "#8C8C8C"}
+                />
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={styles.summarySection}>
           <Text style={styles.summaryTitle}>შეჯამება</Text>
@@ -924,7 +988,7 @@ export default function CheckoutScreen() {
             </View>
           ) : null}
 
-          {tipAmount > 0 ? (
+          {deliveryType === "delivery" && tipAmount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>თიფი</Text>
               <Text style={styles.summaryValue}>
@@ -1181,15 +1245,22 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     marginTop: 2,
   },
+  deliveryToggleWrap: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    padding: 8,
+    marginBottom: 12,
+    backgroundColor: "#FFFFFF",
+  },
   deliveryRow: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 8,
+    gap: 8,
   },
   deliveryCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     paddingVertical: 12,
@@ -1223,6 +1294,46 @@ const styles = StyleSheet.create({
   },
   deliverySubOn: {
     color: "rgba(255,255,255,0.9)",
+  },
+  pickupBlock: {
+    marginBottom: 16,
+  },
+  pickupTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  pickupTimeText: {
+    flex: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#9B9B9B",
+  },
+  pickupMapWrap: {
+    height: 140,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#E5E7EB",
+    marginBottom: 12,
+  },
+  pickupMap: {
+    width: "100%",
+    height: "100%",
+  },
+  pickupRestaurantName: {
+    fontFamily: fontFamily.bold,
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#181B1A",
+    marginBottom: 4,
+  },
+  pickupRestaurantAddress: {
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#6B7280",
   },
   sectionGap: {
     marginTop: 8,
@@ -1368,6 +1479,10 @@ const styles = StyleSheet.create({
     height: 88,
     alignItems: "center",
     justifyContent: "center",
+  },
+  tipCatImage: {
+    width: 88,
+    height: 88,
   },
   tipContent: {
     flex: 1,

@@ -1,7 +1,10 @@
 import { fontFamily } from "@/constants/fonts";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { FilterModal } from "../app/components";
+import FilterModal, {
+  type FilterState,
+} from "../app/components/FilterModal";
 import { useAuth } from "../contexts/AuthContext";
 import HomeSearchBar from "./HomeSearchBar";
 
@@ -17,7 +20,7 @@ export default function GreetingSection() {
     if (user?.firstName) {
       return user.firstName;
     }
-    return "მომხმარებელო"; // Fallback
+    return "მომხმარებელო";
   };
 
   const handleFilterPress = () => {
@@ -28,9 +31,21 @@ export default function GreetingSection() {
     setShowFilterModal(false);
   };
 
-  const handleApplyFilters = (filters: any) => {
-    console.log("Applied filters:", filters);
-    // Here you can implement the actual filtering logic
+  const handleApplyFilters = (filters: FilterState) => {
+    const params: Record<string, string> = {};
+    if (filters.sortBy) params.sortBy = filters.sortBy;
+    if (filters.priceRange) params.priceRange = filters.priceRange;
+    if (filters.rating) params.rating = filters.rating;
+    if (filters.deliveryTime) params.deliveryTime = filters.deliveryTime;
+    if (filters.categories.length > 0) {
+      params.categories = filters.categories.join(",");
+    }
+
+    setShowFilterModal(false);
+    router.push({
+      pathname: "/(tabs)/restaurants",
+      params,
+    });
   };
 
   return (

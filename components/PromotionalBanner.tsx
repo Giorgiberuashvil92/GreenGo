@@ -2,7 +2,6 @@ import {
   getHomeBannerLayout,
   HOME_BANNER_BORDER_RADIUS,
   HOME_BANNER_GAP,
-  HOME_BANNER_SIDE_PADDING,
 } from "@/constants/homeBanner";
 import {
   useBanners,
@@ -53,14 +52,15 @@ export default function PromotionalBanner({
   const { banners, loading } = useBanners(placement);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
-  const { bannerWidth, bannerHeight, snapInterval } = useMemo(() => {
-    const layout = getHomeBannerLayout(screenWidth);
+  const { bannerWidth, bannerHeight, snapInterval, sidePadding } = useMemo(() => {
+    const layout = getHomeBannerLayout(screenWidth, placement);
     return {
       bannerWidth: layout.width,
       bannerHeight: layout.height,
       snapInterval: layout.snapInterval,
+      sidePadding: layout.sidePadding,
     };
-  }, [screenWidth]);
+  }, [screenWidth, placement]);
 
   const updateIndex = (scrollX: number) => {
     if (banners.length === 0) return;
@@ -120,7 +120,7 @@ export default function PromotionalBanner({
         disableIntervalMomentum
         contentContainerStyle={[
           styles.bannerScrollContent,
-          { paddingHorizontal: HOME_BANNER_SIDE_PADDING },
+          { paddingHorizontal: sidePadding },
         ]}
         onScroll={handleBannerScroll}
         onMomentumScrollEnd={handleBannerScroll}
@@ -152,7 +152,7 @@ export default function PromotionalBanner({
       </ScrollView>
 
       {banners.length > 1 ? (
-        <View style={styles.dotsContainer}>
+        <View style={[styles.dotsContainer, { paddingHorizontal: sidePadding }]}>
           {banners.map((banner, index) => {
             const distance = Math.abs(index - currentBannerIndex);
             const size = getDotSize(distance);
@@ -205,7 +205,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 12,
-    paddingHorizontal: HOME_BANNER_SIDE_PADDING,
   },
   dot: {},
 });

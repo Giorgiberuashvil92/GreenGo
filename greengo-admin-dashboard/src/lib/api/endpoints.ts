@@ -340,6 +340,8 @@ export const ordersApi = {
     apiClient.patch<Order>(`/orders/${id}/assign-courier`, { courierId }),
   
   delete: (id: string) => apiClient.delete(`/orders/${id}`),
+  deleteAll: (restaurantId?: string) =>
+    apiClient.delete(`/orders${restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : ''}`),
 };
 
 // Restaurants API

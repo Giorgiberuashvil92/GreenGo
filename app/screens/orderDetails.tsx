@@ -81,6 +81,7 @@ export default function OrderDetailsScreen() {
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (orderId) {
@@ -115,7 +116,59 @@ export default function OrderDetailsScreen() {
     }
   };
 
-  const canTrack = order?.status && ["preparing", "ready", "delivering"].includes(order.status);
+  const handleCancelOrder = () => {
+    if (!orderId || cancelling) return;
+
+    Alert.alert(
+      "შეკვეთის გაუქმება",
+      "დარწმუნებული ხართ, რომ გსურთ შეკვეთის გაუქმება?",
+      [
+        { text: "არა", style: "cancel" },
+        {
+          text: "გაუქმება",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                setCancelling(true);
+                const response = await apiService.cancelOrder(orderId);
+                if (!response.success) {
+                  Alert.alert(
+                    "შეცდომა",
+                    response.error?.details ||
+                      "შეკვეთის გაუქმება ვერ მოხერხდა",
+                  );
+                  return;
+                }
+                Alert.alert("გაუქმებულია", "შეკვეთა წარმატებით გაუქმდა", [
+                  {
+                    text: "კარგი",
+                    onPress: () => router.replace("/(tabs)/orders"),
+                  },
+                ]);
+              } catch (err: unknown) {
+                Alert.alert(
+                  "შეცდომა",
+                  err instanceof Error
+                    ? err.message
+                    : "შეკვეთის გაუქმება ვერ მოხერხდა",
+                );
+              } finally {
+                setCancelling(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const canTrack =
+    order?.status &&
+    ["pending", "confirmed", "preparing", "ready", "delivering"].includes(
+      order.status,
+    );
+  const canCancel = order?.status === "pending";
 
   if (loading) {
     return (
@@ -299,13 +352,34 @@ export default function OrderDetailsScreen() {
         </View>
       </ScrollView>
 
-      {/* Track Order Button */}
-      {canTrack && (
+      {(canTrack || canCancel) && (
         <View style={styles.trackButtonContainer}>
-          <TouchableOpacity style={styles.trackButton} onPress={handleTrackOrder}>
-            <Ionicons name="location" size={20} color="#FFFFFF" />
-            <Text style={styles.trackButtonText}>შეკვეთის ტრეკინგი</Text>
-          </TouchableOpacity>
+          {canCancel ? (
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                cancelling && styles.cancelButtonDisabled,
+              ]}
+              onPress={handleCancelOrder}
+              disabled={cancelling}
+              activeOpacity={0.85}
+            >
+              {cancelling ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <Text style={styles.cancelButtonText}>შეკვეთის გაუქმება</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
+          {canTrack ? (
+            <TouchableOpacity
+              style={styles.trackButton}
+              onPress={handleTrackOrder}
+            >
+              <Ionicons name="location" size={20} color="#FFFFFF" />
+              <Text style={styles.trackButtonText}>შეკვეთის ტრეკინგი</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       )}
     </SafeAreaView>
@@ -568,6 +642,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
+    gap: 10,
+  },
+  cancelButton: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  cancelButtonDisabled: {
+    opacity: 0.6,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#EF4444",
   },
   trackButton: {
     backgroundColor: "#4CAF50",

@@ -70,10 +70,13 @@ export class RestaurantOffersController {
       restaurantId,
     );
 
-    if (scopedRestaurantId && active === 'true') {
-      return this.restaurantOffersService.findActiveByRestaurant(
-        scopedRestaurantId,
-      );
+    if (active === 'true') {
+      if (scopedRestaurantId) {
+        return this.restaurantOffersService.findActiveByRestaurant(
+          scopedRestaurantId,
+        );
+      }
+      return this.restaurantOffersService.findAllActive();
     }
     return this.restaurantOffersService.findAll(scopedRestaurantId);
   }

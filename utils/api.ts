@@ -252,6 +252,11 @@ class ApiService {
     );
   }
 
+  /** ყველა აქტიური ოფერი (ჰოუმ ქარდებისთვის) */
+  async getActiveRestaurantOffers() {
+    return this.request<RestaurantOffer[]>('/restaurant-offers?active=true');
+  }
+
   async getRestaurantOffer(id: string) {
     return this.request<RestaurantOffer>(`/restaurant-offers/${id}`);
   }
@@ -331,6 +336,13 @@ class ApiService {
     return this.request(`/orders/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  }
+
+  /** მომხმარებლის გაუქმება — მხოლოდ რესტორნის დადასტურებამდე */
+  async cancelOrder(id: string) {
+    return this.request(`/orders/${id}/cancel`, {
+      method: 'POST',
     });
   }
 

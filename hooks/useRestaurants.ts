@@ -64,17 +64,19 @@ export const useRestaurants = (params?: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const categoriesKey = params?.categories?.join(",") ?? "";
+
   useEffect(() => {
     fetchRestaurants();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    params?.search, 
-    params?.category, 
-    params?.categories, 
-    params?.priceRange, 
-    params?.rating, 
-    params?.deliveryTime, 
-    params?.sortBy
+    params?.search,
+    params?.category,
+    categoriesKey,
+    params?.priceRange,
+    params?.rating,
+    params?.deliveryTime,
+    params?.sortBy,
   ]);
 
   const fetchRestaurants = async () => {

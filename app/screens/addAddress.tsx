@@ -31,7 +31,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const DEFAULT_REGION: Region = {
@@ -45,12 +45,19 @@ function createSessionToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const PIN_SIZE = 48;
+const PIN_TIP_OFFSET = Math.round(PIN_SIZE * 1.22) + 6;
+
 export default function AddAddressScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView>(null);
+  const isProgrammaticMove = useRef(false);
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [address, setAddress] = useState<DeliveryAddress | null>(null);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [loading, setLoading] = useState(true);
+  const [geocoding, setGeocoding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -58,41 +65,81 @@ export default function AddAddressScreen() {
   const [resolvingPlace, setResolvingPlace] = useState(false);
   const [sessionToken, setSessionToken] = useState(createSessionToken);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [pinCoordinate, setPinCoordinate] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
   const hasGooglePlaces = Boolean(getGoogleMapsApiKey());
   const skipNextSearch = useRef(false);
 
-  const applyAddress = (next: DeliveryAddress) => {
-    setAddress(next);
-    setQuery(next.street);
-    setRegion({
-      latitude: next.coordinates.lat,
-      longitude: next.coordinates.lng,
+  const moveMapTo = (latitude: number, longitude: number) => {
+    const next: Region = {
+      latitude,
+      longitude,
       latitudeDelta: 0.008,
       longitudeDelta: 0.008,
-    });
-    setSuggestions([]);
-    setPinCoordinate({
-      lat: next.coordinates.lat,
-      lng: next.coordinates.lng,
-    });
+    };
+    isProgrammaticMove.current = true;
+    setRegion(next);
+    mapRef.current?.animateToRegion(next, 280);
+    setTimeout(() => {
+      isProgrammaticMove.current = false;
+    }, 350);
   };
 
-  const applyCoords = async (latitude: number, longitude: number) => {
-    setLoading(true);
+  const applyAddress = (next: DeliveryAddress, animateMap = true) => {
+    setAddress(next);
+    setQuery(next.street);
+    setSuggestions([]);
+    if (animateMap) {
+      moveMapTo(next.coordinates.lat, next.coordinates.lng);
+    } else {
+      setRegion({
+        latitude: next.coordinates.lat,
+        longitude: next.coordinates.lng,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      });
+    }
+  };
+
+  const applyCoords = async (
+    latitude: number,
+    longitude: number,
+    options?: { blockMap?: boolean },
+  ) => {
+    const blockMap = options?.blockMap ?? false;
+    if (blockMap) setLoading(true);
+    else setGeocoding(true);
     try {
       const resolved = await fetchAddressFromCoords(
         latitude,
         longitude,
         query.trim(),
       );
-      applyAddress(resolved);
+      // რუკა უკვე ცენტრშია — მხოლოდ ტექსტი განახლდეს
+      setAddress(resolved);
+      skipNextSearch.current = true;
+      setQuery(resolved.street);
+      setSuggestions([]);
+      setRegion({
+        latitude: resolved.coordinates.lat,
+        longitude: resolved.coordinates.lng,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      });
     } finally {
-      setLoading(false);
+      if (blockMap) setLoading(false);
+      else setGeocoding(false);
     }
+  };
+
+  const handleRegionChangeComplete = (next: Region) => {
+    if (isProgrammaticMove.current) return;
+
+    setRegion(next);
+
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    geocodeTimer.current = setTimeout(() => {
+      setSessionToken(createSessionToken());
+      void applyCoords(next.latitude, next.longitude, { blockMap: false });
+    }, 400);
   };
 
   useEffect(() => {
@@ -115,7 +162,8 @@ export default function AddAddressScreen() {
         });
         if (cancelled) return;
         const { latitude, longitude } = position.coords;
-        await applyCoords(latitude, longitude);
+        await applyCoords(latitude, longitude, { blockMap: true });
+        if (!cancelled) moveMapTo(latitude, longitude);
       } catch {
         if (!cancelled) setLoading(false);
       }
@@ -177,23 +225,6 @@ export default function AddAddressScreen() {
     };
   }, []);
 
-  const handleMarkerDrag = (event: {
-    nativeEvent: { coordinate: { latitude: number; longitude: number } };
-  }) => {
-    const { latitude, longitude } = event.nativeEvent.coordinate;
-    setPinCoordinate({ lat: latitude, lng: longitude });
-  };
-
-  const handleMarkerDragEnd = (event: {
-    nativeEvent: { coordinate: { latitude: number; longitude: number } };
-  }) => {
-    const { latitude, longitude } = event.nativeEvent.coordinate;
-    Keyboard.dismiss();
-    setPinCoordinate({ lat: latitude, lng: longitude });
-    setSessionToken(createSessionToken());
-    void applyCoords(latitude, longitude);
-  };
-
   const handleGetCurrentLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -210,7 +241,8 @@ export default function AddAddressScreen() {
       });
       setSessionToken(createSessionToken());
       const { latitude, longitude } = position.coords;
-      await applyCoords(latitude, longitude);
+      moveMapTo(latitude, longitude);
+      await applyCoords(latitude, longitude, { blockMap: false });
     } catch {
       Alert.alert("შეცდომა", "ლოკაციის მიღება ვერ მოხერხდა");
     }
@@ -281,27 +313,19 @@ export default function AddAddressScreen() {
 
       <View style={styles.mapSection}>
         <MapView
+          ref={mapRef}
           style={StyleSheet.absoluteFill}
-          region={region}
+          initialRegion={region}
+          onRegionChangeComplete={handleRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton={false}
-        >
-          {pinCoordinate ? (
-            <Marker
-              coordinate={{
-                latitude: pinCoordinate.lat,
-                longitude: pinCoordinate.lng,
-              }}
-              anchor={{ x: 0.5, y: 1 }}
-              draggable
-              tracksViewChanges={false}
-              onDrag={handleMarkerDrag}
-              onDragEnd={handleMarkerDragEnd}
-            >
-              <MapAddressPin size={48} />
-            </Marker>
-          ) : null}
-        </MapView>
+        />
+
+        <View style={styles.centerPinOverlay} pointerEvents="none">
+          <View style={{ marginBottom: PIN_TIP_OFFSET }}>
+            <MapAddressPin size={PIN_SIZE} />
+          </View>
+        </View>
 
         <TouchableOpacity
           style={[styles.backBtn, { top: insets.top + 8 }]}
@@ -321,7 +345,7 @@ export default function AddAddressScreen() {
           <Ionicons name="locate" size={22} color={BRAND_GREEN} />
         </TouchableOpacity>
 
-        {loading || resolvingPlace ? (
+        {loading ? (
           <View style={styles.mapLoader}>
             <ActivityIndicator size="large" color={BRAND_GREEN} />
           </View>
@@ -351,7 +375,7 @@ export default function AddAddressScreen() {
             autoCapitalize="none"
             returnKeyType="search"
           />
-          {searching ? (
+          {searching || geocoding || resolvingPlace ? (
             <ActivityIndicator size="small" color={BRAND_GREEN} />
           ) : null}
         </View>
@@ -401,7 +425,7 @@ export default function AddAddressScreen() {
 
         {keyboardHeight === 0 ? (
           <Text style={styles.hint}>
-            პინი ხელით გადაიტანეთ რუკაზე ან ჩაწერეთ მისამართი, რათა კურიერმა
+            რუკა გადაადგილეთ პინის ქვეშ ან ჩაწერეთ მისამართი, რათა კურიერმა
             მარტივად გიპოვოთ.
           </Text>
         ) : null}
@@ -433,6 +457,12 @@ const styles = StyleSheet.create({
   mapSection: {
     flex: 1,
     backgroundColor: "#E5E7EB",
+  },
+  centerPinOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
   },
   backBtn: {
     position: "absolute",

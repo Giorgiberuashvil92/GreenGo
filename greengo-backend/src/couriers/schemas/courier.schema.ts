@@ -59,6 +59,20 @@ export class Courier {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  /** FCM / native push token — Firebase Admin-ით გასაგზავნი */
+  @Prop()
+  fcmToken?: string;
+
+  /** ios | android — აპიდან მოდის pushPlatform */
+  @Prop({ enum: ['ios', 'android'] })
+  pushPlatform?: 'ios' | 'android';
+
+  @Prop({ default: true })
+  pushEnabled: boolean;
+
+  @Prop()
+  pushTokenUpdatedAt?: Date;
 }
 
 export const CourierSchema = SchemaFactory.createForClass(Courier);

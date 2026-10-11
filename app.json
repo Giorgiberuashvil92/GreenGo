@@ -2,7 +2,7 @@
   "expo": {
     "name": "GreenGo",
     "slug": "GreenGo",
-    "version": "1.0.22",
+    "version": "1.0.26",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "greengo",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "io.greengo.app",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -40,13 +40,13 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash.png",
+          "image": "./assets/images/splash-greengo.png",
           "resizeMode": "cover",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#3BB54A",
           "dark": {
-            "image": "./assets/images/splash.png",
+            "image": "./assets/images/splash-greengo.png",
             "resizeMode": "cover",
-            "backgroundColor": "#ffffff"
+            "backgroundColor": "#3BB54A"
           }
         }
       ],

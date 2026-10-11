@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -103,6 +104,20 @@ export class OrdersController {
     });
   }
 
+  /** მომხმარებელი აუქმებს შეკვეთას — მხოლოდ pending სტატუსზე */
+  @Post(':id/cancel')
+  async cancelByCustomer(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtRequestUser | undefined,
+  ) {
+    if (!user || user.type !== 'customer') {
+      throw new UnauthorizedException(
+        'შეკვეთის გაუქმება მხოლოდ ავტორიზებული მომხმარებლისთვისაა',
+      );
+    }
+    return this.ordersService.cancelByCustomer(id, user.userId);
+  }
+
   @Get(':id/tracking')
   async getTracking(
     @Param('id') id: string,
@@ -139,6 +154,12 @@ export class OrdersController {
   @Get('analytics/recent')
   getRecentAnalytics() {
     return this.ordersService.getRecentOrdersAnalytics();
+  }
+
+  @Delete()
+  removeAll(@CurrentUser() user: JwtRequestUser | undefined) {
+    // Business accounts are always scoped to their own restaurant.
+    return this.ordersService.removeAll(resolveRestaurantIdForBusiness(user));
   }
 
   @Delete(':id')

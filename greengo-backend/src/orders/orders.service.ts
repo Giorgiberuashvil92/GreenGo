@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CouriersService } from '../couriers/couriers.service';
@@ -137,7 +142,10 @@ export class OrdersService {
       };
 
       // Do not create a real Order before an online card payment succeeds.
-      if (createOrderDto.paymentMethod === 'card') {
+      // დროებითი bypass: SKIP_FLITT_PAYMENT=true — Flitt-ის გარეშე შეკვეთა
+      const skipFlitt = process.env.SKIP_FLITT_PAYMENT === 'true';
+
+      if (createOrderDto.paymentMethod === 'card' && !skipFlitt) {
         const checkout = await this.flittService.createPaymentIntent(
           orderPayload as Record<string, unknown>,
           newTotalAmount,
@@ -151,7 +159,12 @@ export class OrdersService {
         } as any;
       }
 
-      const createdOrder = new this.orderModel(orderPayload);
+      const createdOrder = new this.orderModel({
+        ...orderPayload,
+        ...(createOrderDto.paymentMethod === 'card' && skipFlitt
+          ? { paymentStatus: 'paid' }
+          : {}),
+      });
 
       const savedOrder = await createdOrder.save();
       console.log('✅ Order created successfully:', savedOrder._id);
@@ -668,7 +681,69 @@ export class OrdersService {
     if (!updatedOrder) {
       throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
     }
+
+    // რესტორნის დადასტურებისას — FCM push ხელმისაწვდომ კურიერებს (Firebase Admin)
+    if (
+      (status === 'confirmed' || status === 'ready') &&
+      !updatedOrder.courierId &&
+      updatedOrder.deliveryType === 'delivery'
+    ) {
+      const restaurantName =
+        typeof updatedOrder.restaurantId === 'object' &&
+        updatedOrder.restaurantId &&
+        'name' in updatedOrder.restaurantId
+          ? String((updatedOrder.restaurantId as { name?: string }).name || '')
+          : undefined;
+
+      void this.couriersService
+        .notifyAvailableCouriersOfNewOrder({
+          orderId: String(updatedOrder._id),
+          restaurantName,
+        })
+        .catch((err: unknown) => {
+          console.error('კურიერების FCM notify შეცდომა:', err);
+        });
+    }
+
     return updatedOrder;
+  }
+
+  /**
+   * მომხმარებლის გაუქმება — მხოლოდ სანამ რესტორანი დაადასტურებს (pending).
+   */
+  async cancelByCustomer(id: string, userId: string): Promise<Order> {
+    const order = await this.orderModel.findById(id).exec();
+    if (!order) {
+      throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
+    }
+
+    const orderUserId = order.userId?.toString?.() || String(order.userId);
+    if (orderUserId !== String(userId)) {
+      throw new ForbiddenException('ამ შეკვეთის გაუქმება არ შეგიძლიათ');
+    }
+
+    if (order.status === 'cancelled') {
+      return order;
+    }
+
+    if (order.status !== 'pending') {
+      throw new BadRequestException(
+        'შეკვეთის გაუქმება შესაძლებელია მხოლოდ რესტორნის დადასტურებამდე',
+      );
+    }
+
+    const updated = await this.orderModel
+      .findByIdAndUpdate(id, { status: 'cancelled' }, { new: true })
+      .populate('userId', 'name phoneNumber')
+      .populate('restaurantId', 'name')
+      .populate('courierId', 'name phoneNumber currentLocation status')
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
+    }
+
+    return updated;
   }
 
   async remove(id: string): Promise<void> {
@@ -676,6 +751,17 @@ export class OrdersService {
     if (!result) {
       throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
     }
+  }
+
+  async removeAll(restaurantId?: string) {
+    const filter = restaurantId ? { restaurantId } : {};
+    const result = await this.orderModel.deleteMany(filter).exec();
+    return {
+      deletedCount: result.deletedCount,
+      message: restaurantId
+        ? 'რესტორნის ყველა შეკვეთა წაიშალა'
+        : 'ყველა შეკვეთა წაიშალა',
+    };
   }
 
   /**

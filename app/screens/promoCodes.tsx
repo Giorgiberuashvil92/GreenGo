@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import React, { useState } from "react";
 import { Alert, StatusBar, StyleSheet, TextInput, View } from "react-native";
 
-const promoIllustration = require("@/assets/images/promo-codes-illustration.png");
+const promoIllustration = require("@/assets/images/promocode.png");
 
 export default function PromoCodesScreen() {
   const [promoCode, setPromoCode] = useState("");
@@ -59,9 +59,9 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   illustration: {
-    width: 200,
-    height: 200,
-    alignSelf: "center",
+    alignSelf: "stretch",
+    height: 212,
+    marginHorizontal: -20,
     marginBottom: 32,
   },
   input: {

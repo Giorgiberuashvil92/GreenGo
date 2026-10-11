@@ -17,12 +17,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CartBottomBar from "../../components/CartBottomBar";
 import BackCircleIcon from "../../components/icons/BackCircleIcon";
+import OfferBottomBar from "../../components/OfferBottomBar";
 import PopularMenuCard, {
   POPULAR_MENU_CARD_GAP,
 } from "../../components/PopularMenuCard";
 import ProductModal from "../../components/ProductModal";
 import RestaurantDiscounts from "../../components/RestaurantDiscounts";
 import RestaurantOffersSheet from "../../components/RestaurantOffersSheet";
+import { useCart } from "../../contexts/CartContext";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
 import { sortByPopularOrder } from "../../utils/menuItemSort";
@@ -109,6 +111,7 @@ export default function RestaurantScreen() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { cartItems } = useCart();
   const { restaurant, loading: restaurantLoading } = useRestaurant(
     restaurantId || "",
   );
@@ -276,6 +279,11 @@ export default function RestaurantScreen() {
   }
 
   const rid = restaurant._id || restaurant.id || restaurantId || "";
+  const cartCount = cartItems
+    .filter((item) => item.restaurantId === rid)
+    .reduce((sum, item) => sum + item.quantity, 0);
+  const primaryOffer = offers[0] ?? null;
+  const showOfferBar = Boolean(primaryOffer) && cartCount === 0;
   const coverUrl =
     (typeof restaurant.heroImage === "string" && restaurant.heroImage) ||
     (typeof restaurant.image === "string" && restaurant.image) ||
@@ -542,7 +550,17 @@ export default function RestaurantScreen() {
         </View>
       </ScrollView>
 
-      <CartBottomBar restaurantId={rid} />
+      {showOfferBar && primaryOffer ? (
+        <OfferBottomBar
+          offer={primaryOffer}
+          onPress={(offer) => {
+            setFocusedOfferId(offer._id);
+            setOffersSheetVisible(true);
+          }}
+        />
+      ) : (
+        <CartBottomBar restaurantId={rid} />
+      )}
 
       <RestaurantOffersSheet
         visible={offersSheetVisible}

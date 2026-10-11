@@ -73,15 +73,6 @@ function formatGel(amount: number): string {
   return `${amount.toFixed(2).replace(".", ",")}₾`;
 }
 
-function getPromoLabel(restaurant: {
-  deliveryFee: number;
-  rating: number;
-}): string | null {
-  if (restaurant.deliveryFee <= 0) return "-100%";
-  if (restaurant.rating >= 4.5) return "-20%";
-  return null;
-}
-
 function DashedSeparator() {
   const n = 22;
   return (
@@ -97,13 +88,15 @@ export default function HomeRestaurantCard({
   restaurant,
   onPress,
   width: widthProp,
+  promoLabel = null,
 }: {
   restaurant: HomeSectionRestaurant;
   onPress: () => void;
   width?: number;
+  /** ადმინის აქტიური ოფერიდან — მაგ. "-20%" */
+  promoLabel?: string | null;
 }) {
   const width = widthProp ?? HOME_RESTAURANT_CARD_WIDTH;
-  const promoLabel = getPromoLabel(restaurant);
   const fee = restaurant.deliveryFee;
   const imageSource =
     typeof restaurant.image === "string"

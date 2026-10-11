@@ -64,6 +64,39 @@ export class RestaurantOffersService {
     return this.hydrateOffers(offers);
   }
 
+  private activeScheduleFilter(now = new Date()) {
+    return {
+      isActive: true,
+      $and: [
+        {
+          $or: [
+            { startsAt: { $exists: false } },
+            { startsAt: null },
+            { startsAt: { $lte: now } },
+          ],
+        },
+        {
+          $or: [
+            { expiresAt: { $exists: false } },
+            { expiresAt: null },
+            { expiresAt: { $gte: now } },
+          ],
+        },
+      ],
+    };
+  }
+
+  /** პუბლიკური: ყველა აქტიური და ვადაში შეთავაზება */
+  async findAllActive(): Promise<RestaurantOffer[]> {
+    const offers = await this.offerModel
+      .find(this.activeScheduleFilter())
+      .sort({ sortOrder: 1, createdAt: -1 })
+      .lean()
+      .exec();
+
+    return this.hydrateOffers(offers);
+  }
+
   /** პუბლიკური: მხოლოდ აქტიური და ვადაში */
   async findActiveByRestaurant(
     restaurantId: string,
@@ -72,27 +105,10 @@ export class RestaurantOffersService {
       throw new BadRequestException('არასწორი რესტორნის ID');
     }
 
-    const now = new Date();
     const offers = await this.offerModel
       .find({
         restaurantId: new Types.ObjectId(restaurantId),
-        isActive: true,
-        $and: [
-          {
-            $or: [
-              { startsAt: { $exists: false } },
-              { startsAt: null },
-              { startsAt: { $lte: now } },
-            ],
-          },
-          {
-            $or: [
-              { expiresAt: { $exists: false } },
-              { expiresAt: null },
-              { expiresAt: { $gte: now } },
-            ],
-          },
-        ],
+        ...this.activeScheduleFilter(),
       })
       .sort({ sortOrder: 1, createdAt: -1 })
       .lean()

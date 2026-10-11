@@ -1,20 +1,31 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AuthService } from '../auth/auth.service';
+import { PushNotificationsService } from '../notifications/push-notifications.service';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { CreateCourierDto } from './dto/create-courier.dto';
 import { RegisterCourierDto } from './dto/register-courier.dto';
 import { UpdateCourierDto } from './dto/update-courier.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
 import { Courier, CourierDocument } from './schemas/courier.schema';
 
 @Injectable()
 export class CouriersService {
+  private readonly logger = new Logger(CouriersService.name);
+
   constructor(
     @InjectModel(Courier.name) private courierModel: Model<CourierDocument>,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     private authService: AuthService,
+    private pushNotificationsService: PushNotificationsService,
   ) {}
 
   async login(phoneNumber: string, verificationCode: string): Promise<Courier> {
@@ -227,6 +238,98 @@ export class CouriersService {
     courier.isAvailable = status === 'available';
 
     return courier.save();
+  }
+
+  async updatePushToken(
+    id: string,
+    dto: UpdatePushTokenDto,
+  ): Promise<{
+    ok: true;
+    pushEnabled: boolean;
+    pushPlatform?: 'ios' | 'android';
+  }> {
+    const courier = await this.courierModel.findById(id).exec();
+    if (!courier) {
+      throw new NotFoundException(`კურიერი ID ${id} ვერ მოიძებნა`);
+    }
+
+    const token = (dto.fcmToken || dto.pushToken || '').trim();
+    if (!token) {
+      throw new BadRequestException('fcmToken ან pushToken სავალდებულოა');
+    }
+
+    courier.fcmToken = token;
+    if (dto.pushPlatform) {
+      courier.pushPlatform = dto.pushPlatform;
+    }
+    courier.pushEnabled = true;
+    courier.pushTokenUpdatedAt = new Date();
+    await courier.save();
+
+    return {
+      ok: true,
+      pushEnabled: true,
+      pushPlatform: courier.pushPlatform,
+    };
+  }
+
+  /**
+   * ხელმისაწვდომ კურიერებს უგზავნის FCM push-ს ახალი მიწოდების შეკვეთის შესახებ.
+   */
+  async notifyAvailableCouriersOfNewOrder(params: {
+    orderId: string;
+    restaurantName?: string;
+  }): Promise<void> {
+    if (!this.pushNotificationsService.isReady()) {
+      this.logger.warn('FCM არ არის მზად — კურიერების notify გამოტოვებულია');
+      return;
+    }
+
+    const couriers = await this.courierModel
+      .find({
+        status: 'available',
+        isAvailable: true,
+        isActive: true,
+        pushEnabled: { $ne: false },
+        fcmToken: { $exists: true, $nin: [null, ''] },
+      })
+      .select('_id fcmToken')
+      .lean()
+      .exec();
+
+    if (couriers.length === 0) {
+      this.logger.log('ხელმისაწვდომი კურიერი FCM ტოკენით ვერ მოიძებნა');
+      return;
+    }
+
+    const restaurantLabel = params.restaurantName?.trim() || 'რესტორანი';
+    const result = await this.pushNotificationsService.send(
+      couriers.map((c) => ({
+        token: c.fcmToken as string,
+        title: 'ახალი შეკვეთა',
+        body: `${restaurantLabel} — მზადაა კურიერისთვის`,
+        data: {
+          type: 'new_order',
+          orderId: String(params.orderId),
+        },
+      })),
+    );
+
+    this.logger.log(
+      `FCM new_order ${params.orderId}: ok=${result.successCount} fail=${result.failureCount}`,
+    );
+
+    if (result.invalidTokens.length > 0) {
+      await this.courierModel
+        .updateMany(
+          { fcmToken: { $in: result.invalidTokens } },
+          { $unset: { fcmToken: 1 }, $set: { pushEnabled: false } },
+        )
+        .exec();
+      this.logger.warn(
+        `წაიშალა ${result.invalidTokens.length} არავალიდური FCM ტოკენი`,
+      );
+    }
   }
 
   async findAvailableCouriers(latitude: number, longitude: number, maxDistance: number = 3000000): Promise<Courier[]> {

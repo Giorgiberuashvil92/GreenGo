@@ -2,9 +2,10 @@ import { restaurantMatchesHomeCategory } from "@/assets/data/categories";
 import { LIST_ACCENT_GREEN } from "@/constants/colors";
 import { fontFamily } from "@/constants/fonts";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
+import { getDistance } from "@/utils/restaurantUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,24 +16,55 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FilterModal } from "../../app/components";
+import { FilterModal, type FilterState } from "../../app/components";
 import HomeSearchBar from "../../components/HomeSearchBar";
 import RestaurantListCard from "../../components/RestaurantListCard";
 import { useRestaurants } from "../../hooks/useRestaurants";
 
 const NAV_ARROW = "#003E20";
 
-interface FilterState {
-  sortBy: string;
-  priceRange: string;
-  rating: string;
-  deliveryTime: string;
-  categories: string[];
+const EMPTY_FILTERS: FilterState = {
+  sortBy: "",
+  priceRange: "",
+  rating: "",
+  deliveryTime: "",
+  categories: [],
+};
+
+function paramToString(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value?.trim() ?? "";
+}
+
+function filtersFromParams(params: {
+  sortBy?: string | string[];
+  priceRange?: string | string[];
+  rating?: string | string[];
+  deliveryTime?: string | string[];
+  categories?: string | string[];
+}): FilterState {
+  const categoriesRaw = paramToString(params.categories);
+  return {
+    sortBy: paramToString(params.sortBy),
+    priceRange: paramToString(params.priceRange),
+    rating: paramToString(params.rating),
+    deliveryTime: paramToString(params.deliveryTime),
+    categories: categoriesRaw
+      ? categoriesRaw.split(",").map((c) => c.trim()).filter(Boolean)
+      : [],
+  };
 }
 
 const RestaurantsScreen = () => {
   const router = useRouter();
-  const { category } = useLocalSearchParams<{ category?: string }>();
+  const routeParams = useLocalSearchParams<{
+    category?: string;
+    sortBy?: string;
+    priceRange?: string;
+    rating?: string;
+    deliveryTime?: string;
+    categories?: string;
+  }>();
   const { address, loading: addressLoading } = useDeliveryAddress();
 
   const handleBack = () => {
@@ -45,13 +77,19 @@ const RestaurantsScreen = () => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [filters, setFilters] = useState<FilterState>({
-    sortBy: "",
-    priceRange: "",
-    rating: "",
-    deliveryTime: "",
-    categories: [],
-  });
+  const [filters, setFilters] = useState<FilterState>(() =>
+    filtersFromParams(routeParams),
+  );
+
+  useEffect(() => {
+    setFilters(filtersFromParams(routeParams));
+  }, [
+    routeParams.sortBy,
+    routeParams.priceRange,
+    routeParams.rating,
+    routeParams.deliveryTime,
+    routeParams.categories,
+  ]);
 
   const { restaurants, loading, error, refetch } = useRestaurants({
     limit: 100,
@@ -62,7 +100,7 @@ const RestaurantsScreen = () => {
     sortBy: filters.sortBy || undefined,
   });
 
-  const activeHomeCategory = category?.trim() || "";
+  const activeHomeCategory = paramToString(routeParams.category);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -94,53 +132,28 @@ const RestaurantsScreen = () => {
     }
 
     if (filters.deliveryTime) {
-      const maxTime = parseInt(filters.deliveryTime);
+      const maxTime = parseInt(filters.deliveryTime, 10);
       result = result.filter((r) => {
         const timeStr = r.deliveryTime.replace(/[^0-9-]/g, "");
         const timeRange = timeStr.split("-");
         if (timeRange.length > 1) {
-          const maxDeliveryTime = parseInt(timeRange[timeRange.length - 1]);
+          const maxDeliveryTime = parseInt(
+            timeRange[timeRange.length - 1],
+            10,
+          );
           return maxDeliveryTime <= maxTime;
         }
-        const singleTime = parseInt(timeRange[0]);
+        const singleTime = parseInt(timeRange[0], 10);
         return singleTime <= maxTime;
       });
     }
 
     if (filters.categories.length > 0) {
-      result = result.filter((r) => {
-        return filters.categories.some((filterCat) => {
-          const categoryMap: { [key: string]: string[] } = {
-            georgian: ["ქართული"],
-            fastfood: ["სწრაფი კვება", "Fast Food"],
-            shawarma: ["შაურმა", "Shawarma"],
-            pizza: ["პიცა", "Pizza"],
-            burger: ["ბურგერი", "Burger"],
-            chicken: ["ქათამი", "Chicken"],
-            dessert: ["დესერტი", "Dessert"],
-            soup: ["წვნიანი", "Soup"],
-            pastries: ["ცომეული", "Pastries"],
-            breakfast: ["საუზმე", "Breakfast"],
-            vegetarian: ["ვეგეტარიანული", "Vegetarian"],
-            healthy: ["ჯანსაღი", "Healthy"],
-            flowers: ["ყვავილები", "Flowers"],
-            zoo: ["ზოომაღაზია", "Zoo", "Pet"],
-          };
-          const mappedCategories = categoryMap[filterCat] || [filterCat];
-          return (
-            r.categories?.some((cat) =>
-              mappedCategories.some((mapped) =>
-                cat.toLowerCase().includes(mapped.toLowerCase()),
-              ),
-            ) ||
-            r.cuisine?.some((cuisine) =>
-              mappedCategories.some((mapped) =>
-                cuisine.toLowerCase().includes(mapped.toLowerCase()),
-              ),
-            )
-          );
-        });
-      });
+      result = result.filter((restaurant) =>
+        filters.categories.some((catName) =>
+          restaurantMatchesHomeCategory(restaurant, catName),
+        ),
+      );
     }
 
     if (filters.sortBy) {
@@ -152,24 +165,54 @@ const RestaurantsScreen = () => {
           result = [...result].sort((a, b) => {
             const timeStrA = a.deliveryTime.replace(/[^0-9-]/g, "");
             const timeStrB = b.deliveryTime.replace(/[^0-9-]/g, "");
-            const timeA = parseInt(timeStrA.split("-")[0]) || 999;
-            const timeB = parseInt(timeStrB.split("-")[0]) || 999;
+            const timeA = parseInt(timeStrA.split("-")[0], 10) || 999;
+            const timeB = parseInt(timeStrB.split("-")[0], 10) || 999;
             return timeA - timeB;
           });
           break;
         case "cheapest":
           result = [...result].sort((a, b) => a.deliveryFee - b.deliveryFee);
           break;
-        case "closest":
-          result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+        case "closest": {
+          const userLat = address?.coordinates?.lat;
+          const userLng = address?.coordinates?.lng;
+          if (
+            typeof userLat === "number" &&
+            typeof userLng === "number" &&
+            Number.isFinite(userLat) &&
+            Number.isFinite(userLng)
+          ) {
+            result = [...result].sort((a, b) => {
+              const distA =
+                a.location?.latitude != null && a.location?.longitude != null
+                  ? getDistance(
+                      userLat,
+                      userLng,
+                      a.location.latitude,
+                      a.location.longitude,
+                    )
+                  : Number.POSITIVE_INFINITY;
+              const distB =
+                b.location?.latitude != null && b.location?.longitude != null
+                  ? getDistance(
+                      userLat,
+                      userLng,
+                      b.location.latitude,
+                      b.location.longitude,
+                    )
+                  : Number.POSITIVE_INFINITY;
+              return distA - distB;
+            });
+          }
           break;
+        }
         default:
           break;
       }
     }
 
     return result;
-  }, [restaurants, filters, activeHomeCategory]);
+  }, [restaurants, filters, activeHomeCategory, address?.coordinates]);
 
   const pageTitle = activeHomeCategory || "რესტორნები";
 
@@ -289,6 +332,7 @@ const RestaurantsScreen = () => {
         visible={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         onApplyFilters={handleApplyFilters}
+        initialFilters={filters}
       />
     </SafeAreaView>
   );

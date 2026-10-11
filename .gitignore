@@ -42,3 +42,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# nested courier app
+greengo_courier/node_modules/
+greengo_courier/.expo/
+greengo_courier/ios/
+greengo_courier/android/
+greengo_courier/.DS_Store

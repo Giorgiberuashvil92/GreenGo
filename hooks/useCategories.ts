@@ -7,6 +7,7 @@ interface Category {
   name: string;
   description?: string;
   icon?: string; // URL string from backend
+  image?: string; // fallback URL from backend
   bgColor?: string;
   isActive: boolean;
   order?: number;

@@ -141,3 +141,64 @@ export function getDeliveryFixedDiscount(offers: RestaurantOffer[]): number {
   }
   return best;
 }
+
+export function restaurantIdFromOffer(offer: RestaurantOffer): string {
+  const raw = offer.restaurantId as unknown;
+  if (!raw) return "";
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "object" && raw !== null) {
+    const doc = raw as { _id?: { toString(): string }; toString?: () => string };
+    if (doc._id) return String(doc._id);
+    if (typeof doc.toString === "function") {
+      const asString = doc.toString();
+      if (asString && asString !== "[object Object]") return asString;
+    }
+  }
+  return String(raw);
+}
+
+/** ჰოუმ ქარდის წითელი ბეიჯი — უმაღლესი % ან მიტანის ფასდაკლება */
+export function getPrimaryOfferBadgeLabel(
+  offers: RestaurantOffer[],
+): string | null {
+  const active = offers.filter((offer) => offer.isActive !== false);
+  if (active.length === 0) return null;
+
+  let bestPercent = 0;
+  let bestDelivery = 0;
+
+  for (const offer of active) {
+    if (offer.discountType === "percentage") {
+      bestPercent = Math.max(bestPercent, offer.discountValue);
+    } else if (offer.discountType === "delivery_fixed") {
+      bestDelivery = Math.max(bestDelivery, offer.discountValue);
+    }
+  }
+
+  if (bestPercent > 0) {
+    const rounded =
+      bestPercent % 1 === 0
+        ? String(Math.round(bestPercent))
+        : bestPercent.toFixed(1).replace(".", ",");
+    return `-${rounded}%`;
+  }
+
+  if (bestDelivery > 0) {
+    return `-${bestDelivery.toFixed(2).replace(".", ",")}₾`;
+  }
+
+  return null;
+}
+
+export function groupOffersByRestaurantId(
+  offers: RestaurantOffer[],
+): Record<string, RestaurantOffer[]> {
+  const map: Record<string, RestaurantOffer[]> = {};
+  for (const offer of offers) {
+    const restaurantId = restaurantIdFromOffer(offer);
+    if (!restaurantId) continue;
+    if (!map[restaurantId]) map[restaurantId] = [];
+    map[restaurantId].push(offer);
+  }
+  return map;
+}
