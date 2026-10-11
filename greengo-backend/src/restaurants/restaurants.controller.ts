@@ -14,11 +14,20 @@ import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { CopyMenuDto } from './dto/copy-menu.dto';
 import { DuplicateRestaurantDto } from './dto/duplicate-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
+import { UpdateRestaurantPushTokenDto } from './dto/update-push-token.dto';
 import { RestaurantsService } from './restaurants.service';
 
 @Controller('restaurants')
 export class RestaurantsController {
   constructor(private readonly restaurantsService: RestaurantsService) {}
+
+  @Patch(':id/push-token')
+  updatePushToken(
+    @Param('id') id: string,
+    @Body() dto: UpdateRestaurantPushTokenDto,
+  ) {
+    return this.restaurantsService.updatePushToken(id, dto);
+  }
 
   @Post()
   create(@Body() createRestaurantDto: CreateRestaurantDto) {

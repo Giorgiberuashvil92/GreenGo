@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { CouriersModule } from '../couriers/couriers.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { PromoCodesModule } from '../promo-codes/promo-codes.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { UsersModule } from '../users/users.module';
 import { OrdersController } from './orders.controller';
@@ -21,6 +22,7 @@ import { Order, OrderSchema } from './schemas/order.schema';
     UsersModule,
     PromoCodesModule,
     PaymentsModule,
+    NotificationsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

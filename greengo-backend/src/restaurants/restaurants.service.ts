@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
 import { MenuItemsService } from '../menu-items/menu-items.service';
+import { UpdateRestaurantPushTokenDto } from './dto/update-push-token.dto';
 import { Restaurant, RestaurantDocument } from './schemas/restaurant.schema';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { DuplicateRestaurantDto } from './dto/duplicate-restaurant.dto';
@@ -19,6 +20,33 @@ export class RestaurantsService {
     private restaurantModel: Model<RestaurantDocument>,
     private readonly menuItemsService: MenuItemsService,
   ) {}
+
+  async updatePushToken(
+    id: string,
+    dto: UpdateRestaurantPushTokenDto,
+  ): Promise<{ ok: true; pushEnabled: boolean; pushPlatform?: 'ios' | 'android' }> {
+    const restaurant = await this.restaurantModel.findById(id).exec();
+    if (!restaurant) {
+      throw new NotFoundException(`რესტორანი ID ${id} ვერ მოიძებნა`);
+    }
+
+    const token = (dto.fcmToken || dto.pushToken || '').trim();
+    if (!token) {
+      throw new BadRequestException('fcmToken ან pushToken სავალდებულოა');
+    }
+
+    restaurant.businessFcmToken = token;
+    restaurant.businessPushEnabled = true;
+    restaurant.businessPushTokenUpdatedAt = new Date();
+    if (dto.pushPlatform) restaurant.businessPushPlatform = dto.pushPlatform;
+    await restaurant.save();
+
+    return {
+      ok: true,
+      pushEnabled: true,
+      pushPlatform: restaurant.businessPushPlatform,
+    };
+  }
 
   private stripDocumentIds<T extends Record<string, any>>(value: T): Omit<T, '_id' | 'id'> {
     const { _id: _ignoredId, id: _ignoredVirtualId, ...rest } = value;

@@ -11,6 +11,7 @@ import { calculateDeliveryFeeFromDistance } from '../common/delivery-fee.util';
 import { CouriersService } from '../couriers/couriers.service';
 import { FlittService } from '../payments/flitt.service';
 import { PromoCodesService } from '../promo-codes/promo-codes.service';
+import { PushNotificationsService } from '../notifications/push-notifications.service';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -26,6 +27,7 @@ export class OrdersService {
     private promoCodesService: PromoCodesService,
     private authService: AuthService,
     private flittService: FlittService,
+    private pushNotificationsService: PushNotificationsService,
   ) {}
 
   /**
@@ -57,6 +59,76 @@ export class OrdersService {
    */
   private calculateDeliveryFee(baseFee: number, distanceKm: number): number {
     return calculateDeliveryFeeFromDistance(baseFee, distanceKm);
+  }
+
+  private async notifyBusinessOfNewOrder(
+    orderId: string,
+    restaurantId: string,
+    restaurantName: string,
+    reminder = false,
+  ): Promise<void> {
+    if (!this.pushNotificationsService.isReady()) {
+      console.warn('Business push გამოტოვებულია — FCM მზად არ არის');
+      return;
+    }
+
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .select('businessFcmToken businessPushEnabled')
+      .lean()
+      .exec();
+
+    if (!restaurant?.businessFcmToken || restaurant.businessPushEnabled === false) {
+      console.log(`Business ${restaurantId}: FCM token არ არის`);
+      return;
+    }
+
+    const result = await this.pushNotificationsService.send([
+      {
+        token: restaurant.businessFcmToken,
+        title: reminder ? 'შეკვეთა ელოდება დადასტურებას' : 'ახალი შეკვეთა',
+        body: `${restaurantName} — გთხოვთ დაადასტუროთ შეკვეთა`,
+        data: {
+          type: reminder ? 'business_order_reminder' : 'business_new_order',
+          orderId,
+          restaurantId,
+        },
+      },
+    ]);
+
+    console.log(
+      `FCM business ${orderId} ${reminder ? 'reminder' : 'new_order'}: ok=${result.successCount} fail=${result.failureCount}`,
+    );
+  }
+
+  private scheduleBusinessOrderNotifications(
+    orderId: string,
+    restaurantId: string,
+    restaurantName: string,
+  ): void {
+    void this.notifyBusinessOfNewOrder(orderId, restaurantId, restaurantName).catch(
+      (error: unknown) => console.error('Business new order push შეცდომა:', error),
+    );
+
+    setTimeout(() => {
+      void (async () => {
+        const order = await this.orderModel
+          .findById(orderId)
+          .select('status')
+          .lean()
+          .exec();
+        if (order?.status !== 'pending') return;
+
+        await this.notifyBusinessOfNewOrder(
+          orderId,
+          restaurantId,
+          restaurantName,
+          true,
+        );
+      })().catch((error: unknown) =>
+        console.error('Business order reminder push შეცდომა:', error),
+      );
+    }, 15_000);
   }
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -187,6 +259,12 @@ export class OrdersService {
           smsError?.message || smsError,
         );
       }
+
+      this.scheduleBusinessOrderNotifications(
+        String(savedOrder._id),
+        String(restaurant._id),
+        restaurant.name,
+      );
       
       return savedOrder;
     } catch (error: any) {

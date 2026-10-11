@@ -41,6 +41,18 @@ export class Restaurant {
   @Prop({ select: false })
   businessPasswordHash?: string;
 
+  @Prop()
+  businessFcmToken?: string;
+
+  @Prop({ default: true })
+  businessPushEnabled: boolean;
+
+  @Prop({ enum: ['ios', 'android'] })
+  businessPushPlatform?: 'ios' | 'android';
+
+  @Prop()
+  businessPushTokenUpdatedAt?: Date;
+
   @Prop({
     type: {
       latitude: Number,
