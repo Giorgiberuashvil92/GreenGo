@@ -6,12 +6,13 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { CouriersService } from '../couriers/couriers.service';
+import { AuthService } from '../auth/auth.service';
 import { calculateDeliveryFeeFromDistance } from '../common/delivery-fee.util';
+import { CouriersService } from '../couriers/couriers.service';
+import { FlittService } from '../payments/flitt.service';
 import { PromoCodesService } from '../promo-codes/promo-codes.service';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
-import { AuthService } from '../auth/auth.service';
-import { FlittService } from '../payments/flitt.service';
+import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
 
@@ -21,6 +22,7 @@ export class OrdersService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Restaurant.name) private restaurantModel: Model<RestaurantDocument>,
     private couriersService: CouriersService,
+    private usersService: UsersService,
     private promoCodesService: PromoCodesService,
     private authService: AuthService,
     private flittService: FlittService,
@@ -682,10 +684,9 @@ export class OrdersService {
       throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
     }
 
-    // რესტორნის დადასტურებისას — FCM push ხელმისაწვდომ კურიერებს (Firebase Admin)
+    // კერძის მომზადების დასრულებისას — FCM push ხელმისაწვდომ კურიერებს (Firebase Admin)
     if (
-      (status === 'confirmed' || status === 'ready') &&
-      !updatedOrder.courierId &&
+      status === 'ready' &&
       updatedOrder.deliveryType === 'delivery'
     ) {
       const restaurantName =
@@ -699,10 +700,50 @@ export class OrdersService {
         .notifyAvailableCouriersOfNewOrder({
           orderId: String(updatedOrder._id),
           restaurantName,
+          courierId: updatedOrder.courierId
+            ? String(
+                typeof updatedOrder.courierId === 'object' && '_id' in updatedOrder.courierId
+                  ? updatedOrder.courierId._id
+                  : updatedOrder.courierId,
+              )
+            : undefined,
         })
         .catch((err: unknown) => {
           console.error('კურიერების FCM notify შეცდომა:', err);
         });
+    }
+
+    // მომხმარებელს — სტატუსის FCM push
+    if (order.status !== status) {
+      const restaurantName =
+        typeof updatedOrder.restaurantId === 'object' &&
+        updatedOrder.restaurantId &&
+        'name' in updatedOrder.restaurantId
+          ? String((updatedOrder.restaurantId as { name?: string }).name || '')
+          : undefined;
+      const rawUser = updatedOrder.userId as
+        | { _id?: { toString(): string }; toString?: () => string }
+        | string
+        | undefined;
+      const customerId =
+        typeof rawUser === 'object' && rawUser?._id
+          ? String(rawUser._id)
+          : rawUser
+            ? String(rawUser)
+            : '';
+
+      if (customerId && customerId !== '[object Object]') {
+        void this.usersService
+          .notifyOrderStatus({
+            userId: customerId,
+            orderId: String(updatedOrder._id),
+            status,
+            restaurantName,
+          })
+          .catch((err: unknown) => {
+            console.error('მომხმარებლის FCM notify შეცდომა:', err);
+          });
+      }
     }
 
     return updatedOrder;
@@ -742,6 +783,24 @@ export class OrdersService {
     if (!updated) {
       throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
     }
+
+    const restaurantName =
+      typeof updated.restaurantId === 'object' &&
+      updated.restaurantId &&
+      'name' in updated.restaurantId
+        ? String((updated.restaurantId as { name?: string }).name || '')
+        : undefined;
+
+    void this.usersService
+      .notifyOrderStatus({
+        userId: String(userId),
+        orderId: String(updated._id),
+        status: 'cancelled',
+        restaurantName,
+      })
+      .catch((err: unknown) => {
+        console.error('მომხმარებლის FCM cancel notify შეცდომა:', err);
+      });
 
     return updated;
   }

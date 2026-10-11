@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { CouriersModule } from '../couriers/couriers.module';
-import { PromoCodesModule } from '../promo-codes/promo-codes.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { PromoCodesModule } from '../promo-codes/promo-codes.module';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
+import { UsersModule } from '../users/users.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { Order, OrderSchema } from './schemas/order.schema';
@@ -17,6 +18,7 @@ import { Order, OrderSchema } from './schemas/order.schema';
     ]),
     AuthModule,
     CouriersModule,
+    UsersModule,
     PromoCodesModule,
     PaymentsModule,
   ],

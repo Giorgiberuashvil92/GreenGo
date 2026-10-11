@@ -1,15 +1,23 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { PushNotificationsService } from '../notifications/push-notifications.service';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
 import { User, UserDocument } from './schemas/user.schema';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private pushNotificationsService: PushNotificationsService,
+  ) {}
 
   async create(createUserDto: any): Promise<UserDocument> {
     const createdUser = new this.userModel(createUserDto);
@@ -131,5 +139,137 @@ export class UsersService {
     }
     await user.save();
     return this.getPaymentCards(userId);
+  }
+
+  async updatePushToken(
+    id: string,
+    dto: UpdatePushTokenDto,
+  ): Promise<{
+    ok: true;
+    pushEnabled: boolean;
+    pushPlatform?: 'ios' | 'android';
+  }> {
+    const user = await this.findOne(id);
+    const token = (dto.fcmToken || dto.pushToken || '').trim();
+    if (!token) {
+      throw new BadRequestException('fcmToken ან pushToken სავალდებულოა');
+    }
+
+    user.fcmToken = token;
+    if (dto.pushPlatform) {
+      user.pushPlatform = dto.pushPlatform;
+    }
+    user.pushEnabled = true;
+    user.pushTokenUpdatedAt = new Date();
+    if (user.preferences) {
+      user.preferences.notifications = true;
+    }
+    await user.save();
+
+    return {
+      ok: true,
+      pushEnabled: true,
+      pushPlatform: user.pushPlatform,
+    };
+  }
+
+  async notifyOrderStatus(params: {
+    userId: string;
+    orderId: string;
+    status: string;
+    restaurantName?: string;
+  }): Promise<void> {
+    if (!this.pushNotificationsService.isReady()) {
+      this.logger.warn('FCM არ არის მზად — მომხმარებლის notify გამოტოვებულია');
+      return;
+    }
+
+    const user = await this.userModel
+      .findById(params.userId)
+      .select('fcmToken pushEnabled preferences')
+      .lean()
+      .exec();
+
+    if (!user?.fcmToken) {
+      this.logger.log(`User ${params.userId}: FCM token არ არის`);
+      return;
+    }
+    if (
+      user.pushEnabled === false ||
+      user.preferences?.notifications === false
+    ) {
+      this.logger.log(`User ${params.userId}: push გამორთულია`);
+      return;
+    }
+
+    const copy = customerPushCopy(params.status, params.restaurantName);
+    if (!copy) return;
+
+    const result = await this.pushNotificationsService.send([
+      {
+        token: user.fcmToken,
+        title: copy.title,
+        body: copy.body,
+        data: {
+          type: 'order_status',
+          orderId: String(params.orderId),
+          status: params.status,
+        },
+      },
+    ]);
+
+    this.logger.log(
+      `FCM customer ${params.orderId} ${params.status}: ok=${result.successCount} fail=${result.failureCount}`,
+    );
+
+    if (result.invalidTokens.length > 0) {
+      await this.userModel
+        .updateMany(
+          { fcmToken: { $in: result.invalidTokens } },
+          { $unset: { fcmToken: 1 }, $set: { pushEnabled: false } },
+        )
+        .exec();
+    }
+  }
+}
+
+function customerPushCopy(
+  status: string,
+  restaurantName?: string,
+): { title: string; body: string } | null {
+  const place = restaurantName?.trim() || 'რესტორანი';
+  switch (status) {
+    case 'confirmed':
+      return {
+        title: 'შეკვეთა დადასტურდა',
+        body: `${place} იღებს თქვენს შეკვეთას`,
+      };
+    case 'preparing':
+      return {
+        title: 'მზადდება',
+        body: `${place} ამზადებს თქვენს შეკვეთას`,
+      };
+    case 'ready':
+      return {
+        title: 'შეკვეთა მზადაა',
+        body: 'კურიერი მალე წამოიღებს',
+      };
+    case 'delivering':
+      return {
+        title: 'კურიერი გზაშია',
+        body: 'შეკვეთა მოგაწოდებათ მალე',
+      };
+    case 'delivered':
+      return {
+        title: 'მიწოდებულია',
+        body: 'გმადლობთ, რომ GreenGo აირჩიეთ!',
+      };
+    case 'cancelled':
+      return {
+        title: 'შეკვეთა გაუქმდა',
+        body: 'თქვენი შეკვეთა გაუქმებულია',
+      };
+    default:
+      return null;
   }
 }

@@ -279,6 +279,7 @@ export class CouriersService {
   async notifyAvailableCouriersOfNewOrder(params: {
     orderId: string;
     restaurantName?: string;
+    courierId?: string;
   }): Promise<void> {
     if (!this.pushNotificationsService.isReady()) {
       this.logger.warn('FCM არ არის მზად — კურიერების notify გამოტოვებულია');
@@ -287,11 +288,12 @@ export class CouriersService {
 
     const couriers = await this.courierModel
       .find({
-        status: 'available',
-        isAvailable: true,
         isActive: true,
         pushEnabled: { $ne: false },
         fcmToken: { $exists: true, $nin: [null, ''] },
+        ...(params.courierId
+          ? { _id: params.courierId }
+          : { status: 'available', isAvailable: true }),
       })
       .select('_id fcmToken')
       .lean()
@@ -306,8 +308,8 @@ export class CouriersService {
     const result = await this.pushNotificationsService.send(
       couriers.map((c) => ({
         token: c.fcmToken as string,
-        title: 'ახალი შეკვეთა',
-        body: `${restaurantLabel} — მზადაა კურიერისთვის`,
+        title: params.courierId ? 'შეკვეთა მზადაა' : 'ახალი შეკვეთა',
+        body: `${restaurantLabel} — კერძი მზადაა ასაღებად`,
         data: {
           type: 'new_order',
           orderId: String(params.orderId),
@@ -562,4 +564,3 @@ export class CouriersService {
     };
   }
 }
-

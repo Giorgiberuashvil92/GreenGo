@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -43,6 +44,15 @@ export class UsersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: any) {
     return this.usersService.update(id, updateUserDto);
+  }
+
+  /** მომხმარებლის აპი — native FCM/APNs token შენახვა */
+  @Patch(':id/push-token')
+  updatePushToken(
+    @Param('id') id: string,
+    @Body() dto: UpdatePushTokenDto,
+  ) {
+    return this.usersService.updatePushToken(id, dto);
   }
 
   @Delete(':id')

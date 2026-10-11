@@ -39,6 +39,9 @@ export class PushNotificationsService implements OnModuleInit {
       const jsonInline =
         this.configService.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON') ||
         process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      const jsonBase64 =
+        this.configService.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON_BASE64') ||
+        process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64;
       const jsonPath =
         this.configService.get<string>('FIREBASE_SERVICE_ACCOUNT_PATH') ||
         process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -47,6 +50,10 @@ export class PushNotificationsService implements OnModuleInit {
 
       if (jsonInline?.trim()) {
         serviceAccount = JSON.parse(jsonInline) as Record<string, unknown>;
+      } else if (jsonBase64?.trim()) {
+        serviceAccount = JSON.parse(
+          Buffer.from(jsonBase64.trim(), 'base64').toString('utf8'),
+        ) as Record<string, unknown>;
       } else if (jsonPath?.trim() && existsSync(jsonPath)) {
         serviceAccount = JSON.parse(
           readFileSync(jsonPath, 'utf8'),
@@ -55,7 +62,7 @@ export class PushNotificationsService implements OnModuleInit {
 
       if (!serviceAccount) {
         this.logger.warn(
-          'Firebase არ არის კონფიგურირებული (FIREBASE_SERVICE_ACCOUNT_JSON ან FIREBASE_SERVICE_ACCOUNT_PATH). Push გათიშულია.',
+          'Firebase არ არის კონფიგურირებული (FIREBASE_SERVICE_ACCOUNT_JSON, FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 ან FIREBASE_SERVICE_ACCOUNT_PATH). Push გათიშულია.',
         );
         return;
       }

@@ -65,6 +65,19 @@ export class User {
     language: 'ka' | 'en';
     notifications: boolean;
   };
+
+  /** FCM / native push token — Firebase Admin-ით გასაგზავნი */
+  @Prop()
+  fcmToken?: string;
+
+  @Prop({ enum: ['ios', 'android'] })
+  pushPlatform?: 'ios' | 'android';
+
+  @Prop({ default: true })
+  pushEnabled: boolean;
+
+  @Prop()
+  pushTokenUpdatedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
