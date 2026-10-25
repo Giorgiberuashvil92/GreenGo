@@ -252,8 +252,12 @@ export class BogService {
   async getStatus(orderId: string, token: string) {
     if (!Types.ObjectId.isValid(orderId) || !token)
       throw new NotFoundException('Payment not found');
+    // orderId is stored as ObjectId; string equality does not match without cast.
     const intent = await this.intents
-      .findOne({ orderId, statusToken: token })
+      .findOne({
+        orderId: new Types.ObjectId(orderId),
+        statusToken: String(token),
+      })
       .exec();
     if (!intent) throw new NotFoundException('Payment not found');
     const status =

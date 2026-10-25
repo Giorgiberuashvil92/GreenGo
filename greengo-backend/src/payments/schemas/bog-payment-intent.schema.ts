@@ -1,9 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, SchemaTypes, Types } from 'mongoose';
 export type BogPaymentIntentDocument = BogPaymentIntent & Document;
 @Schema({ timestamps: true })
 export class BogPaymentIntent {
-  @Prop({ type: Types.ObjectId, required: true, unique: true })
+  @Prop({ type: SchemaTypes.ObjectId, required: true, unique: true })
   orderId: Types.ObjectId;
   @Prop({ unique: true, sparse: true })
   bogOrderId?: string;
