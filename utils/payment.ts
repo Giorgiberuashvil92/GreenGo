@@ -68,7 +68,7 @@ export function getPaymentDisplayLine(
     return "GreenGo ბალანსი";
   }
   if (!selection.lastFour) {
-    return "ბარათით გადახდა · Flitt";
+    return "ბარათით გადახდა · საქართველოს ბანკი";
   }
   const lastFour = selection.lastFour || "----";
   return `**** ${lastFour}`;

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { GUEST_BROWSE_KEY } from "../components/AuthGuard";
 import apiService from "../utils/api";
 
 interface User {
@@ -17,6 +18,9 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
+  /** Browse without login after "გამოტოვება". */
+  guestBrowse: boolean;
+  enterGuestMode: () => Promise<void>;
   login: (
     phoneNumber: string,
     verificationCode: string,
@@ -85,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [guestBrowse, setGuestBrowse] = useState(false);
 
   const clearStoredAuth = async () => {
     await Promise.all([
@@ -97,6 +102,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsAuthenticated(false);
   };
 
+  const enterGuestMode = async () => {
+    await AsyncStorage.setItem(GUEST_BROWSE_KEY, "1");
+    setGuestBrowse(true);
+  };
+
   // Load stored auth data on mount
   useEffect(() => {
     loadStoredAuth();
@@ -104,10 +114,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loadStoredAuth = async () => {
     try {
-      const [storedToken, storedUser] = await Promise.all([
+      const [storedToken, storedUser, storedGuest] = await Promise.all([
         AsyncStorage.getItem(TOKEN_KEY),
         AsyncStorage.getItem(USER_KEY),
+        AsyncStorage.getItem(GUEST_BROWSE_KEY),
       ]);
+
+      if (storedGuest === "1") {
+        setGuestBrowse(true);
+      }
 
       if (storedToken) {
         setToken(storedToken);
@@ -185,6 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Store token first
         await AsyncStorage.setItem(TOKEN_KEY, access_token);
+        await AsyncStorage.removeItem(GUEST_BROWSE_KEY);
+        setGuestBrowse(false);
         setToken(access_token);
         setIsAuthenticated(true);
 
@@ -293,6 +310,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     user,
     token,
     loading,
+    guestBrowse,
+    enterGuestMode,
     login,
     sendVerificationCode,
     completeRegistration,

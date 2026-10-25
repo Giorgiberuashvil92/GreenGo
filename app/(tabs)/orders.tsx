@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -77,6 +77,12 @@ function canTrackOrder(order: Order) {
   );
 }
 
+function getPreviousStatusLabel(status: string) {
+  if (status === "cancelled") return "გაუქმებული";
+  if (status === "delivered") return "მიწოდებული";
+  return status;
+}
+
 function getOrderDisplayTitle(order: Order) {
   if (order.items.length === 1) {
     return order.items[0].name;
@@ -87,10 +93,19 @@ function getOrderDisplayTitle(order: Order) {
 
 export default function OrdersScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<"current" | "previous">(
     "current",
   );
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (params.tab === "previous") {
+      setSelectedTab("previous");
+    } else if (params.tab === "current") {
+      setSelectedTab("current");
+    }
+  }, [params.tab]);
   const { clearCart, addToCart, updateQuantity } = useCart();
   const [currentOrders, setCurrentOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
@@ -110,35 +125,17 @@ export default function OrdersScreen() {
   const [menuOrder, setMenuOrder] = useState<Order | null>(null);
   const [repeatingOrderId, setRepeatingOrderId] = useState<string | null>(null);
 
-  useEffect(() => {
-    console.log("📦 Orders useEffect - User:", JSON.stringify(user, null, 2));
-    console.log("📦 Orders useEffect - User ID:", user?.id);
-    console.log("📦 Orders useEffect - User _id:", (user as any)?._id);
-
-    const userId = user?.id || (user as any)?._id;
-
-    if (userId) {
-      console.log("📦 Fetching orders for user ID:", userId);
-      fetchOrders();
-    } else {
-      console.log("⚠️ No user ID available, user object:", user);
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, selectedTab]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const userId = user?.id || (user as any)?._id || "";
-      console.log("📦 Fetching orders for user ID:", userId);
-      console.log("📦 Full user object:", JSON.stringify(user, null, 2));
+      const userId = user?.id || (user as { _id?: string } | null)?._id || "";
 
       if (!userId) {
-        console.error("❌ No user ID available!");
-        setError("მომხმარებლის ID არ არის მითითებული");
+        setCurrentOrders([]);
+        setPreviousOrders([]);
+        setError(null);
         setLoading(false);
         return;
       }
@@ -148,19 +145,9 @@ export default function OrdersScreen() {
         limit: 50,
       });
 
-      console.log("📦 Orders API Response:", JSON.stringify(response, null, 2));
-
       if (response.success && response.data) {
         const orders = ordersFromGetOrdersData(response.data) as Order[];
 
-        console.log(
-          "📦 Parsed orders:",
-          orders.length,
-          "Orders:",
-          JSON.stringify(orders.slice(0, 2), null, 2),
-        );
-
-        // Filter orders by status
         const current = orders.filter((o) =>
           ["pending", "confirmed", "preparing", "ready", "delivering"].includes(
             o.status,
@@ -170,26 +157,28 @@ export default function OrdersScreen() {
           ["delivered", "cancelled"].includes(o.status),
         );
 
-        console.log(
-          "📦 Current orders:",
-          current.length,
-          "Previous orders:",
-          previous.length,
-        );
-
         setCurrentOrders(current);
         setPreviousOrders(previous);
       } else {
-        console.error("❌ Orders fetch failed:", response.error);
         setError(response.error?.details || "შეცდომა მონაცემების მიღებისას");
       }
     } catch (err: unknown) {
-      console.error("❌ Orders fetch error:", err);
       setError(err instanceof Error ? err.message : "უცნობი შეცდომა");
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const userId = user?.id || (user as { _id?: string } | null)?._id;
+      if (userId) {
+        void fetchOrders();
+      } else {
+        setLoading(false);
+      }
+    }, [user, fetchOrders]),
+  );
 
   const handleRepeatOrder = async (order: Order) => {
     const restaurant = getRestaurantFromOrder(order);
@@ -439,6 +428,8 @@ export default function OrdersScreen() {
     const imageUri = restaurant?.image || restaurant?.heroImage || null;
     const total = getOrderTotal(order);
     const title = getOrderDisplayTitle(order);
+    const statusLabel = getPreviousStatusLabel(order.status);
+    const isCancelled = order.status === "cancelled";
 
     return (
       <View key={order._id} style={styles.previousOrderCard}>
@@ -447,6 +438,14 @@ export default function OrdersScreen() {
           <View style={styles.previousOrderBody}>
             <Text style={styles.previousOrderName} numberOfLines={2}>
               {title}
+            </Text>
+            <Text
+              style={[
+                styles.previousOrderStatus,
+                isCancelled && styles.previousOrderStatusCancelled,
+              ]}
+            >
+              {statusLabel}
             </Text>
             <Text style={styles.previousOrderPrice}>
               {formatPriceGel(total)}
@@ -478,10 +477,7 @@ export default function OrdersScreen() {
 
   const renderOrdersContent = () => {
     if (selectedTab === "current") {
-      const hasFeatured = currentOrders.length > 0;
-      const listOrders = previousOrders;
-
-      if (!hasFeatured && listOrders.length === 0) {
+      if (currentOrders.length === 0) {
         return (
           <View style={styles.emptyContainer}>
             <Ionicons name="receipt-outline" size={64} color="#D1D5DB" />
@@ -493,13 +489,15 @@ export default function OrdersScreen() {
         );
       }
 
+      const restCurrent = currentOrders.slice(1);
+
       return (
         <>
-          {hasFeatured && renderFeaturedCurrentOrder(currentOrders[0])}
-          {listOrders.length > 0 && (
+          {renderFeaturedCurrentOrder(currentOrders[0])}
+          {restCurrent.length > 0 && (
             <View style={styles.orderListBlock}>
-              {listOrders.map((order, index) =>
-                renderOrderRow(order, index === listOrders.length - 1),
+              {restCurrent.map((order, index) =>
+                renderOrderRow(order, index === restCurrent.length - 1),
               )}
             </View>
           )}
@@ -565,7 +563,22 @@ export default function OrdersScreen() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
+      {!isAuthenticated ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="person-outline" size={64} color="#D1D5DB" />
+          <Text style={styles.emptyTitle}>შეკვეთების სანახავად შედი</Text>
+          <Text style={styles.emptySubtitle}>
+            გამოტოვების შემდეგ ბრაუზინგი შეგიძლია, შეკვეთისთვის კი ანგარიში საჭიროა
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => router.push("/screens/login")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.retryButtonText}>შესვლა</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={ACCENT_GREEN} />
           <Text style={styles.loadingText}>იტვირთება...</Text>
@@ -1066,6 +1079,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: fontFamily.semiBold,
     color: "#111827",
+  },
+  previousOrderStatus: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: fontFamily.medium,
+    color: ACCENT_GREEN,
+  },
+  previousOrderStatusCancelled: {
+    color: "#EF4444",
   },
   previousOrderPrice: {
     fontSize: 14,

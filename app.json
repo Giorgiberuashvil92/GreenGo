@@ -2,7 +2,7 @@
   "expo": {
     "name": "GreenGo",
     "slug": "GreenGo",
-    "version": "1.0.26",
+    "version": "1.0.27",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "greengo",
@@ -14,7 +14,12 @@
       "buildNumber": "16",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "entitlements": {
+        "aps-environment": "development"
+      },
+      "appleTeamId": "XWMS8J62JX",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,7 +34,8 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "io.greengo.app"
+      "package": "io.greengo.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -37,6 +43,16 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-notifications",
+        {
+          "color": "#3BB54A",
+          "defaultChannel": "orders",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -61,7 +77,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "15.1",
+            "useFrameworks": "static"
           },
           "android": {
             "minSdkVersion": 21
@@ -73,7 +90,8 @@
         {
           "websiteId": "c13038eb-f0b9-4d39-aadb-902b015646ee"
         }
-      ]
+      ],
+      "./plugins/withFirebaseCocoaPods"
     ],
     "experiments": {
       "typedRoutes": true,

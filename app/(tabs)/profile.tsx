@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiService } from "../../utils/api";
 import { openCrispChat } from "../../utils/crisp";
+import { requireAuth } from "../../utils/requireAuth";
 
 interface Order {
   _id: string;
@@ -64,7 +65,7 @@ function ProfileRow({
 }
 
 export default function ProfileScreen() {
-  const { logout, user } = useAuth();
+  const { logout, user, isAuthenticated } = useAuth();
   const { formattedBalance } = useGreenGoBalance();
   const [totalOrders, setTotalOrders] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -130,6 +131,7 @@ export default function ProfileScreen() {
   };
 
   const getUserDisplayName = () => {
+    if (!isAuthenticated) return "სტუმარი";
     if (user?.name) return user.name;
     if (user?.firstName && user?.lastName) {
       return `${user.firstName} ${user.lastName}`;
@@ -140,7 +142,16 @@ export default function ProfileScreen() {
 
   const getGreetingName = () => getUserDisplayName().split(" ")[0];
 
+  const withAuth = (action: () => void) => {
+    if (!requireAuth(isAuthenticated, router)) return;
+    action();
+  };
+
   const handleLogout = () => {
+    if (!isAuthenticated) {
+      router.push("/screens/login");
+      return;
+    }
     Alert.alert("გასვლა", "ნამდვილად გსურთ გასვლა?", [
       { text: "გაუქმება", style: "cancel" },
       {
@@ -194,7 +205,9 @@ export default function ProfileScreen() {
             </View>
             {primaryCard ? (
               <TouchableOpacity
-                onPress={() => router.push("/screens/paymentMethods")}
+                onPress={() =>
+                  withAuth(() => router.push("/screens/paymentMethods"))
+                }
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Text style={styles.changeText}>შეცვლა</Text>
@@ -204,7 +217,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             style={styles.addCardButton}
-            onPress={() => router.push("/screens/addCard")}
+            onPress={() => withAuth(() => router.push("/screens/addCard"))}
             activeOpacity={0.88}
           >
             <Ionicons name="add" size={16} color={BRAND_GREEN} />
@@ -219,22 +232,24 @@ export default function ProfileScreen() {
               <ProfileRow
                 icon="person-outline"
                 label="სახელი გვარი"
-                onPress={() => router.push("/screens/editName")}
+                onPress={() => withAuth(() => router.push("/screens/editName"))}
               />
               <ProfileRow
                 icon="call-outline"
                 label="მობილურის ნომერი"
-                onPress={() => router.push("/screens/editPhone")}
+                onPress={() => withAuth(() => router.push("/screens/editPhone"))}
               />
               <ProfileRow
                 icon="mail-outline"
                 label="ელ.ფოსტა"
-                onPress={() => router.push("/screens/editEmail")}
+                onPress={() => withAuth(() => router.push("/screens/editEmail"))}
               />
               <ProfileRow
                 icon="location-outline"
                 label="საქართველო"
-                onPress={() => router.push("/screens/selectCountry")}
+                onPress={() =>
+                  withAuth(() => router.push("/screens/selectCountry"))
+                }
               />
             </View>
           </View>
@@ -245,17 +260,26 @@ export default function ProfileScreen() {
               <ProfileRow
                 icon="card-outline"
                 label="ბარათები"
-                onPress={() => router.push("/screens/paymentMethods")}
+                onPress={() =>
+                  withAuth(() => router.push("/screens/paymentMethods"))
+                }
               />
               <ProfileRow
                 icon="pricetag-outline"
                 label="პრომო კოდები"
-                onPress={() => router.push("/screens/promoCodes")}
+                onPress={() =>
+                  withAuth(() => router.push("/screens/promoCodes"))
+                }
               />
               <ProfileRow
                 icon="settings-outline"
                 label="პარამეტრები"
-                onPress={() => router.push("/screens/settings")}
+                onPress={() => withAuth(() => router.push("/screens/settings"))}
+              />
+              <ProfileRow
+                icon="document-text-outline"
+                label="წესები და პირობები"
+                onPress={() => router.push("/screens/terms")}
               />
               <ProfileRow
                 icon="help-circle-outline"
@@ -271,12 +295,16 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.ordersCard}
             activeOpacity={0.85}
-            onPress={() => router.push("/screens/orderHistory")}
+            onPress={() => withAuth(() => router.push("/screens/orderHistory"))}
           >
             <View>
               <Text style={styles.ordersCardTitle}>შეკვეთების ისტორია</Text>
               <Text style={styles.ordersCardSub}>
-                {loadingOrders ? "..." : `${totalOrders}+ შეკვეთა`}
+                {!isAuthenticated
+                  ? "შესვლა საჭიროა"
+                  : loadingOrders
+                    ? "..."
+                    : `${totalOrders}+ შეკვეთა`}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9B9B9B" />
@@ -284,8 +312,19 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>გასვლა</Text>
+          <Ionicons
+            name={isAuthenticated ? "log-out-outline" : "log-in-outline"}
+            size={20}
+            color={isAuthenticated ? "#EF4444" : BRAND_GREEN}
+          />
+          <Text
+            style={[
+              styles.logoutText,
+              !isAuthenticated && { color: BRAND_GREEN },
+            ]}
+          >
+            {isAuthenticated ? "გასვლა" : "შესვლა"}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.bottomSpacing} />

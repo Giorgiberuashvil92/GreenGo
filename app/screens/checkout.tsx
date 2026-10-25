@@ -12,21 +12,22 @@ import {
   formatDeliveryDistance,
 } from "@/utils/deliveryFee";
 import {
+  CheckoutPaymentSelection,
+  getPaymentDisplayLine,
+  loadCheckoutPayment,
+} from "@/utils/payment";
+import {
   calculateCheckoutTotal,
   calculatePromoSavings,
   formatPromoDiscountLabel,
   type ValidatedPromoCode,
 } from "@/utils/promoCode";
-import {
-  CheckoutPaymentSelection,
-  getPaymentDisplayLine,
-  loadCheckoutPayment,
-} from "@/utils/payment";
-import { getDistance } from "@/utils/restaurantUtils";
-import { getDeliveryFixedDiscount } from "@/utils/restaurantOffers";
 import type { RestaurantOffer } from "@/utils/restaurantOffers";
+import { getDeliveryFixedDiscount } from "@/utils/restaurantOffers";
+import { getDistance } from "@/utils/restaurantUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -48,7 +49,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useCart } from "../../contexts/CartContext";
 import { useRestaurant } from "../../hooks/useRestaurants";
 import { apiService } from "../../utils/api";
-import * as WebBrowser from "expo-web-browser";
+import { requireAuth } from "../../utils/requireAuth";
 
 const PRIMARY_GREEN = "#1D4045";
 const QTY_BG = "#EFFBF5";
@@ -88,10 +89,16 @@ export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { cartItems, updateQuantity, removeFromCart } = useCart();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { restaurant, loading: restaurantLoading } = useRestaurant(
     restaurantId || "",
   );
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/screens/login");
+    }
+  }, [isAuthenticated, router]);
   const [tipAmount, setTipAmount] = useState<number>(3);
   const [activeTipKey, setActiveTipKey] = useState<TipOptionKey>("3");
   const [showTipModal, setShowTipModal] = useState(false);
@@ -385,6 +392,8 @@ export default function CheckoutScreen() {
     console.log("Restaurant:", restaurant?._id);
     console.log("Cart items:", restaurantCartItems.length);
 
+    if (!requireAuth(isAuthenticated, router)) return;
+
     if (!user?.id || !restaurant?._id) {
       console.log("❌ Missing user or restaurant");
       Alert.alert("შეცდომა", "გთხოვთ დალოგინდეთ და სცადეთ თავიდან");
@@ -540,7 +549,9 @@ export default function CheckoutScreen() {
         const paymentUrl = (response.data as any)?.paymentUrl as
           | string
           | undefined;
-        // paymentUrl თუ არაა (SKIP_FLITT_PAYMENT) — პირდაპირ წარმატება
+        if (paymentMethod === "card" && !paymentUrl) {
+          throw new Error("გადახდის გვერდი ვერ შეიქმნა");
+        }
         if (paymentMethod === "card" && paymentUrl) {
           const paymentResult = await WebBrowser.openAuthSessionAsync(
             paymentUrl,
@@ -548,6 +559,31 @@ export default function CheckoutScreen() {
           );
           if (paymentResult.type !== "success") {
             Alert.alert("გადახდა გაუქმდა", "შეკვეთა ჯერ არ არის გადახდილი.");
+            return;
+          }
+          const paymentOrderId = String((response.data as any)?._id || "");
+          const statusToken = String(
+            (response.data as any)?.paymentStatusToken || "",
+          );
+          let paid = false;
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const check = await apiService.getBogPaymentStatus(
+              paymentOrderId,
+              statusToken,
+            );
+            const status = (check.data as any)?.status;
+            if (check.success && status === "paid") {
+              paid = true;
+              break;
+            }
+            if (status === "failed") break;
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+          if (!paid) {
+            Alert.alert(
+              "გადახდა არ დადასტურდა",
+              "შეამოწმე შეკვეთების გვერდი. თუ თანხა ჩამოგეჭრა, ხელახლა გადახდამდე დაუკავშირდი მხარდაჭერას.",
+            );
             return;
           }
         }
@@ -1042,10 +1078,7 @@ export default function CheckoutScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.confirmBtn,
-            isSubmitting && styles.confirmBtnDisabled,
-          ]}
+          style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
           onPress={() => {
             console.log("🔘 Confirm button pressed");
             handleConfirmOrder();

@@ -41,16 +41,17 @@ describe('BOG payments', () => {
         currency_code: 'GEL',
       },
     };
-    fetchMock = jest.spyOn(global, 'fetch').mockImplementation(
-      async (url) =>
-        ({
-          ok: true,
-          json: async () =>
-            String(url).includes('/token')
-              ? { access_token: 'token', expires_in: 300 }
-              : receipt,
-        }) as Response,
-    );
+    fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      const payload = String(url).includes('/token')
+        ? { access_token: 'token', expires_in: 300 }
+        : receipt;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      } as Response;
+    });
   });
   afterEach(() => jest.restoreAllMocks());
   it('checks the bank before creating a paid order', async () => {
@@ -128,19 +129,20 @@ describe('BOG payments', () => {
       orders,
       intents,
     );
-    fetchMock.mockImplementation(
-      async (url) =>
-        ({
-          ok: true,
-          json: async () =>
-            String(url).includes('/token')
-              ? { access_token: 'token', expires_in: 300 }
-              : {
-                  id: 'new-bank-order',
-                  _links: { redirect: { href: 'https://payment.bog.ge/test' } },
-                },
-        }) as Response,
-    );
+    fetchMock.mockImplementation(async (url) => {
+      const payload = String(url).includes('/token')
+        ? { access_token: 'token', expires_in: 300 }
+        : {
+            id: 'new-bank-order',
+            _links: { redirect: { href: 'https://payment.bog.ge/test' } },
+          };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      } as Response;
+    });
     const result = await service.createPaymentIntent({}, 12.34, 'GreenGo');
     expect(result.checkoutUrl).toBe('https://payment.bog.ge/test');
     const options = fetchMock.mock.calls[1][1];
@@ -155,7 +157,12 @@ describe('BOG payments', () => {
     expect(result).not.toHaveProperty('access_token');
   });
   it('does not fulfill when the bank API fails', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'service unavailable',
+      json: async () => ({}),
+    });
     await expect(
       service.getStatus(intent.orderId.toString(), 'capability'),
     ).rejects.toThrow();

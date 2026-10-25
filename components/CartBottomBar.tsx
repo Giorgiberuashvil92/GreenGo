@@ -3,7 +3,9 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
+import { requireAuth } from "../utils/requireAuth";
 
 /** მაკეტის მუქი მწვანე — ერთიანი pill ბარათი */
 const BAR_GREEN = "#0E4D27";
@@ -19,6 +21,7 @@ function formatTotal(n: number): string {
 export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
   const insets = useSafeAreaInsets();
   const { cartItems } = useCart();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   const restaurantCartItems = cartItems.filter(
@@ -38,6 +41,7 @@ export default function CartBottomBar({ restaurantId }: CartBottomBarProps) {
   }
 
   const handleCheckout = () => {
+    if (!requireAuth(isAuthenticated, router)) return;
     router.push({
       pathname: "/screens/checkout",
       params: { restaurantId },

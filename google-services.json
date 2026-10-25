@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "301817936462",
+    "project_id": "greengo-c2af0",
+    "storage_bucket": "greengo-c2af0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:301817936462:android:59ca4022766285f67a611f",
+        "android_client_info": {
+          "package_name": "com.greengo.business"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrXAoDMozPBS-0TuMC5fU3McuvCQ70Ru0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:301817936462:android:f80cc07076664aab7a611f",
+        "android_client_info": {
+          "package_name": "com.herrra.greengocourier"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrXAoDMozPBS-0TuMC5fU3McuvCQ70Ru0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:301817936462:android:69839b0a14c896d57a611f",
+        "android_client_info": {
+          "package_name": "io.greengo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrXAoDMozPBS-0TuMC5fU3McuvCQ70Ru0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

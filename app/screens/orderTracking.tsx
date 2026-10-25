@@ -592,7 +592,11 @@ export default function OrderTrackingScreen() {
                 Alert.alert("გაუქმებულია", "შეკვეთა წარმატებით გაუქმდა", [
                   {
                     text: "კარგი",
-                    onPress: () => router.replace("/(tabs)/orders"),
+                    onPress: () =>
+                      router.replace({
+                        pathname: "/(tabs)/orders",
+                        params: { tab: "previous" },
+                      }),
                   },
                 ]);
               } catch (err: unknown) {

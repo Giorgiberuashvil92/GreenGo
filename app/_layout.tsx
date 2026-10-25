@@ -6,6 +6,7 @@ import AuthGuard from "@/components/AuthGuard";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { CartProvider } from "../contexts/CartContext";
 import { useAppFonts } from "../hooks/useFonts";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import {
   configureCrisp,
   identifyCrispUser,
@@ -30,6 +31,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <CrispBootstrap />
+      <CustomerPushBootstrap />
       <CartProvider>
         <AuthGuard>
           <Stack>
@@ -246,6 +248,21 @@ function CrispBootstrap() {
       resetCrispSession();
     }
   }, [isAuthenticated, user]);
+
+  return null;
+}
+
+function CustomerPushBootstrap() {
+  const { user, isAuthenticated } = useAuth();
+  const userId =
+    (user?.id as string | undefined) ||
+    (user as { _id?: string } | null)?._id ||
+    null;
+
+  usePushNotifications({
+    userId: isAuthenticated ? userId : null,
+    enabled: isAuthenticated,
+  });
 
   return null;
 }

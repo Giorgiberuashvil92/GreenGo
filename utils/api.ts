@@ -328,6 +328,10 @@ class ApiService {
     return this.request(`/orders${query ? `?${query}` : ''}`);
   }
 
+  async getBogPaymentStatus(orderId: string, token: string) {
+    return this.request(`/payments/bog/${encodeURIComponent(orderId)}/status?token=${encodeURIComponent(token)}`);
+  }
+
   async getOrder(id: string) {
     return this.request(`/orders/${id}`);
   }
@@ -343,6 +347,23 @@ class ApiService {
   async cancelOrder(id: string) {
     return this.request(`/orders/${id}/cancel`, {
       method: 'POST',
+    });
+  }
+
+  /** Native FCM/APNs token — Firebase Admin-ით გასაგზავნი */
+  async updateUserPushToken(
+    userId: string,
+    payload: {
+      fcmToken: string;
+      platform: 'ios' | 'android';
+    },
+  ) {
+    return this.request(`/users/${userId}/push-token`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        fcmToken: payload.fcmToken,
+        pushPlatform: payload.platform,
+      }),
     });
   }
 

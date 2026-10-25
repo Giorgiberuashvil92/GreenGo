@@ -98,7 +98,7 @@ export default function PaymentMethodsScreen() {
     setShowCardModal(true);
   };
 
-  const handleFlittPaymentPress = () => {
+  const handleBogPaymentPress = () => {
     if (isSelectMode) {
       void selectMethodForCheckout("card");
     }
@@ -167,7 +167,7 @@ export default function PaymentMethodsScreen() {
   };
 
   const isCashSelected = isSelectMode && checkoutSelection?.method === "cash";
-  const isFlittSelected = isSelectMode && checkoutSelection?.method === "card";
+  const isBogSelected = isSelectMode && checkoutSelection?.method === "card";
 
   return (
     <>
@@ -194,25 +194,25 @@ export default function PaymentMethodsScreen() {
           <View style={styles.methodsList}>
             {isSelectMode ? (
               <TouchableOpacity
-                style={[styles.methodCard, isFlittSelected && styles.methodCardActive]}
-                onPress={handleFlittPaymentPress}
+                style={[styles.methodCard, isBogSelected && styles.methodCardActive]}
+                onPress={handleBogPaymentPress}
                 activeOpacity={0.82}
               >
                 <View style={styles.methodIconCard}>
                   <Ionicons name="card-outline" size={28} color={BRAND_GREEN} />
                 </View>
                 <View style={styles.methodCopy}>
-              <Text style={[styles.methodTitle, isFlittSelected && styles.methodTitleActive]}>
+              <Text style={[styles.methodTitle, isBogSelected && styles.methodTitleActive]}>
                 ბარათით გადახდა
               </Text>
-              <Text style={[styles.methodSubtitle, isFlittSelected && styles.methodSubtitleActive]}>
-                უსაფრთხო გადახდა Flitt-ით
+              <Text style={[styles.methodSubtitle, isBogSelected && styles.methodSubtitleActive]}>
+                უსაფრთხო გადახდა საქართველოს ბანკით
               </Text>
                 </View>
                 <Ionicons
-                  name={isFlittSelected ? "checkmark-circle" : "ellipse-outline"}
+                  name={isBogSelected ? "checkmark-circle" : "ellipse-outline"}
                   size={25}
-                  color={isFlittSelected ? LIST_ACCENT_GREEN : "#C8D2D0"}
+                  color={isBogSelected ? LIST_ACCENT_GREEN : "#C8D2D0"}
                 />
               </TouchableOpacity>
             ) : loadingCards ? (

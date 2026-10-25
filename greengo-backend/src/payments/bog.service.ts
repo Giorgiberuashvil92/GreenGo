@@ -89,8 +89,10 @@ export class BogService {
     return data.access_token;
   }
   private async request(path: string, body?: unknown, idempotencyKey?: string) {
+    const method = body ? 'POST' : 'GET';
+    console.log(`🏦 BOG → ${method} ${path}`, body ? JSON.stringify(body) : '');
     const response = await fetch(`${API}${path}`, {
-      method: body ? 'POST' : 'GET',
+      method,
       signal: AbortSignal.timeout(20000),
       headers: {
         Authorization: `Bearer ${await this.accessToken()}`,
@@ -100,11 +102,19 @@ export class BogService {
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
+    const raw = await response.text();
+    let data: unknown = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      data = raw;
+    }
+    console.log(`🏦 BOG ← ${response.status} ${path}`, typeof data === 'string' ? data : JSON.stringify(data));
     if (!response.ok) {
       if (response.status === 401) this.token = undefined;
       throw new InternalServerErrorException('BOG payment request failed');
     }
-    return response.json();
+    return data;
   }
   async createPaymentIntent(
     orderPayload: Record<string, unknown>,
@@ -266,6 +276,7 @@ export class BogService {
         : intent.bogOrderId
           ? await this.reconcile(intent.bogOrderId)
           : 'pending';
+    console.log(`🏦 BOG status order=${orderId} → ${status}`);
     return { status };
   }
 }

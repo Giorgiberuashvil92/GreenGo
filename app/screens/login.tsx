@@ -25,7 +25,12 @@ const LoginScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { sendVerificationCode } = useAuth();
+  const { sendVerificationCode, enterGuestMode } = useAuth();
+
+  const handleSkip = async () => {
+    await enterGuestMode();
+    router.replace("/(tabs)");
+  };
 
   const handleSendCode = async () => {
     if (!phoneNumber || phoneNumber.length < 9) {
@@ -101,7 +106,9 @@ const LoginScreen = () => {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.sendButton}
-              onPress={() => router.replace("/(tabs)")}
+              onPress={handleSkip}
+              accessibilityRole="button"
+              accessibilityLabel="გამოტოვება"
             >
               <Text style={styles.sendButtonText}>გამოტოვება</Text>
             </TouchableOpacity>

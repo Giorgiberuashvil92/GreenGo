@@ -21,6 +21,15 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={listRow}
+            accessibilityRole="button"
+            onPress={() => router.push("/screens/terms")}
+          >
+            <Text style={listRowText}>წესები და პირობები</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={listRow}
             onPress={() => router.push("/screens/deleteAccount")}
           >
             <Text style={[listRowText, styles.destructive]}>
