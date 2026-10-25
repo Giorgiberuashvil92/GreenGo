@@ -61,6 +61,9 @@ export class Order {
   paymentStatus?: 'pending' | 'paid' | 'failed';
 
   @Prop()
+  bogOrderId?: string;
+
+  @Prop()
   flittOrderId?: string;
 
   @Prop()

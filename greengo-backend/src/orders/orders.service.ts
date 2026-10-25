@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  OnModuleInit,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -9,7 +10,7 @@ import { Model, Types } from 'mongoose';
 import { AuthService } from '../auth/auth.service';
 import { calculateDeliveryFeeFromDistance } from '../common/delivery-fee.util';
 import { CouriersService } from '../couriers/couriers.service';
-import { FlittService } from '../payments/flitt.service';
+import { BogService } from '../payments/bog.service';
 import { PromoCodesService } from '../promo-codes/promo-codes.service';
 import { PushNotificationsService } from '../notifications/push-notifications.service';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
@@ -18,7 +19,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
 
 @Injectable()
-export class OrdersService {
+export class OrdersService implements OnModuleInit {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Restaurant.name) private restaurantModel: Model<RestaurantDocument>,
@@ -26,9 +27,21 @@ export class OrdersService {
     private usersService: UsersService,
     private promoCodesService: PromoCodesService,
     private authService: AuthService,
-    private flittService: FlittService,
+    private bogService: BogService,
     private pushNotificationsService: PushNotificationsService,
   ) {}
+
+  onModuleInit() {
+    this.bogService.onOrderPaid = async (order) => {
+      const restaurant = await this.restaurantModel.findById(order.restaurantId).select('name').lean().exec();
+      this.scheduleBusinessOrderNotifications(String(order._id), String(order.restaurantId), restaurant?.name || 'GreenGo');
+      try {
+        await this.authService.sendOrderNotificationSms(`GreenGo: ახალი შეკვეთა #${String(order._id).slice(-6).toUpperCase()}`);
+      } catch (error) {
+        console.error('Paid order SMS failed:', error);
+      }
+    };
+  }
 
   /**
    * Calculate distance between two coordinates using Haversine formula
@@ -110,23 +123,36 @@ export class OrdersService {
       (error: unknown) => console.error('Business new order push შეცდომა:', error),
     );
 
-    setTimeout(() => {
-      void (async () => {
-        const order = await this.orderModel
-          .findById(orderId)
-          .select('status')
-          .lean()
-          .exec();
-        if (order?.status !== 'pending') return;
+    const sendReminderUntilResolved = async (): Promise<void> => {
+      const order = await this.orderModel
+        .findById(orderId)
+        .select('status')
+        .lean()
+        .exec();
 
+      if (order?.status !== 'pending') return;
+
+      try {
         await this.notifyBusinessOfNewOrder(
           orderId,
           restaurantId,
           restaurantName,
           true,
         );
-      })().catch((error: unknown) =>
-        console.error('Business order reminder push შეცდომა:', error),
+      } catch (error: unknown) {
+        console.error('Business order reminder push შეცდომა:', error);
+      }
+
+      setTimeout(() => {
+        void sendReminderUntilResolved().catch((error: unknown) =>
+          console.error('Business order reminder loop შეცდომა:', error),
+        );
+      }, 15_000);
+    };
+
+    setTimeout(() => {
+      void sendReminderUntilResolved().catch((error: unknown) =>
+        console.error('Business order reminder loop შეცდომა:', error),
       );
     }, 15_000);
   }
@@ -216,11 +242,8 @@ export class OrdersService {
       };
 
       // Do not create a real Order before an online card payment succeeds.
-      // დროებითი bypass: SKIP_FLITT_PAYMENT=true — Flitt-ის გარეშე შეკვეთა
-      const skipFlitt = process.env.SKIP_FLITT_PAYMENT === 'true';
-
-      if (createOrderDto.paymentMethod === 'card' && !skipFlitt) {
-        const checkout = await this.flittService.createPaymentIntent(
+      if (createOrderDto.paymentMethod === 'card') {
+        const checkout = await this.bogService.createPaymentIntent(
           orderPayload as Record<string, unknown>,
           newTotalAmount,
           `GreenGo order ${new Types.ObjectId().toString().slice(-6).toUpperCase()}`,
@@ -230,14 +253,12 @@ export class OrdersService {
           _id: checkout.orderId,
           paymentStatus: 'pending',
           paymentUrl: checkout.checkoutUrl,
+          paymentStatusToken: checkout.statusToken,
         } as any;
       }
 
       const createdOrder = new this.orderModel({
         ...orderPayload,
-        ...(createOrderDto.paymentMethod === 'card' && skipFlitt
-          ? { paymentStatus: 'paid' }
-          : {}),
       });
 
       const savedOrder = await createdOrder.save();
@@ -296,7 +317,7 @@ export class OrdersService {
       filter.restaurantId = restaurantId;
     }
 
-    // Card orders become visible to the business only after Flitt confirms payment.
+    // Card orders become visible to the business only after the payment provider confirms payment.
     // Customer queries (with userId) must still be able to see their pending order.
     if (restaurantId && !userId) {
       filter.$and = filter.$and || [];
