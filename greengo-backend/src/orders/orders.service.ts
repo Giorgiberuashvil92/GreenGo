@@ -243,9 +243,11 @@ export class OrdersService implements OnModuleInit {
 
       // Do not create a real Order before an online card payment succeeds.
       if (createOrderDto.paymentMethod === 'card') {
+        // TODO: temporary test charge — restore `newTotalAmount` after BOG sandbox tests.
+        const bogChargeAmountGel = 1;
         const checkout = await this.bogService.createPaymentIntent(
           orderPayload as Record<string, unknown>,
-          newTotalAmount,
+          bogChargeAmountGel,
           `GreenGo order ${new Types.ObjectId().toString().slice(-6).toUpperCase()}`,
         );
         return {
