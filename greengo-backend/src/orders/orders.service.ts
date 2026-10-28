@@ -34,6 +34,7 @@ export class OrdersService implements OnModuleInit {
   onModuleInit() {
     this.bogService.onOrderPaid = async (order) => {
       const restaurant = await this.restaurantModel.findById(order.restaurantId).select('name').lean().exec();
+      this.notifyCouriersOfOrderStatus(order, restaurant?.name);
       this.scheduleBusinessOrderNotifications(String(order._id), String(order.restaurantId), restaurant?.name || 'GreenGo');
       try {
         await this.authService.sendOrderNotificationSms(`GreenGo: ახალი შეკვეთა #${String(order._id).slice(-6).toUpperCase()}`);
@@ -41,6 +42,20 @@ export class OrdersService implements OnModuleInit {
         console.error('Paid order SMS failed:', error);
       }
     };
+  }
+
+  private notifyCouriersOfOrderStatus(order: OrderDocument, restaurantName?: string): void {
+    if (order.deliveryType !== 'delivery') return;
+    const restaurant = order.restaurantId as unknown as { name?: string } | null;
+    const courier = order.courierId as unknown as { _id?: unknown } | string | null;
+    void this.couriersService.notifyAvailableCouriersOfNewOrder({
+      orderId: String(order._id),
+      status: order.status,
+      restaurantName: restaurantName || restaurant?.name,
+      courierId: courier ? String(typeof courier === 'object' && courier._id ? courier._id : courier) : undefined,
+    }).catch((error: unknown) => {
+      console.error('კურიერების FCM status notify შეცდომა:', error);
+    });
   }
 
   /**
@@ -263,6 +278,7 @@ export class OrdersService implements OnModuleInit {
 
       const savedOrder = await createdOrder.save();
       console.log('✅ Order created successfully:', savedOrder._id);
+      this.notifyCouriersOfOrderStatus(savedOrder, restaurant.name);
 
       // Notify one configured number for every order, regardless of the restaurant.
       // SMS delivery must not make an otherwise valid order fail.
@@ -617,7 +633,9 @@ export class OrdersService implements OnModuleInit {
       order.courierId = courierId as any;
       order.status = 'preparing';
       console.log(`✅ კურიერი ${courierId} დაადასტურა შეკვეთა ${orderId} - სტატუსი ავტომატურად გადავიდა 'preparing'-ზე`);
-      return order.save();
+      const savedOrder = await order.save();
+      this.notifyCouriersOfOrderStatus(savedOrder);
+      return savedOrder;
     }
 
     // Otherwise, find the nearest available courier
@@ -645,7 +663,9 @@ export class OrdersService implements OnModuleInit {
     order.status = 'preparing';
     console.log(`✅ კურიერი ${assignedCourierId} ავტომატურად მიენიჭა შეკვეთას ${orderId} - სტატუსი გადავიდა 'preparing'-ზე`);
 
-    return order.save();
+    const savedOrder = await order.save();
+    this.notifyCouriersOfOrderStatus(savedOrder);
+    return savedOrder;
   }
 
   /**
@@ -783,33 +803,8 @@ export class OrdersService implements OnModuleInit {
       throw new NotFoundException(`შეკვეთა ID ${id} ვერ მოიძებნა`);
     }
 
-    // კერძის მომზადების დასრულებისას — FCM push ხელმისაწვდომ კურიერებს (Firebase Admin)
-    if (
-      status === 'ready' &&
-      updatedOrder.deliveryType === 'delivery'
-    ) {
-      const restaurantName =
-        typeof updatedOrder.restaurantId === 'object' &&
-        updatedOrder.restaurantId &&
-        'name' in updatedOrder.restaurantId
-          ? String((updatedOrder.restaurantId as { name?: string }).name || '')
-          : undefined;
-
-      void this.couriersService
-        .notifyAvailableCouriersOfNewOrder({
-          orderId: String(updatedOrder._id),
-          restaurantName,
-          courierId: updatedOrder.courierId
-            ? String(
-                typeof updatedOrder.courierId === 'object' && '_id' in updatedOrder.courierId
-                  ? updatedOrder.courierId._id
-                  : updatedOrder.courierId,
-              )
-            : undefined,
-        })
-        .catch((err: unknown) => {
-          console.error('კურიერების FCM notify შეცდომა:', err);
-        });
+    if (order.status !== status) {
+      this.notifyCouriersOfOrderStatus(updatedOrder);
     }
 
     // მომხმარებელს — სტატუსის FCM push
@@ -901,6 +896,7 @@ export class OrdersService implements OnModuleInit {
         console.error('მომხმარებლის FCM cancel notify შეცდომა:', err);
       });
 
+    this.notifyCouriersOfOrderStatus(updated);
     return updated;
   }
 

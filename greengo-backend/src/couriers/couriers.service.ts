@@ -280,6 +280,7 @@ export class CouriersService {
     orderId: string;
     restaurantName?: string;
     courierId?: string;
+    status?: string;
   }): Promise<void> {
     if (!this.pushNotificationsService.isReady()) {
       this.logger.warn('FCM არ არის მზად — კურიერების notify გამოტოვებულია');
@@ -304,14 +305,26 @@ export class CouriersService {
       return;
     }
 
-    const restaurantLabel = params.restaurantName?.trim() || 'რესტორანი';
+    const status = params.status || 'ready';
+    const labels: Record<string, string> = {
+      pending: 'ახალი შეკვეთა',
+      confirmed: 'შეკვეთა დადასტურებულია',
+      preparing: 'შეკვეთა მზადდება',
+      ready: 'შეკვეთა მზადაა ასაღებად',
+      delivering: 'შეკვეთა გზაშია',
+      delivered: 'შეკვეთა ჩაბარებულია',
+      cancelled: 'შეკვეთა გაუქმებულია',
+    };
+    const statusLabel = labels[status] || 'შეკვეთის სტატუსი შეიცვალა';
+    const restaurantLabel = params.restaurantName?.trim() || 'GreenGo';
     const result = await this.pushNotificationsService.send(
       couriers.map((c) => ({
         token: c.fcmToken as string,
-        title: params.courierId ? 'შეკვეთა მზადაა' : 'ახალი შეკვეთა',
-        body: `${restaurantLabel} — კერძი მზადაა ასაღებად`,
+        title: statusLabel,
+        body: `${restaurantLabel} — ${statusLabel}`,
         data: {
-          type: 'new_order',
+          type: status === 'pending' || status === 'confirmed' || status === 'ready' ? 'new_order' : 'order_status',
+          status,
           orderId: String(params.orderId),
         },
       })),
